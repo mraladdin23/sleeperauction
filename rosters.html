@@ -185,7 +185,14 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-si
 
 <script>
 const CAP       = 301_200_000;
-const CSV_URL   = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTHlAuxnGZv5k__D0ssTLGice7tSPw1BZmNUiSULQWwnIJDGoEJcrNgzz1unk4ejfWL__g0zAaCeHeJ/pub?gid=1691605792&single=true&output=csv';
+const SHEET_ID   = '2PACX-1vTHlAuxnGZv5k__D0ssTLGice7tSPw1BZmNUiSULQWwnIJDGoEJcrNgzz1unk4ejfWL__g0zAaCeHeJ';
+const GID        = '1691605792';
+const CSV_URL    = `https://docs.google.com/spreadsheets/d/e/${SHEET_ID}/pub?gid=${GID}&single=true&output=csv`;
+const PROXY_URLS = [
+  `https://corsproxy.io/?${encodeURIComponent(CSV_URL)}`,
+  `https://api.allorigins.win/raw?url=${encodeURIComponent(CSV_URL)}`,
+  CSV_URL, // last resort direct (works on some browsers/contexts)
+];
 const CACHE_KEY = 'sleeperBidSalaryCSV';
 const CACHE_TS  = 'sleeperBidSalaryTS';
 const CACHE_TTL = 5 * 60 * 1000;
@@ -299,11 +306,21 @@ async function loadData(force=false) {
       if (cached && Date.now()-ts < CACHE_TTL) csv=cached;
     }
     if (!csv) {
-      const res=await fetch(CSV_URL);
-      if (!res.ok) throw new Error('HTTP '+res.status);
-      csv=await res.text();
-      localStorage.setItem(CACHE_KEY,csv);
-      localStorage.setItem(CACHE_TS,Date.now().toString());
+      let lastErr = null;
+      for (const url of PROXY_URLS) {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('HTTP '+res.status);
+          const text = await res.text();
+          // Sanity check — real CSV starts with a team name, not HTML
+          if (text.trim().startsWith('<')) throw new Error('Got HTML instead of CSV');
+          csv = text;
+          break;
+        } catch(e) { lastErr = e; }
+      }
+      if (!csv) throw lastErr || new Error('All fetch attempts failed');
+      localStorage.setItem(CACHE_KEY, csv);
+      localStorage.setItem(CACHE_TS, Date.now().toString());
     }
     DATA=parseSheet(parseCSV(csv));
     const ts=new Date(parseInt(localStorage.getItem(CACHE_TS)));
