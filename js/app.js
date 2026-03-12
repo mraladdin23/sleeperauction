@@ -120,32 +120,61 @@ const App = (() => {
     state.leagueName = league.name;
     state.players    = players;
 
-    // Build teams
+    // Determine FAAB budget from league settings (falls back to 100)
+    const leagueFaabBudget = league.settings?.waiver_budget ?? 100;
+
+    // Build teams — use league-level budget since roster-level is often 0
     const userMap = {};
     users.forEach(u => { userMap[u.user_id] = u; });
 
     state.teams = rosters.map(r => {
       const u = userMap[r.owner_id] || {};
+      // waiver_bid_used is cumulative spent; budget comes from league settings
+      const used   = r.settings?.waiver_bid_used ?? 0;
+      const budget = leagueFaabBudget;
       return {
         roster_id:    r.roster_id,
         owner_id:     r.owner_id,
         username:     u.display_name || u.username || `Team ${r.roster_id}`,
         display_name: u.display_name || u.username || `Team ${r.roster_id}`,
         avatar:       u.avatar,
-        faab_budget:  r.settings?.waiver_budget  ?? 100,
-        faab_used:    r.settings?.waiver_bid_used ?? 0,
+        faab_budget:  budget,
+        faab_used:    used,
         players:      r.players || [],
       };
     });
 
-    // Free agents
+    // Fetch last season's stats to rank free agents (non-blocking)
+    const currentYear = new Date().getFullYear();
+    const statsYear   = currentYear - 1; // use previous season
+    UI.setLoading(`Loading ${statsYear} stats for rankings…`);
+    let statsMap = {};
+    try { statsMap = await Sleeper.fetchStats(statsYear); } catch (e) { /* non-fatal */ }
+    state.statsMap = statsMap;
+
+    // Skill positions only: QB, RB, WR, TE
+    const SKILL_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE']);
+
+    // Free agents — only active skill-position players with meaningful stats or search_rank
     const rostered = new Set(rosters.flatMap(r => r.players || []));
     state.freeAgents = Object.keys(players)
       .filter(id => {
         const p = players[id];
-        return !rostered.has(id) && p.active && p.fantasy_positions?.length > 0;
+        if (rostered.has(id)) return false;
+        if (!p.active) return false;
+        const positions = p.fantasy_positions || [];
+        // Must have at least one skill position
+        return positions.some(pos => SKILL_POSITIONS.has(pos));
       })
-      .sort((a, b) => (players[a].search_rank || 9999) - (players[b].search_rank || 9999));
+      .sort((a, b) => {
+        // Sort by fantasy points scored last season, then fall back to search_rank
+        const apts = statsMap[a]?.pts_half_ppr ?? statsMap[a]?.pts_ppr ?? null;
+        const bpts = statsMap[b]?.pts_half_ppr ?? statsMap[b]?.pts_ppr ?? null;
+        if (apts !== null && bpts !== null) return bpts - apts;
+        if (apts !== null) return -1;
+        if (bpts !== null) return 1;
+        return (players[a].search_rank || 9999) - (players[b].search_rank || 9999);
+      });
 
     state.isCommissioner = league.owner_id === state.user.user_id;
 
@@ -193,12 +222,25 @@ const App = (() => {
     UI.toast('Refreshing free agents…', 'info');
     await Sleeper.invalidatePlayerCache();
     try {
+      const SKILL_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE']);
       const [players, rosters] = await Promise.all([Sleeper.fetchPlayers(), Sleeper.fetchRosters(state.leagueId)]);
       state.players = players;
       const rostered = new Set(rosters.flatMap(r => r.players || []));
+      const statsMap = state.statsMap || {};
       state.freeAgents = Object.keys(players)
-        .filter(id => { const p = players[id]; return !rostered.has(id) && p.active && p.fantasy_positions?.length > 0; })
-        .sort((a, b) => (players[a].search_rank || 9999) - (players[b].search_rank || 9999));
+        .filter(id => {
+          const p = players[id];
+          if (rostered.has(id) || !p.active) return false;
+          return (p.fantasy_positions || []).some(pos => SKILL_POSITIONS.has(pos));
+        })
+        .sort((a, b) => {
+          const apts = statsMap[a]?.pts_half_ppr ?? statsMap[a]?.pts_ppr ?? null;
+          const bpts = statsMap[b]?.pts_half_ppr ?? statsMap[b]?.pts_ppr ?? null;
+          if (apts !== null && bpts !== null) return bpts - apts;
+          if (apts !== null) return -1;
+          if (bpts !== null) return 1;
+          return (players[a].search_rank || 9999) - (players[b].search_rank || 9999);
+        });
       UI.renderFreeAgents(state.posFilter);
       UI.toast('Free agents updated!', 'success');
     } catch (e) { UI.toast('Refresh failed: ' + e.message, 'error'); }
@@ -208,23 +250,26 @@ const App = (() => {
   async function refreshAll() {
     UI.toast('Refreshing from Sleeper…', 'info');
     try {
-      const [rosters, users] = await Promise.all([
+      const [league, rosters, users] = await Promise.all([
+        Sleeper.fetchLeague(state.leagueId),
         Sleeper.fetchRosters(state.leagueId),
         Sleeper.fetchLeagueUsers(state.leagueId),
       ]);
+      const leagueFaabBudget = league.settings?.waiver_budget ?? 100;
       const userMap = {};
       users.forEach(u => { userMap[u.user_id] = u; });
 
       state.teams = rosters.map(r => {
-        const u = userMap[r.owner_id] || {};
+        const u    = userMap[r.owner_id] || {};
+        const used = r.settings?.waiver_bid_used ?? 0;
         return {
           roster_id:    r.roster_id,
           owner_id:     r.owner_id,
           username:     u.display_name || u.username || `Team ${r.roster_id}`,
           display_name: u.display_name || u.username || `Team ${r.roster_id}`,
           avatar:       u.avatar,
-          faab_budget:  r.settings?.waiver_budget  ?? 100,
-          faab_used:    r.settings?.waiver_bid_used ?? 0,
+          faab_budget:  leagueFaabBudget,
+          faab_used:    used,
           players:      r.players || [],
         };
       });
