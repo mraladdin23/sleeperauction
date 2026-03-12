@@ -225,6 +225,9 @@ const UI = (() => {
       const pos2 = playerPos(p);
       const inAuction = activeIds.has(id);
       const canNom    = !inAuction && !myActiveNom;
+      const statsMap  = state.statsMap || {};
+      const pts       = statsMap[id]?.pts_half_ppr ?? statsMap[id]?.pts_ppr ?? null;
+      const ptsLabel  = pts !== null ? pts.toFixed(1) : '—';
 
       return `<tr>
         <td>
@@ -242,6 +245,7 @@ const UI = (() => {
         </td>
         <td style="color:var(--text2);">${playerTeam(p)}</td>
         <td style="color:var(--text3);font-family:var(--font-mono);">${p.bye_week || '—'}</td>
+        <td style="color:var(--text2);font-family:var(--font-mono);font-size:13px;" title="Last season half-PPR points">${ptsLabel}</td>
         <td style="text-align:right;">
           ${inAuction
             ? `<span style="font-size:11px;color:var(--yellow);">In Auction</span>`
