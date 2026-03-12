@@ -192,16 +192,15 @@ const App = (() => {
         return (players[a].search_rank || 9999) - (players[b].search_rank || 9999);
       });
 
-    // Commissioner is identified by Sleeper username (case-insensitive).
-    // This is the most reliable method — Sleeper's owner_id type is inconsistent.
+    // Commissioner identified by hardcoded Sleeper username — most reliable approach.
     const COMMISSIONER_USERNAME = 'mraladdin23';
-    const myUsername = (state.user.username || state.user.display_name || '').toLowerCase();
-    state.isCommissioner = myUsername === COMMISSIONER_USERNAME.toLowerCase()
-      || String(league.owner_id) === String(state.user.user_id);
+    const myUsername = (state.user.username || '').toLowerCase().trim();
+    state.isCommissioner = myUsername === COMMISSIONER_USERNAME;
+    console.log('[SleeperBid] logged in as:', JSON.stringify(state.user.username), '| isCommissioner:', state.isCommissioner);
 
     document.getElementById('league-name-badge').textContent = league.name;
     UI.setAvatar(document.getElementById('user-avatar'), state.user);
-    document.getElementById('commissioner-tab').style.display = state.isCommissioner ? '' : 'none';
+    updateCommissionerTab();
 
     UI.showScreen('app');
     UI.renderPauseBanner();
@@ -245,7 +244,13 @@ const App = (() => {
     return pts;
   }
 
+  function updateCommissionerTab() {
+    const tab = document.getElementById('commissioner-tab');
+    if (tab) tab.style.display = state.isCommissioner ? '' : 'none';
+  }
+
   function renderAll() {
+    updateCommissionerTab();
     UI.renderAuctions(state.auctions, state.faabOverrides);
     UI.renderTeams(state.faabOverrides);
     UI.renderHistory(state.auctions);
