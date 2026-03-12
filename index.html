@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>SleeperBid — FAAB Proxy Auctions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen" class="login-screen">
+  <div class="login-card">
+    <div class="login-logo">Sleeper<span>Bid</span></div>
+    <div class="login-subtitle">FAAB Proxy Auctions for Sleeper Leagues</div>
+    <div class="login-field">
+      <label>Sleeper Username</label>
+      <input type="text" id="login-username" placeholder="your_username" autocomplete="off" />
+    </div>
+    <button class="login-btn" onclick="App.doLogin()">Connect to Sleeper →</button>
+    <div id="login-error" class="login-error hidden"></div>
+    <hr class="login-divider" />
+    <p style="font-size:12px;color:var(--text3);text-align:center;">
+      No password needed — uses your public Sleeper profile.<br/>
+      The commissioner sets up the league after logging in.
+    </p>
+  </div>
+</div>
+
+<!-- LOADING SCREEN -->
+<div id="loading-screen" class="loading-screen hidden">
+  <div class="spinner" style="width:32px;height:32px;border-width:3px;"></div>
+  <div id="loading-text">Connecting to Sleeper…</div>
+</div>
+
+<!-- SETUP SCREEN -->
+<div id="setup-screen" class="hidden">
+  <div class="topbar">
+    <div class="topbar-logo">Sleeper<span>Bid</span></div>
+    <div class="topbar-right">
+      <div class="avatar" id="setup-avatar">?</div>
+      <button class="btn btn-ghost btn-sm" onclick="App.logout()">Log out</button>
+    </div>
+  </div>
+  <div class="main">
+    <div class="setup-card">
+      <div class="setup-title">League Setup</div>
+      <div class="setup-sub">
+        Enter your Sleeper League ID to connect. Find it in the Sleeper app under
+        <strong>League → Settings → League ID</strong>.
+      </div>
+      <div class="input-group">
+        <label class="input-label">Sleeper League ID</label>
+        <input type="text" id="setup-league-id" placeholder="e.g. 1048764523009835008" style="font-size:15px;padding:10px 14px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);outline:none;" />
+      </div>
+      <div id="setup-error" style="color:var(--red);font-size:13px;margin-bottom:12px;" class="hidden"></div>
+      <button class="btn btn-primary" onclick="App.doSetup()">Load League →</button>
+    </div>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app" class="hidden">
+  <div class="topbar">
+    <div class="topbar-logo">Sleeper<span>Bid</span></div>
+    <div class="topbar-right">
+      <div class="league-badge" id="league-name-badge">League</div>
+      <div class="avatar" id="user-avatar" title="Logged in user"></div>
+      <button class="btn btn-ghost btn-sm" onclick="App.logout()">Log out</button>
+    </div>
+  </div>
+
+  <div class="nav-tabs">
+    <div class="nav-tab active" onclick="App.switchTab('auctions')" data-tab="auctions">🏷 Active Auctions</div>
+    <div class="nav-tab" onclick="App.switchTab('free-agents')" data-tab="free-agents">🔍 Free Agents</div>
+    <div class="nav-tab" onclick="App.switchTab('teams')" data-tab="teams">🏆 Teams & FAAB</div>
+    <div class="nav-tab" id="commissioner-tab" onclick="App.switchTab('commissioner')" data-tab="commissioner" style="display:none">⚙️ Commissioner</div>
+  </div>
+
+  <div class="main">
+
+    <!-- AUCTIONS TAB -->
+    <div id="tab-auctions" class="tab-content active">
+      <div class="section-header">
+        <div class="section-title">Active Auctions</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span class="section-count" id="auction-count">0 live</span>
+          <button class="btn btn-ghost btn-sm" onclick="App.refreshAll()">↻ Refresh</button>
+        </div>
+      </div>
+      <div id="auctions-grid" class="auction-grid"></div>
+
+      <div style="margin-top:28px;">
+        <div class="section-header">
+          <div class="section-title">Completed Auctions</div>
+          <span class="section-count" id="completed-count">0</span>
+        </div>
+        <div id="completed-grid" class="auction-grid"></div>
+      </div>
+    </div>
+
+    <!-- FREE AGENTS TAB -->
+    <div id="tab-free-agents" class="tab-content">
+      <div class="section-header">
+        <div class="section-title">Free Agents</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span class="section-count" id="fa-count">0 players</span>
+          <button class="btn btn-ghost btn-sm" onclick="App.loadFreeAgents()">↻ Refresh</button>
+        </div>
+      </div>
+      <div class="fa-search">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="fa-search" placeholder="Search players…" oninput="App.renderFreeAgents()" />
+      </div>
+      <div class="fa-filters" id="pos-filters">
+        <div class="filter-chip active" onclick="App.setFilter('ALL',this)">All</div>
+        <div class="filter-chip" onclick="App.setFilter('QB',this)">QB</div>
+        <div class="filter-chip" onclick="App.setFilter('RB',this)">RB</div>
+        <div class="filter-chip" onclick="App.setFilter('WR',this)">WR</div>
+        <div class="filter-chip" onclick="App.setFilter('TE',this)">TE</div>
+        <div class="filter-chip" onclick="App.setFilter('K',this)">K</div>
+        <div class="filter-chip" onclick="App.setFilter('DEF',this)">DEF</div>
+      </div>
+      <div style="overflow-x:auto;">
+        <table class="fa-table">
+          <thead>
+            <tr>
+              <th>Player</th>
+              <th>Team</th>
+              <th>Bye</th>
+              <th style="text-align:right">Action</th>
+            </tr>
+          </thead>
+          <tbody id="fa-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- TEAMS TAB -->
+    <div id="tab-teams" class="tab-content">
+      <div class="section-header">
+        <div class="section-title">Teams & FAAB</div>
+        <button class="btn btn-ghost btn-sm" onclick="App.refreshAll()">↻ Refresh</button>
+      </div>
+      <div id="teams-grid" class="teams-grid"></div>
+    </div>
+
+    <!-- COMMISSIONER TAB -->
+    <div id="tab-commissioner" class="tab-content">
+      <div class="section-header">
+        <div class="section-title">Commissioner Tools</div>
+        <span class="comm-badge">Admin</span>
+      </div>
+      <div style="display:grid;gap:14px;max-width:600px;">
+
+        <div class="card-panel">
+          <div style="font-weight:600;margin-bottom:6px;">Completed Auctions — Pending Processing</div>
+          <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Add players in Sleeper, then mark processed here to deduct FAAB.</div>
+          <div id="comm-pending-list"><div style="color:var(--text3);font-size:13px;">No pending auctions.</div></div>
+        </div>
+
+        <div class="card-panel">
+          <div style="font-weight:600;margin-bottom:6px;">Manual FAAB Override</div>
+          <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Manually set a team's available FAAB balance.</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+            <div style="flex:1;min-width:160px;">
+              <label class="input-label">Team</label>
+              <select id="comm-team-select" style="font-size:14px;padding:9px 12px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;cursor:pointer;"></select>
+            </div>
+            <div style="width:130px;">
+              <label class="input-label">New FAAB ($)</label>
+              <div style="position:relative;">
+                <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-family:var(--font-mono);">$</span>
+                <input type="number" id="comm-faab-val" min="0" style="padding:9px 12px 9px 24px;font-family:var(--font-mono);font-size:16px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;" />
+              </div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="App.commOverrideFaab()">Update</button>
+          </div>
+        </div>
+
+        <div class="card-panel">
+          <div style="font-weight:600;margin-bottom:6px;">Reset All Auction Data</div>
+          <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Clears ALL auction history from Firebase. Cannot be undone.</div>
+          <button class="btn btn-sm" style="background:var(--red-dim);color:var(--red);border:1px solid rgba(255,77,106,0.25);" onclick="App.confirmReset()">Reset All Auction Data</button>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- BID MODAL -->
+<div id="bid-modal" class="modal-overlay" onclick="App.closeBidModalOutside(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title" id="bid-modal-title">Place Bid</div>
+      <div class="modal-close" onclick="App.closeBidModal()">✕</div>
+    </div>
+    <div class="modal-body">
+      <div id="bid-modal-player-info" class="info-box" style="display:flex;align-items:center;gap:12px;margin-bottom:16px;"></div>
+      <div class="faab-bar">
+        <span class="faab-bar-label">Your FAAB Balance</span>
+        <span class="faab-bar-value" id="bid-modal-faab">$0</span>
+      </div>
+      <div class="input-group">
+        <label class="input-label">Your Maximum Bid</label>
+        <div style="position:relative;">
+          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-family:var(--font-mono);font-size:16px;pointer-events:none;">$</span>
+          <input type="number" id="bid-amount-input" min="1" placeholder="0" oninput="App.updateBidHint()"
+            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:22px;padding:10px 14px 10px 28px;outline:none;" />
+        </div>
+        <div class="input-hint" id="bid-hint">Enter the most you're willing to pay.</div>
+      </div>
+      <div id="bid-current-info" class="info-box" style="font-size:12px;color:var(--text3);margin-bottom:12px;"></div>
+      <div>
+        <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;">Bid History</div>
+        <div class="bid-history" id="bid-history-list"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="App.closeBidModal()">Cancel</button>
+      <button class="btn btn-primary" id="bid-submit-btn" onclick="App.submitBid()">Place Max Bid</button>
+    </div>
+  </div>
+</div>
+
+<!-- NOMINATE MODAL -->
+<div id="nom-modal" class="modal-overlay" onclick="App.closeNomModalOutside(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Nominate Player</div>
+      <div class="modal-close" onclick="App.closeNomModal()">✕</div>
+    </div>
+    <div class="modal-body">
+      <div id="nom-player-info" class="info-box" style="display:flex;align-items:center;gap:12px;margin-bottom:16px;"></div>
+      <div class="faab-bar">
+        <span class="faab-bar-label">Your FAAB Balance</span>
+        <span class="faab-bar-value" id="nom-faab">$0</span>
+      </div>
+      <div class="input-group">
+        <label class="input-label">Your Opening Max Bid</label>
+        <div style="position:relative;">
+          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-family:var(--font-mono);font-size:16px;pointer-events:none;">$</span>
+          <input type="number" id="nom-bid-input" min="1" value="1" placeholder="1"
+            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:22px;padding:10px 14px 10px 28px;outline:none;" />
+        </div>
+        <div class="input-hint">Minimum $1. Auction runs for 8 hours, resetting each time a new max bid leads.</div>
+      </div>
+      <div id="nom-error" class="hidden" style="color:var(--red);font-size:13px;margin-top:8px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="App.closeNomModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="App.submitNomination()">Start Auction →</button>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- Firebase SDK (v9 compat) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+
+<!-- App config & logic -->
+<script src="js/firebase-config.js"></script>
+<script src="js/sleeper.js"></script>
+<script src="js/auction.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+
+</body>
+</html>
