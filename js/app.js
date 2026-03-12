@@ -1,27 +1,30 @@
 // ─────────────────────────────────────────────────────────────
-//  APP  — main controller, wires everything together
+//  APP  — main controller
 // ─────────────────────────────────────────────────────────────
 
 const App = (() => {
 
-  // ── Shared state (read by UI module) ────────────────────
+  const SKILL_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE']);
+
   const state = {
-    user:          null,
-    leagueId:      null,
-    leagueName:    '',
-    teams:         [],
-    players:       {},
-    freeAgents:    [],
-    auctions:      [],
-    faabOverrides: {},
-    posFilter:     'ALL',
-    isCommissioner: false,
-    // modal context
+    user:            null,
+    leagueId:        null,
+    leagueName:      '',
+    leagueSettings:  null,   // full league object (for scoring_settings, roster_positions)
+    scoringSettings: {},     // league.scoring_settings
+    rosterPositions: [],     // league.roster_positions (for max roster check)
+    teams:           [],
+    players:         {},
+    statsMap:        {},     // playerId → season raw stats
+    freeAgents:      [],
+    auctions:        [],
+    faabOverrides:   {},
+    posFilter:       'ALL',
+    isCommissioner:  false,
     activeNomPlayerId:  null,
     activeBidAuctionId: null,
   };
 
-  // ── Session helpers ──────────────────────────────────────
   const session = {
     get username()  { return localStorage.getItem('sb_username')  || ''; },
     get leagueId()  { return localStorage.getItem('sb_leagueId')  || ''; },
@@ -30,7 +33,7 @@ const App = (() => {
     clear()         { localStorage.removeItem('sb_username'); localStorage.removeItem('sb_leagueId'); },
   };
 
-  // ── Boot ─────────────────────────────────────────────────
+  // ── Boot ────────────────────────────────────────────────
   async function boot() {
     if (session.username && session.leagueId) {
       UI.showScreen('loading');
@@ -46,7 +49,7 @@ const App = (() => {
     if (session.username) document.getElementById('login-username').value = session.username;
   }
 
-  // ── Login ────────────────────────────────────────────────
+  // ── Login ───────────────────────────────────────────────
   async function doLogin() {
     const username = document.getElementById('login-username').value.trim();
     if (!username) { showLoginError('Enter your Sleeper username.'); return; }
@@ -75,7 +78,7 @@ const App = (() => {
     el.classList.toggle('hidden', !msg);
   }
 
-  // ── Setup ────────────────────────────────────────────────
+  // ── Setup ───────────────────────────────────────────────
   async function doSetup() {
     const lid = document.getElementById('setup-league-id').value.trim();
     if (!lid) { showSetupError('Enter your league ID.'); return; }
@@ -97,15 +100,20 @@ const App = (() => {
     el.classList.toggle('hidden', !msg);
   }
 
-  // ── Logout ───────────────────────────────────────────────
+  // ── Logout ──────────────────────────────────────────────
   function logout() {
     Auction.unsubscribe(state.leagueId);
     session.clear();
-    Object.assign(state, { user: null, leagueId: null, teams: [], players: {}, freeAgents: [], auctions: [], faabOverrides: {} });
+    Object.assign(state, {
+      user: null, leagueId: null, leagueSettings: null,
+      scoringSettings: {}, rosterPositions: [],
+      teams: [], players: {}, statsMap: {}, freeAgents: [],
+      auctions: [], faabOverrides: {},
+    });
     UI.showScreen('login');
   }
 
-  // ── Init app ─────────────────────────────────────────────
+  // ── Init app ────────────────────────────────────────────
   async function initApp() {
     UI.showScreen('loading');
     UI.setLoading('Loading league…');
@@ -117,59 +125,48 @@ const App = (() => {
       Sleeper.fetchPlayers(),
     ]);
 
-    state.leagueName = league.name;
-    state.players    = players;
+    state.leagueName      = league.name;
+    state.leagueSettings  = league;
+    state.scoringSettings = league.scoring_settings || {};
+    state.rosterPositions = league.roster_positions || [];
+    state.players         = players;
 
-    // Determine FAAB budget from league settings (falls back to 100)
     const leagueFaabBudget = league.settings?.waiver_budget ?? 100;
-
-    // Build teams — use league-level budget since roster-level is often 0
     const userMap = {};
     users.forEach(u => { userMap[u.user_id] = u; });
 
     state.teams = rosters.map(r => {
-      const u = userMap[r.owner_id] || {};
-      // waiver_bid_used is cumulative spent; budget comes from league settings
-      const used   = r.settings?.waiver_bid_used ?? 0;
-      const budget = leagueFaabBudget;
+      const u    = userMap[r.owner_id] || {};
+      const used = r.settings?.waiver_bid_used ?? 0;
       return {
         roster_id:    r.roster_id,
         owner_id:     r.owner_id,
         username:     u.display_name || u.username || `Team ${r.roster_id}`,
         display_name: u.display_name || u.username || `Team ${r.roster_id}`,
         avatar:       u.avatar,
-        faab_budget:  budget,
+        faab_budget:  leagueFaabBudget,
         faab_used:    used,
         players:      r.players || [],
       };
     });
 
-    // Fetch last season's stats to rank free agents (non-blocking)
-    const currentYear = new Date().getFullYear();
-    const statsYear   = currentYear - 1; // use previous season
-    UI.setLoading(`Loading ${statsYear} stats for rankings…`);
-    let statsMap = {};
-    try { statsMap = await Sleeper.fetchStats(statsYear); } catch (e) { /* non-fatal */ }
-    state.statsMap = statsMap;
+    // Fetch 2025 stats and compute custom-scored points
+    UI.setLoading('Loading 2025 stats…');
+    let rawStats = {};
+    try { rawStats = await Sleeper.fetchStats(2025); } catch (e) { /* non-fatal */ }
+    state.statsMap = rawStats;
 
-    // Skill positions only: QB, RB, WR, TE
-    const SKILL_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE']);
-
-    // Free agents — only active skill-position players with meaningful stats or search_rank
+    // Build free agents (skill positions only), sorted by custom fantasy points
     const rostered = new Set(rosters.flatMap(r => r.players || []));
     state.freeAgents = Object.keys(players)
       .filter(id => {
         const p = players[id];
-        if (rostered.has(id)) return false;
-        if (!p.active) return false;
-        const positions = p.fantasy_positions || [];
-        // Must have at least one skill position
-        return positions.some(pos => SKILL_POSITIONS.has(pos));
+        if (rostered.has(id) || !p.active) return false;
+        return (p.fantasy_positions || []).some(pos => SKILL_POSITIONS.has(pos));
       })
       .sort((a, b) => {
-        // Sort by fantasy points scored last season, then fall back to search_rank
-        const apts = statsMap[a]?.pts_half_ppr ?? statsMap[a]?.pts_ppr ?? null;
-        const bpts = statsMap[b]?.pts_half_ppr ?? statsMap[b]?.pts_ppr ?? null;
+        const apts = computeCustomPts(a);
+        const bpts = computeCustomPts(b);
         if (apts !== null && bpts !== null) return bpts - apts;
         if (apts !== null) return -1;
         if (bpts !== null) return 1;
@@ -178,16 +175,17 @@ const App = (() => {
 
     state.isCommissioner = league.owner_id === state.user.user_id;
 
-    // Render chrome
     document.getElementById('league-name-badge').textContent = league.name;
     UI.setAvatar(document.getElementById('user-avatar'), state.user);
     if (state.isCommissioner) document.getElementById('commissioner-tab').style.display = '';
 
     UI.showScreen('app');
+    UI.renderPauseBanner();
 
-    // ── Subscribe to Firebase real-time updates ──
     Auction.subscribe(state.leagueId, auctions => {
+      const prevAuctions = state.auctions;
       state.auctions = auctions;
+      checkOutbidNotifications(prevAuctions, auctions);
       renderAll();
     });
 
@@ -197,11 +195,21 @@ const App = (() => {
     });
 
     UI.startTimers(() => state.auctions);
+    requestNotificationPermission();
+  }
+
+  // Helper: compute custom-scored points for a player from raw stats
+  function computeCustomPts(playerId) {
+    const raw = state.statsMap[playerId];
+    if (!raw) return null;
+    const pts = Sleeper.calculatePoints(raw, state.scoringSettings);
+    return pts;
   }
 
   function renderAll() {
     UI.renderAuctions(state.auctions, state.faabOverrides);
     UI.renderTeams(state.faabOverrides);
+    UI.renderHistory(state.auctions);
     if (state.isCommissioner) UI.renderCommissioner(state.faabOverrides);
   }
 
@@ -222,11 +230,12 @@ const App = (() => {
     UI.toast('Refreshing free agents…', 'info');
     await Sleeper.invalidatePlayerCache();
     try {
-      const SKILL_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE']);
-      const [players, rosters] = await Promise.all([Sleeper.fetchPlayers(), Sleeper.fetchRosters(state.leagueId)]);
+      const [players, rosters] = await Promise.all([
+        Sleeper.fetchPlayers(),
+        Sleeper.fetchRosters(state.leagueId),
+      ]);
       state.players = players;
       const rostered = new Set(rosters.flatMap(r => r.players || []));
-      const statsMap = state.statsMap || {};
       state.freeAgents = Object.keys(players)
         .filter(id => {
           const p = players[id];
@@ -234,8 +243,7 @@ const App = (() => {
           return (p.fantasy_positions || []).some(pos => SKILL_POSITIONS.has(pos));
         })
         .sort((a, b) => {
-          const apts = statsMap[a]?.pts_half_ppr ?? statsMap[a]?.pts_ppr ?? null;
-          const bpts = statsMap[b]?.pts_half_ppr ?? statsMap[b]?.pts_ppr ?? null;
+          const apts = computeCustomPts(a), bpts = computeCustomPts(b);
           if (apts !== null && bpts !== null) return bpts - apts;
           if (apts !== null) return -1;
           if (bpts !== null) return 1;
@@ -246,7 +254,7 @@ const App = (() => {
     } catch (e) { UI.toast('Refresh failed: ' + e.message, 'error'); }
   }
 
-  // ── Refresh from Sleeper ─────────────────────────────────
+  // ── Refresh ──────────────────────────────────────────────
   async function refreshAll() {
     UI.toast('Refreshing from Sleeper…', 'info');
     try {
@@ -278,6 +286,76 @@ const App = (() => {
     } catch (e) { UI.toast('Refresh failed: ' + e.message, 'error'); }
   }
 
+  // ── Push notifications ───────────────────────────────────
+  function requestNotificationPermission() {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'default') {
+      // Show a toast prompting the user rather than immediately requesting
+      UI.toast('Enable notifications to get outbid alerts. Click the 🔔 button in the top bar.', 'info');
+    }
+  }
+
+  async function enableNotifications() {
+    if (!('Notification' in window)) { UI.toast('Notifications not supported in this browser.', 'error'); return; }
+    const perm = await Notification.requestPermission();
+    if (perm === 'granted') {
+      UI.toast('Outbid notifications enabled! 🔔', 'success');
+    } else {
+      UI.toast('Notification permission denied.', 'error');
+    }
+  }
+
+  function checkOutbidNotifications(prevAuctions, nextAuctions) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const myTeam = UI.getMyTeam(state);
+    if (!myTeam) return;
+    const myRid  = myTeam.roster_id;
+    const now    = Date.now();
+
+    nextAuctions.forEach(auction => {
+      if (auction.processed || auction.cancelled || auction.expiresAt <= now) return;
+      const leading    = Auction.computeLeadingBid(auction);
+      const myMax      = Auction.getMyMaxBid(auction, myRid);
+      if (myMax === 0) return; // I haven't bid
+
+      const prev        = prevAuctions.find(a => a.id === auction.id);
+      const prevLeading = prev ? Auction.computeLeadingBid(prev) : null;
+
+      // Was I leading before and now I'm not?
+      const wasWinning = prevLeading?.rosterId === myRid;
+      const nowLosing  = leading.rosterId !== myRid;
+
+      if (wasWinning && nowLosing) {
+        const p    = state.players[auction.playerId] || {};
+        const name = UI.playerName(p);
+        new Notification('SleeperBid — You\'ve been outbid!', {
+          body: `${name} — new leading bid: $${leading.displayBid}`,
+          icon: `https://sleepercdn.com/content/nfl/players/thumb/${auction.playerId}.jpg`,
+          tag:  auction.id,
+        });
+      }
+    });
+  }
+
+  // ── Roster size enforcement ──────────────────────────────
+  function getMaxRosterSize() {
+    // Count non-IR roster slots from league.roster_positions
+    const positions = state.rosterPositions || [];
+    return positions.filter(p => p !== 'BN' ? true : true).length || 999;
+    // Sleeper uses BN for bench — count all slots
+  }
+
+  function getMyRosterSize() {
+    const myTeam = UI.getMyTeam(state);
+    return myTeam ? (myTeam.players || []).length : 0;
+  }
+
+  function isRosterFull() {
+    const max  = getMaxRosterSize();
+    const curr = getMyRosterSize();
+    return curr >= max;
+  }
+
   // ── Nominate modal ───────────────────────────────────────
   function openNomModal(playerId) {
     const myTeam = UI.getMyTeam(state);
@@ -285,9 +363,14 @@ const App = (() => {
 
     const now = Date.now();
     const myActiveNom = state.auctions.find(a =>
-      !a.processed && a.expiresAt > now && a.nominatedBy === myTeam.roster_id
+      !a.processed && !a.cancelled && a.expiresAt > now && a.nominatedBy === myTeam.roster_id
     );
     if (myActiveNom) { UI.toast('You already have an active nomination.', 'error'); return; }
+
+    if (isRosterFull()) {
+      UI.toast(`Your roster is full (${getMyRosterSize()}/${getMaxRosterSize()} spots). Drop a player first.`, 'error');
+      return;
+    }
 
     state.activeNomPlayerId = playerId;
     const p   = state.players[playerId] || {};
@@ -309,8 +392,8 @@ const App = (() => {
     UI.openModal('nom-modal');
   }
 
-  function closeNomModal()              { UI.closeModal('nom-modal'); }
-  function closeNomModalOutside(e)      { if (e.target.id === 'nom-modal') closeNomModal(); }
+  function closeNomModal()         { UI.closeModal('nom-modal'); }
+  function closeNomModalOutside(e) { if (e.target.id === 'nom-modal') closeNomModal(); }
 
   async function submitNomination() {
     const myTeam = UI.getMyTeam(state);
@@ -339,14 +422,20 @@ const App = (() => {
     if (!myTeam) { UI.toast('You are not in this league.', 'error'); return; }
 
     const auction = state.auctions.find(a => a.id === auctionId);
-    if (!auction)  return;
+    if (!auction) return;
 
     state.activeBidAuctionId = auctionId;
     const p       = state.players[auction.playerId] || {};
     const pos     = UI.playerPos(p);
     const leading = Auction.computeLeadingBid(auction);
     const myMax   = Auction.getMyMaxBid(auction, myTeam.roster_id);
-    const avail   = getMyFaab() + myMax; // add back committed max since we'll replace it
+    const avail   = getMyFaab() + myMax;
+
+    // Player info + custom pts
+    const customPts = computeCustomPts(auction.playerId);
+    const ptsHtml   = customPts !== null
+      ? `<span style="font-size:11px;color:var(--text3);margin-top:4px;display:block;">2025 fantasy pts: <strong style="color:var(--accent2);">${customPts.toFixed(1)}</strong></span>`
+      : '';
 
     document.getElementById('bid-modal-player-info').innerHTML = `
       ${UI.playerAvatarHTML(auction.playerId, 40)}
@@ -356,24 +445,27 @@ const App = (() => {
           <span class="pos-badge pos-${pos}">${pos}</span>
           <span style="color:var(--text3);font-size:12px;">${UI.playerTeam(p)}</span>
         </div>
+        ${ptsHtml}
       </div>`;
 
     document.getElementById('bid-modal-faab').textContent = `$${avail}`;
 
     const input = document.getElementById('bid-amount-input');
-    input.value  = myMax || (leading.displayBid + 1);
-    input.max    = avail;
+    input.value = myMax || (leading.displayBid + 1);
+    input.max   = avail;
 
     document.getElementById('bid-current-info').innerHTML =
       `Current bid: <strong style="color:var(--text);">$${leading.displayBid}</strong>` +
       ` — Leader: <strong style="color:var(--accent2);">${leading.rosterId ? UI.getTeamName(leading.rosterId, state) : '—'}</strong>` +
       (myMax ? ` &nbsp;|&nbsp; Your current max: <strong style="color:var(--yellow);">$${myMax}</strong>` : '');
 
+    // Stat breakdown panel
+    UI.renderStatBreakdown(auction.playerId, state.statsMap[auction.playerId], state.scoringSettings);
+
     // Bid history
-    const bids    = Array.isArray(auction.bids) ? auction.bids : Object.values(auction.bids || {});
-    const sorted  = [...bids].sort((a, b) => b.timestamp - a.timestamp);
-    const histEl  = document.getElementById('bid-history-list');
-    histEl.innerHTML = sorted.length
+    const bids   = Array.isArray(auction.bids) ? auction.bids : Object.values(auction.bids || {});
+    const sorted = [...bids].sort((a, b) => b.timestamp - a.timestamp);
+    document.getElementById('bid-history-list').innerHTML = sorted.length
       ? sorted.map(b => `
           <div class="bid-row">
             <span class="bid-row-team">${UI.getTeamName(b.rosterId, state)}</span>
@@ -386,8 +478,8 @@ const App = (() => {
     UI.openModal('bid-modal');
   }
 
-  function closeBidModal()             { UI.closeModal('bid-modal'); }
-  function closeBidModalOutside(e)     { if (e.target.id === 'bid-modal') closeBidModal(); }
+  function closeBidModal()         { UI.closeModal('bid-modal'); }
+  function closeBidModalOutside(e) { if (e.target.id === 'bid-modal') closeBidModal(); }
 
   function updateBidHint() {
     const auction = state.auctions.find(a => a.id === state.activeBidAuctionId);
@@ -399,9 +491,11 @@ const App = (() => {
       hint.style.color = 'var(--red)'; hint.textContent = 'Minimum bid is $1.'; return;
     }
     if (val <= leading.displayBid) {
-      hint.style.color = 'var(--red)'; hint.textContent = `Must exceed current bid of $${leading.displayBid}.`; return;
+      hint.style.color = 'var(--red)';
+      hint.textContent = `Must exceed current bid of $${leading.displayBid}.`; return;
     }
-    hint.style.color = ''; hint.textContent = `You win unless someone bids more than $${val}. System only pays $1 above next highest.`;
+    hint.style.color = '';
+    hint.textContent = `You win unless someone bids more than $${val}. System only pays $1 above next highest.`;
   }
 
   async function submitBid() {
@@ -415,22 +509,21 @@ const App = (() => {
     const myMax   = Auction.getMyMaxBid(auction, myTeam.roster_id);
     const avail   = getMyFaab() + myMax;
 
-    if (bidVal < 1)           { UI.toast('Minimum bid is $1.', 'error'); return; }
+    if (bidVal < 1) { UI.toast('Minimum bid is $1.', 'error'); return; }
     if (bidVal <= leading.displayBid && leading.rosterId !== myTeam.roster_id) {
       UI.toast(`Bid must exceed current bid of $${leading.displayBid}.`, 'error'); return;
     }
-    if (bidVal > avail)       { UI.toast(`You only have $${avail} available.`, 'error'); return; }
+    if (bidVal > avail) { UI.toast(`You only have $${avail} available.`, 'error'); return; }
 
     const btn = document.getElementById('bid-submit-btn');
     btn.textContent = 'Placing…'; btn.disabled = true;
-
     try {
       const updated    = await Auction.placeBid(state.leagueId, auction.id, myTeam.roster_id, bidVal);
       const newLeading = Auction.computeLeadingBid(updated);
       closeBidModal();
       UI.toast(
         newLeading.rosterId === myTeam.roster_id
-          ? `You're winning at $${newLeading.displayBid}! Timer reset to 8h. 🏆`
+          ? `You're winning at $${newLeading.displayBid}! Timer reset. 🏆`
           : `Bid placed but you're currently losing — the leader has a higher max.`,
         newLeading.rosterId === myTeam.roster_id ? 'success' : 'info'
       );
@@ -444,9 +537,8 @@ const App = (() => {
     if (!auction) return;
     const leading = Auction.computeLeadingBid(auction);
 
-    // Deduct FAAB in Firebase overrides
     if (leading.rosterId) {
-      const team  = state.teams.find(t => t.roster_id === leading.rosterId);
+      const team    = state.teams.find(t => t.roster_id === leading.rosterId);
       if (team) {
         const current = state.faabOverrides[leading.rosterId] !== undefined
           ? state.faabOverrides[leading.rosterId]
@@ -454,9 +546,14 @@ const App = (() => {
         await Auction.setFaabOverride(state.leagueId, leading.rosterId, Math.max(0, current - leading.displayBid));
       }
     }
-
     await Auction.markProcessed(state.leagueId, auctionId);
     UI.toast('Auction marked as processed!', 'success');
+  }
+
+  async function cancelAuction(auctionId) {
+    if (!confirm('Cancel this auction? All bids will be voided and FAAB returned. Cannot be undone.')) return;
+    await Auction.cancelAuction(state.leagueId, auctionId);
+    UI.toast('Auction cancelled.', 'info');
   }
 
   async function commOverrideFaab() {
@@ -466,6 +563,22 @@ const App = (() => {
     const team = state.teams.find(t => t.roster_id === rId);
     await Auction.setFaabOverride(state.leagueId, rId, val);
     UI.toast(`FAAB updated for ${team?.display_name || 'team'}.`, 'success');
+  }
+
+  // Set ALL teams' starting FAAB at once from the bulk input grid
+  async function commSetAllFaab() {
+    const rows = document.querySelectorAll('.faab-bulk-row');
+    const updates = [];
+    for (const row of rows) {
+      const rId = parseInt(row.dataset.rosterId);
+      const val = parseInt(row.querySelector('input').value);
+      if (isNaN(val) || val < 0) { UI.toast('All values must be 0 or greater.', 'error'); return; }
+      updates.push({ rId, val });
+    }
+    for (const { rId, val } of updates) {
+      await Auction.setFaabOverride(state.leagueId, rId, val);
+    }
+    UI.toast('All FAAB balances updated!', 'success');
   }
 
   async function confirmReset() {
@@ -494,13 +607,13 @@ const App = (() => {
     doSetup,
     switchTab,
     setFilter, renderFreeAgents, loadFreeAgents,
-    refreshAll,
-    renderAll,
+    refreshAll, renderAll,
+    enableNotifications,
+    computeCustomPts,
     openNomModal, closeNomModal, closeNomModalOutside, submitNomination,
-    openBidModal,  closeBidModal,  closeBidModalOutside,  submitBid, updateBidHint,
-    markProcessed, commOverrideFaab, confirmReset,
+    openBidModal,  closeBidModal,  closeBidModalOutside, submitBid, updateBidHint,
+    markProcessed, cancelAuction, commOverrideFaab, commSetAllFaab, confirmReset,
   };
 })();
 
-// ── Boot on load ─────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => App.boot());

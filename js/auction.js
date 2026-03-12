@@ -4,12 +4,46 @@
 
 const Auction = (() => {
 
-  const DURATION_MS = 8 * 60 * 60 * 1000; // 8 hours
+  const DURATION_MS = 8 * 60 * 60 * 1000; // 8 active hours
+
+  // ── Overnight pause window (Central Time) ───────────────
+  // Auctions freeze between 12:00am – 8:00am Central every day.
+  const PAUSE_START_HOUR = 0;   // midnight Central
+  const PAUSE_END_HOUR   = 8;   // 8am Central
+
+  function isNightPause(now = Date.now()) {
+    const ct   = new Date(new Date(now).toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+    const hour = ct.getHours();
+    return hour >= PAUSE_START_HOUR && hour < PAUSE_END_HOUR;
+  }
+
+  function msTillPauseEnd(now = Date.now()) {
+    const ct     = new Date(new Date(now).toLocaleString('en-US', { timeZone: 'America/Chicago' }));
+    const resume = new Date(ct);
+    resume.setHours(PAUSE_END_HOUR, 0, 0, 0);
+    if (resume <= ct) resume.setDate(resume.getDate() + 1);
+    return resume - ct;
+  }
+
+  function effectiveTimeLeft(auction, now = Date.now()) {
+    if (!auction || auction.cancelled) return { left: 0, paused: false };
+    const paused = isNightPause(now);
+    const raw    = auction.expiresAt - now;
+    return { left: Math.max(0, raw), paused };
+  }
+
+  // When a bid (or nomination) sets the expiry, skip over any current pause window
+  function nextExpiry(now = Date.now()) {
+    if (isNightPause(now)) {
+      return now + msTillPauseEnd(now) + DURATION_MS;
+    }
+    return now + DURATION_MS;
+  }
 
   // ── Firebase paths ──────────────────────────────────────
-  function auctionsRef(leagueId)       { return db.ref(`leagues/${leagueId}/auctions`); }
-  function auctionRef(leagueId, id)    { return db.ref(`leagues/${leagueId}/auctions/${id}`); }
-  function faabOverridesRef(leagueId)  { return db.ref(`leagues/${leagueId}/faabOverrides`); }
+  function auctionsRef(leagueId)      { return db.ref(`leagues/${leagueId}/auctions`); }
+  function auctionRef(leagueId, id)   { return db.ref(`leagues/${leagueId}/auctions/${id}`); }
+  function faabOverridesRef(leagueId) { return db.ref(`leagues/${leagueId}/faabOverrides`); }
 
   // ── Subscribe to live auction updates ───────────────────
   function subscribe(leagueId, callback) {
@@ -19,9 +53,7 @@ const Auction = (() => {
     });
   }
 
-  function unsubscribe(leagueId) {
-    auctionsRef(leagueId).off();
-  }
+  function unsubscribe(leagueId) { auctionsRef(leagueId).off(); }
 
   function subscribeFaabOverrides(leagueId, callback) {
     faabOverridesRef(leagueId).on('value', snap => callback(snap.val() || {}));
@@ -29,15 +61,16 @@ const Auction = (() => {
 
   // ── Create a new auction (nomination) ───────────────────
   async function nominate(leagueId, playerId, rosterId, maxBid) {
-    const id = 'auc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+    const id  = 'auc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
+    const now = Date.now();
     const auction = {
-      id,
-      playerId,
+      id, playerId,
       nominatedBy: rosterId,
-      startTime: Date.now(),
-      expiresAt: Date.now() + DURATION_MS,
-      bids: [{ rosterId, maxBid, timestamp: Date.now() }],
-      processed: false,
+      startTime:   now,
+      expiresAt:   nextExpiry(now),
+      bids:        [{ rosterId, maxBid, timestamp: now }],
+      processed:   false,
+      cancelled:   false,
     };
     await auctionRef(leagueId, id).set(auction);
     return auction;
@@ -45,25 +78,22 @@ const Auction = (() => {
 
   // ── Place / update a bid ─────────────────────────────────
   async function placeBid(leagueId, auctionId, rosterId, maxBid) {
-    const ref = auctionRef(leagueId, auctionId);
-
-    // Transactional update to avoid race conditions
+    const ref    = auctionRef(leagueId, auctionId);
     const result = await ref.transaction(current => {
-      if (!current) return; // auction doesn't exist
-
-      // Append the new bid
+      if (!current || current.cancelled) return;
       const bids = current.bids ? Object.values(current.bids) : [];
       bids.push({ rosterId, maxBid, timestamp: Date.now() });
-      current.bids = bids;
-
-      // Reset the timer
-      current.expiresAt = Date.now() + DURATION_MS;
-
+      current.bids      = bids;
+      current.expiresAt = nextExpiry(Date.now());
       return current;
     });
-
     if (!result.committed) throw new Error('Bid failed — please try again.');
     return result.snapshot.val();
+  }
+
+  // ── Cancel an auction (commissioner only) ────────────────
+  async function cancelAuction(leagueId, auctionId) {
+    await auctionRef(leagueId, auctionId).update({ cancelled: true });
   }
 
   // ── Mark auction as processed ────────────────────────────
@@ -86,20 +116,15 @@ const Auction = (() => {
   }
 
   // ── Proxy bid computation ────────────────────────────────
-  // Returns { rosterId, displayBid }
   function computeLeadingBid(auction) {
     const bids = Array.isArray(auction.bids)
-      ? auction.bids
-      : Object.values(auction.bids || {});
-
+      ? auction.bids : Object.values(auction.bids || {});
     if (!bids.length) return { rosterId: null, displayBid: 0 };
 
-    // Highest max per roster
     const maxByRoster = {};
     bids.forEach(b => {
-      if (!maxByRoster[b.rosterId] || b.maxBid > maxByRoster[b.rosterId]) {
+      if (!maxByRoster[b.rosterId] || b.maxBid > maxByRoster[b.rosterId])
         maxByRoster[b.rosterId] = b.maxBid;
-      }
     });
 
     const entries = Object.entries(maxByRoster)
@@ -107,45 +132,29 @@ const Auction = (() => {
       .sort((a, b) => b.maxBid - a.maxBid);
 
     if (entries.length === 1) return { rosterId: entries[0].rosterId, displayBid: entries[0].maxBid };
-
-    const winner = entries[0];
-    const second = entries[1];
-    return {
-      rosterId: winner.rosterId,
-      displayBid: Math.min(winner.maxBid, second.maxBid + 1),
-    };
+    const winner = entries[0], second = entries[1];
+    return { rosterId: winner.rosterId, displayBid: Math.min(winner.maxBid, second.maxBid + 1) };
   }
 
-  // ── Get current user's max bid on an auction ─────────────
   function getMyMaxBid(auction, rosterId) {
     const bids = Array.isArray(auction.bids)
-      ? auction.bids
-      : Object.values(auction.bids || {});
+      ? auction.bids : Object.values(auction.bids || {});
     const mine = bids.filter(b => b.rosterId === rosterId);
     return mine.length ? Math.max(...mine.map(b => b.maxBid)) : 0;
   }
 
-  // ── FAAB committed in active auctions ────────────────────
   function getCommittedFaab(auctions, rosterId) {
     const now = Date.now();
     return auctions
-      .filter(a => !a.processed && a.expiresAt > now)
+      .filter(a => !a.processed && !a.cancelled && a.expiresAt > now)
       .reduce((sum, a) => sum + getMyMaxBid(a, rosterId), 0);
   }
 
   return {
-    DURATION_MS,
-    subscribe,
-    unsubscribe,
-    subscribeFaabOverrides,
-    nominate,
-    placeBid,
-    markProcessed,
-    setFaabOverride,
-    clearFaabOverride,
-    resetAll,
-    computeLeadingBid,
-    getMyMaxBid,
-    getCommittedFaab,
+    DURATION_MS, isNightPause, msTillPauseEnd, effectiveTimeLeft,
+    subscribe, unsubscribe, subscribeFaabOverrides,
+    nominate, placeBid, cancelAuction, markProcessed,
+    setFaabOverride, clearFaabOverride, resetAll,
+    computeLeadingBid, getMyMaxBid, getCommittedFaab,
   };
 })();
