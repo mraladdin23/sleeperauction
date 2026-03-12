@@ -164,16 +164,16 @@
         <div class="section-title">Commissioner Tools</div>
         <span class="comm-badge">Admin</span>
       </div>
-      <div style="display:grid;gap:14px;max-width:600px;">
+      <div style="display:grid;gap:14px;max-width:680px;">
 
         <div class="card-panel">
-          <div style="font-weight:600;margin-bottom:6px;">Completed Auctions — Pending Processing</div>
-          <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Add players in Sleeper, then mark processed here to deduct FAAB.</div>
-          <div id="comm-pending-list"><div style="color:var(--text3);font-size:13px;">No pending auctions.</div></div>
+          <div style="font-weight:600;margin-bottom:4px;">All Auctions</div>
+          <div style="font-size:13px;color:var(--text3);margin-bottom:12px;">Cancel or delete active auctions. Mark expired auctions processed to deduct FAAB.</div>
+          <div id="comm-all-auctions"><div style="color:var(--text3);font-size:13px;">No auctions yet.</div></div>
         </div>
 
         <div class="card-panel">
-          <div style="font-weight:600;margin-bottom:6px;">Set Starting FAAB — All Teams</div>
+          <div style="font-weight:600;margin-bottom:6px;">Set FAAB Balances — All Teams</div>
           <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Set each team's current FAAB balance. Use this at season start or to correct balances.</div>
           <div id="comm-faab-bulk"></div>
           <button class="btn btn-primary btn-sm" style="margin-top:12px;" onclick="App.commSetAllFaab()">Save All Balances</button>
