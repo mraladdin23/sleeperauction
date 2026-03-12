@@ -1,3 +1,21 @@
+
+// ── FAAB seed data (pre-loaded from commissioner input) ──────
+// Maps Sleeper username (lowercase) → starting FAAB balance
+// Update these values via Commissioner tab going forward.
+const FAAB_SEED = {
+  'schardt312':   1123,
+  'spicytunaroll':1136,
+  'notgreatbob':  1191,
+  'tmill85':      1061,
+  'abomb25':      1138,
+  'kodypetey':    1140,
+  'mkim521':      1303,
+  'stupend0us':   1061,
+  'iowafan30':    1307,
+  'dlon16':       1135,
+  'southy610':    1098,
+  'mraladdin23':  1064,
+};
 // ─────────────────────────────────────────────────────────────
 //  APP  — main controller
 // ─────────────────────────────────────────────────────────────
@@ -173,11 +191,12 @@ const App = (() => {
         return (players[a].search_rank || 9999) - (players[b].search_rank || 9999);
       });
 
-    state.isCommissioner = league.owner_id === state.user.user_id;
+    // Use String comparison — Sleeper sometimes returns owner_id as number vs string
+    state.isCommissioner = String(league.owner_id) === String(state.user.user_id);
 
     document.getElementById('league-name-badge').textContent = league.name;
     UI.setAvatar(document.getElementById('user-avatar'), state.user);
-    if (state.isCommissioner) document.getElementById('commissioner-tab').style.display = '';
+    document.getElementById('commissioner-tab').style.display = state.isCommissioner ? '' : 'none';
 
     UI.showScreen('app');
     UI.renderPauseBanner();
@@ -189,13 +208,28 @@ const App = (() => {
       renderAll();
     });
 
-    Auction.subscribeFaabOverrides(state.leagueId, overrides => {
+    Auction.subscribeFaabOverrides(state.leagueId, async overrides => {
+      // On first load, if no overrides exist yet, seed from FAAB_SEED
+      if (!overrides || Object.keys(overrides).length === 0) {
+        await seedFaabFromKnownValues();
+        return; // The seed will trigger another overrides callback
+      }
       state.faabOverrides = overrides;
       renderAll();
     });
 
     UI.startTimers(() => state.auctions);
     requestNotificationPermission();
+  }
+
+  // Auto-seeds FAAB balances from FAAB_SEED map on first run
+  async function seedFaabFromKnownValues() {
+    for (const team of state.teams) {
+      const uname = (team.username || '').toLowerCase();
+      if (FAAB_SEED[uname] !== undefined) {
+        await Auction.setFaabOverride(state.leagueId, team.roster_id, FAAB_SEED[uname]);
+      }
+    }
   }
 
   // Helper: compute custom-scored points for a player from raw stats
@@ -617,3 +651,4 @@ const App = (() => {
 })();
 
 document.addEventListener('DOMContentLoaded', () => App.boot());
+
