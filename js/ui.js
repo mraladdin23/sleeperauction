@@ -381,11 +381,11 @@ const UI = (() => {
       const leadingOn    = myActiveBids.filter(a => Auction.computeLeadingBid(a).rosterId === t.roster_id);
       const winningCount = leadingOn.length;
 
-      // Open spots: manual roster size minus current players minus auctions they're winning
-      const manualSize = rosterSizes[t.roster_id];
-      const rosterCount = (t.players || []).length;
-      const openSpots  = manualSize != null
-        ? Math.max(0, manualSize - rosterCount - winningCount)
+      // Open spots: 25 (fixed cap) minus manually-entered current player count minus auctions they're winning
+      const ROSTER_CAP  = 25;
+      const manualCount = rosterSizes[t.roster_id];  // commissioner-entered current player count
+      const openSpots   = manualCount != null
+        ? Math.max(0, ROSTER_CAP - manualCount - winningCount)
         : null;
 
       const spotsHtml = openSpots !== null
@@ -575,15 +575,16 @@ const UI = (() => {
         .join('');
     }
 
-    // Roster size bulk editor
+    // Roster count bulk editor (commissioner enters current player count; open spots = 25 minus this)
     const rosterBulk = document.getElementById('comm-roster-bulk');
     if (rosterBulk) {
       rosterBulk.innerHTML = state.teams.map(t => {
-        const current = (state.rosterSizes || {})[t.roster_id] ?? 25;
+        const current = (state.rosterSizes || {})[t.roster_id] ?? '';
         return `<div class="roster-bulk-row" data-roster-id="${t.roster_id}" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);">
           <div style="flex:1;font-size:13px;font-weight:500;">${t.display_name || t.username}</div>
-          <input type="number" min="0" max="60" value="${current}"
-            style="padding:7px 10px;font-family:var(--font-mono);font-size:15px;width:70px;text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;" />
+          <div style="font-size:11px;color:var(--text3);margin-right:4px;">players on roster:</div>
+          <input type="number" min="0" max="25" value="${current}" placeholder="0"
+            style="padding:7px 10px;font-family:var(--font-mono);font-size:15px;width:65px;text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;" />
         </div>`;
       }).join('');
     }
