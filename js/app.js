@@ -165,6 +165,7 @@ const App = (() => {
         faab_budget:  leagueFaabBudget,
         faab_used:    used,
         players:      r.players || [],
+        taxi:         r.taxi   || [],   // taxi squad — excluded from active roster count
       };
     });
 
@@ -192,7 +193,20 @@ const App = (() => {
       });
 
     // Use String comparison — Sleeper sometimes returns owner_id as number vs string
+    // Also persist commissioner user_id to Firebase so all clients can verify
     state.isCommissioner = String(league.owner_id) === String(state.user.user_id);
+
+    if (state.isCommissioner) {
+      // Write our confirmed user_id to Firebase as the authoritative commissioner record
+      await db.ref(`leagues/${state.leagueId}/commissionerUserId`).set(String(state.user.user_id));
+    } else {
+      // Read from Firebase in case Sleeper's type comparison failed
+      const commSnap = await db.ref(`leagues/${state.leagueId}/commissionerUserId`).once('value');
+      const storedId = commSnap.val();
+      if (storedId && String(storedId) === String(state.user.user_id)) {
+        state.isCommissioner = true;
+      }
+    }
 
     document.getElementById('league-name-badge').textContent = league.name;
     UI.setAvatar(document.getElementById('user-avatar'), state.user);
@@ -313,6 +327,7 @@ const App = (() => {
           faab_budget:  leagueFaabBudget,
           faab_used:    used,
           players:      r.players || [],
+          taxi:         r.taxi   || [],
         };
       });
       renderAll();

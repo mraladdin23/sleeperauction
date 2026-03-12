@@ -367,9 +367,13 @@ const UI = (() => {
         const myActiveBids = activeAuctions.filter(a => Auction.getMyMaxBid(a, t.roster_id) > 0);
         const bidCount     = myActiveBids.length;
 
-        // Roster stats
-        const rosterCount = (t.players || []).length;
-        const openSpots   = rosterSize > 0 ? Math.max(0, rosterSize - rosterCount) : '?';
+        // Roster stats — taxi squad players don't count toward active roster limit
+        const taxiCount   = (t.taxi || []).length;
+        const rosterCount = Math.max(0, (t.players || []).length - taxiCount);
+        // rosterPositions excludes taxi slots — count non-taxi positions only
+        const activeSlotsTotal = state.rosterPositions.filter(p => p !== 'TXP').length;
+        const effectiveSize    = activeSlotsTotal || rosterSize;
+        const openSpots        = effectiveSize > 0 ? Math.max(0, effectiveSize - rosterCount) : '?';
 
         // Players they're leading on (winning auctions)
         const leadingOn = myActiveBids.filter(a => Auction.computeLeadingBid(a).rosterId === t.roster_id);
@@ -403,7 +407,7 @@ const UI = (() => {
             </div>
             <div class="team-stat">
               <div class="team-stat-label">Roster</div>
-              <div class="team-stat-val">${rosterCount}<span style="color:var(--text3);font-size:11px;">/${rosterSize || '?'}</span></div>
+              <div class="team-stat-val">${rosterCount}<span style="color:var(--text3);font-size:11px;">/${effectiveSize || '?'}</span>${taxiCount > 0 ? `<span style="color:var(--text3);font-size:10px;display:block;">+${taxiCount} taxi</span>` : ''}</div>
             </div>
             <div class="team-stat">
               <div class="team-stat-label">Open Spots</div>
@@ -470,10 +474,11 @@ const UI = (() => {
           ${playerAvatarHTML(a.playerId, 36)}
           <div>
             <div style="font-weight:500;font-size:14px;">${playerName(p)}</div>
-            <div style="display:flex;gap:6px;align-items:center;margin-top:2px;">
+            <div style="display:flex;gap:6px;align-items:center;margin-top:2px;flex-wrap:wrap;">
               <span class="pos-badge pos-${pos}">${pos}</span>
               <span style="font-size:11px;color:var(--text3);">${playerTeam(p)}</span>
               <span style="font-size:11px;color:var(--text3);">${bidCount} bidder${bidCount !== 1 ? 's' : ''}</span>
+              <span style="font-size:11px;color:var(--text3);">nom: <strong style="color:var(--text2);">${getTeamName(a.nominatedBy, state)}</strong></span>
             </div>
           </div>
         </div>
