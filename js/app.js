@@ -192,21 +192,12 @@ const App = (() => {
         return (players[a].search_rank || 9999) - (players[b].search_rank || 9999);
       });
 
-    // Use String comparison — Sleeper sometimes returns owner_id as number vs string
-    // Also persist commissioner user_id to Firebase so all clients can verify
-    state.isCommissioner = String(league.owner_id) === String(state.user.user_id);
-
-    if (state.isCommissioner) {
-      // Write our confirmed user_id to Firebase as the authoritative commissioner record
-      await db.ref(`leagues/${state.leagueId}/commissionerUserId`).set(String(state.user.user_id));
-    } else {
-      // Read from Firebase in case Sleeper's type comparison failed
-      const commSnap = await db.ref(`leagues/${state.leagueId}/commissionerUserId`).once('value');
-      const storedId = commSnap.val();
-      if (storedId && String(storedId) === String(state.user.user_id)) {
-        state.isCommissioner = true;
-      }
-    }
+    // Commissioner is identified by Sleeper username (case-insensitive).
+    // This is the most reliable method — Sleeper's owner_id type is inconsistent.
+    const COMMISSIONER_USERNAME = 'mraladdin23';
+    const myUsername = (state.user.username || state.user.display_name || '').toLowerCase();
+    state.isCommissioner = myUsername === COMMISSIONER_USERNAME.toLowerCase()
+      || String(league.owner_id) === String(state.user.user_id);
 
     document.getElementById('league-name-badge').textContent = league.name;
     UI.setAvatar(document.getElementById('user-avatar'), state.user);
