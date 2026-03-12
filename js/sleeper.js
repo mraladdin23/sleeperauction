@@ -57,5 +57,30 @@ const Sleeper = (() => {
     localStorage.removeItem('sb_players_at');
   }
 
-  return { fetchUser, fetchLeague, fetchRosters, fetchLeagueUsers, fetchPlayers, invalidatePlayerCache };
+  // Fetch last season's stats to rank free agents (cached 24h)
+  async function fetchStats(season) {
+    const key   = `sb_stats_${season}`;
+    const keyAt = `sb_stats_${season}_at`;
+    const cached   = localStorage.getItem(key);
+    const cachedAt = localStorage.getItem(keyAt);
+    const age      = cachedAt ? Date.now() - parseInt(cachedAt) : Infinity;
+
+    if (cached && age < 24 * 60 * 60 * 1000) {
+      return JSON.parse(cached);
+    }
+
+    UI.setLoading(`Loading ${season} season stats…`);
+    const r = await fetch(`${BASE}/stats/nfl/regular/${season}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE`);
+    if (!r.ok) return {}; // non-fatal — just fall back to search_rank
+
+    const data = await r.json();
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+      localStorage.setItem(keyAt, Date.now().toString());
+    } catch (e) { /* storage full */ }
+
+    return data;
+  }
+
+  return { fetchUser, fetchLeague, fetchRosters, fetchLeagueUsers, fetchPlayers, fetchStats, invalidatePlayerCache };
 })();
