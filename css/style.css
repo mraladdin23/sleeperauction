@@ -522,3 +522,21 @@ input[type="number"] { -moz-appearance: textfield; }
 
 /* BULK FAAB ROW */
 .faab-bulk-row input:focus { border-color: var(--accent) !important; }
+
+/* TEAM CARD EXPANDED */
+.team-card-me { border-color: rgba(124,92,252,0.4) !important; }
+.team-card-header { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
+.you-badge { font-size:10px; color:var(--accent2); background:rgba(124,92,252,0.15); border-radius:4px; padding:2px 6px; white-space:nowrap; }
+
+.team-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+}
+.team-stat {
+  background: var(--surface3);
+  border-radius: var(--radius-sm);
+  padding: 7px 9px;
+}
+.team-stat-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 3px; }
+.team-stat-val   { font-family: var(--font-mono); font-size: 15px; font-weight: 600; color: var(--text); }
