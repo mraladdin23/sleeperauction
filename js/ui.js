@@ -361,10 +361,12 @@ const UI = (() => {
   // ── Teams ────────────────────────────────────────────────
   function renderTeams(faabOverrides) {
     const { state } = App;
-    const now        = Date.now();
-    const maxBudget  = Math.max(...state.teams.map(t => t.faab_budget), 1);
-    const grid       = document.getElementById('teams-grid');
+    const now          = Date.now();
+    const maxBudget    = Math.max(...state.teams.map(t => t.faab_budget), 1);
+    const grid         = document.getElementById('teams-grid');
     const activeAuctions = state.auctions.filter(a => !a.processed && !a.cancelled && a.expiresAt > now);
+    const rosterSizes  = state.rosterSizes || {};
+    const hasRosterData = Object.keys(rosterSizes).length > 0;
 
     grid.innerHTML = state.teams.map(t => {
       const override   = faabOverrides?.[t.roster_id];
@@ -377,6 +379,21 @@ const UI = (() => {
       const myActiveBids = activeAuctions.filter(a => Auction.getMyMaxBid(a, t.roster_id) > 0);
       const bidCount     = myActiveBids.length;
       const leadingOn    = myActiveBids.filter(a => Auction.computeLeadingBid(a).rosterId === t.roster_id);
+      const winningCount = leadingOn.length;
+
+      // Open spots: manual roster size minus current players minus auctions they're winning
+      const manualSize = rosterSizes[t.roster_id];
+      const rosterCount = (t.players || []).length;
+      const openSpots  = manualSize != null
+        ? Math.max(0, manualSize - rosterCount - winningCount)
+        : null;
+
+      const spotsHtml = openSpots !== null
+        ? `<div class="team-stat">
+            <div class="team-stat-label">Open Spots</div>
+            <div class="team-stat-val" style="color:${openSpots === 0 ? 'var(--red)' : openSpots <= 2 ? 'var(--yellow)' : 'var(--text2)'};">${openSpots}</div>
+          </div>`
+        : '';
 
       return `<div class="team-card ${isMe ? 'team-card-me' : ''}">
         <div class="team-card-header">
@@ -392,7 +409,7 @@ const UI = (() => {
           ${isMe ? '<span class="you-badge">You</span>' : ''}
         </div>
 
-        <div class="team-stats-grid">
+        <div class="team-stats-grid" style="grid-template-columns: repeat(${hasRosterData ? 3 : 2}, 1fr);">
           <div class="team-stat">
             <div class="team-stat-label">Balance</div>
             <div class="team-stat-val" style="color:var(--green);">$${baseFaab}</div>
@@ -409,6 +426,11 @@ const UI = (() => {
             <div class="team-stat-label">Active Bids</div>
             <div class="team-stat-val" style="color:${bidCount > 0 ? 'var(--accent2)' : 'var(--text3)'};">${bidCount}</div>
           </div>
+          <div class="team-stat">
+            <div class="team-stat-label">Winning</div>
+            <div class="team-stat-val" style="color:${winningCount > 0 ? 'var(--green)' : 'var(--text3)'};">${winningCount}</div>
+          </div>
+          ${spotsHtml}
         </div>
 
         ${leadingOn.length > 0 ? `
@@ -551,6 +573,19 @@ const UI = (() => {
       sel.innerHTML = state.teams
         .map(t => `<option value="${t.roster_id}">${t.display_name || t.username}</option>`)
         .join('');
+    }
+
+    // Roster size bulk editor
+    const rosterBulk = document.getElementById('comm-roster-bulk');
+    if (rosterBulk) {
+      rosterBulk.innerHTML = state.teams.map(t => {
+        const current = (state.rosterSizes || {})[t.roster_id] ?? 25;
+        return `<div class="roster-bulk-row" data-roster-id="${t.roster_id}" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);">
+          <div style="flex:1;font-size:13px;font-weight:500;">${t.display_name || t.username}</div>
+          <input type="number" min="0" max="60" value="${current}"
+            style="padding:7px 10px;font-family:var(--font-mono);font-size:15px;width:70px;text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;" />
+        </div>`;
+      }).join('');
     }
 
     if (bulk) {

@@ -43,7 +43,8 @@ const Auction = (() => {
   // ── Firebase paths ──────────────────────────────────────
   function auctionsRef(leagueId)      { return db.ref(`leagues/${leagueId}/auctions`); }
   function auctionRef(leagueId, id)   { return db.ref(`leagues/${leagueId}/auctions/${id}`); }
-  function faabOverridesRef(leagueId) { return db.ref(`leagues/${leagueId}/faabOverrides`); }
+  function faabOverridesRef(leagueId)  { return db.ref(`leagues/${leagueId}/faabOverrides`); }
+  function rosterSizesRef(leagueId)    { return db.ref(`leagues/${leagueId}/rosterSizes`); }
 
   // ── Subscribe to live auction updates ───────────────────
   function subscribe(leagueId, callback) {
@@ -57,6 +58,14 @@ const Auction = (() => {
 
   function subscribeFaabOverrides(leagueId, callback) {
     faabOverridesRef(leagueId).on('value', snap => callback(snap.val() || {}));
+  }
+
+  function subscribeRosterSizes(leagueId, callback) {
+    rosterSizesRef(leagueId).on('value', snap => callback(snap.val() || {}));
+  }
+
+  async function setRosterSize(leagueId, rosterId, size) {
+    await rosterSizesRef(leagueId).update({ [rosterId]: size });
   }
 
   // ── Create a new auction (nomination) ───────────────────
@@ -172,6 +181,7 @@ const Auction = (() => {
     subscribe, unsubscribe, subscribeFaabOverrides,
     nominate, placeBid, cancelAuction, deleteAuction, markProcessed,
     setFaabOverride, clearFaabOverride, resetAll,
+    subscribeRosterSizes, setRosterSize,
     computeLeadingBid, getMyMaxBid, getCommittedFaab,
   };
 })();

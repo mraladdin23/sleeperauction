@@ -41,6 +41,7 @@ const App = (() => {
     isCommissioner:  false,
     activeNomPlayerId:  null,
     activeBidAuctionId: null,
+    rosterSizes:        {},
   };
 
   const session = {
@@ -209,6 +210,11 @@ const App = (() => {
       const prevAuctions = state.auctions;
       state.auctions = auctions;
       checkOutbidNotifications(prevAuctions, auctions);
+      renderAll();
+    });
+
+    Auction.subscribeRosterSizes(state.leagueId, sizes => {
+      state.rosterSizes = sizes;
       renderAll();
     });
 
@@ -406,17 +412,6 @@ const App = (() => {
     const myTeam = UI.getMyTeam(state);
     if (!myTeam) { UI.toast('You are not in this league.', 'error'); return; }
 
-    const now = Date.now();
-    const myActiveNom = state.auctions.find(a =>
-      !a.processed && !a.cancelled && a.expiresAt > now && a.nominatedBy === myTeam.roster_id
-    );
-    if (myActiveNom) { UI.toast('You already have an active nomination.', 'error'); return; }
-
-    if (isRosterFull()) {
-      UI.toast(`Your roster is full (${getMyRosterSize()}/${getMaxRosterSize()} spots). Drop a player first.`, 'error');
-      return;
-    }
-
     state.activeNomPlayerId = playerId;
     const p   = state.players[playerId] || {};
     const pos = UI.playerPos(p);
@@ -431,25 +426,69 @@ const App = (() => {
         </div>
       </div>`;
 
-    document.getElementById('nom-faab').textContent = `$${getMyFaab()}`;
-    document.getElementById('nom-bid-input').value  = 1;
+    // Commissioner team selector
+    const teamSel = document.getElementById('nom-team-select');
+    const teamRow = document.getElementById('nom-team-row');
+    if (state.isCommissioner && teamSel && teamRow) {
+      teamRow.style.display = '';
+      teamSel.innerHTML = state.teams
+        .map(t => `<option value="${t.roster_id}"${t.roster_id === myTeam.roster_id ? ' selected' : ''}>${t.display_name || t.username}</option>`)
+        .join('');
+    } else if (teamRow) {
+      teamRow.style.display = 'none';
+    }
+
+    // Show FAAB for selected team (or self)
+    updateNomFaabDisplay();
+    if (teamSel) teamSel.onchange = updateNomFaabDisplay;
+
+    document.getElementById('nom-bid-input').value = 1;
     document.getElementById('nom-error').classList.add('hidden');
     UI.openModal('nom-modal');
+  }
+
+  function getNomTeam() {
+    // Returns whichever team is selected in the nom modal (comm can pick any)
+    const sel = document.getElementById('nom-team-select');
+    const rid = sel && state.isCommissioner ? parseInt(sel.value) : null;
+    return rid ? state.teams.find(t => t.roster_id === rid) : UI.getMyTeam(state);
+  }
+
+  function updateNomFaabDisplay() {
+    const team = getNomTeam();
+    if (!team) return;
+    const override  = state.faabOverrides[team.roster_id];
+    const base      = override !== undefined ? override : Math.max(0, team.faab_budget - (team.faab_used || 0));
+    const committed = Auction.getCommittedFaab(state.auctions, team.roster_id);
+    document.getElementById('nom-faab').textContent = `$${Math.max(0, base - committed)}`;
   }
 
   function closeNomModal()         { UI.closeModal('nom-modal'); }
   function closeNomModalOutside(e) { if (e.target.id === 'nom-modal') closeNomModal(); }
 
   async function submitNomination() {
-    const myTeam = UI.getMyTeam(state);
-    if (!myTeam) return;
+    const nomTeam = getNomTeam();
+    if (!nomTeam) return;
+
+    const now = Date.now();
+    const teamActiveNom = state.auctions.find(a =>
+      !a.processed && !a.cancelled && a.expiresAt > now && a.nominatedBy === nomTeam.roster_id
+    );
+    if (teamActiveNom && !state.isCommissioner) {
+      showNomError('This team already has an active nomination.'); return;
+    }
+
     const bidVal = parseInt(document.getElementById('nom-bid-input').value) || 1;
-    const faab   = getMyFaab();
+    const override  = state.faabOverrides[nomTeam.roster_id];
+    const base      = override !== undefined ? override : Math.max(0, nomTeam.faab_budget - (nomTeam.faab_used || 0));
+    const committed = Auction.getCommittedFaab(state.auctions, nomTeam.roster_id);
+    const faab      = Math.max(0, base - committed);
+
     if (bidVal < 1)    { showNomError('Minimum bid is $1.'); return; }
-    if (bidVal > faab) { showNomError(`You only have $${faab} available.`); return; }
+    if (bidVal > faab) { showNomError(`${nomTeam.display_name} only has $${faab} available.`); return; }
 
     try {
-      await Auction.nominate(state.leagueId, state.activeNomPlayerId, myTeam.roster_id, bidVal);
+      await Auction.nominate(state.leagueId, state.activeNomPlayerId, nomTeam.roster_id, bidVal);
       closeNomModal();
       UI.toast(`Auction started for ${UI.playerName(state.players[state.activeNomPlayerId])}!`, 'success');
     } catch (e) { showNomError('Failed: ' + e.message); }
@@ -502,7 +541,7 @@ const App = (() => {
     document.getElementById('bid-current-info').innerHTML =
       `Current bid: <strong style="color:var(--text);">$${leading.displayBid}</strong>` +
       ` — Leader: <strong style="color:var(--accent2);">${leading.rosterId ? UI.getTeamName(leading.rosterId, state) : '—'}</strong>` +
-      (myMax ? ` &nbsp;|&nbsp; Your current max: <strong style="color:var(--yellow);">$${myMax}</strong>` : '');
+      (myMax && !state.isCommissioner ? ` &nbsp;|&nbsp; Your current max: <strong style="color:var(--yellow);">$${myMax}</strong>` : '');
 
     // Stat breakdown panel
     UI.renderStatBreakdown(auction.playerId, state.statsMap[auction.playerId], state.scoringSettings);
@@ -519,10 +558,12 @@ const App = (() => {
     });
     document.getElementById('bid-history-list').innerHTML = dedupedBids.length
       ? dedupedBids.map(b => {
-          const isMe = b.rosterId === myTeam.roster_id;
+          // Commissioner sees no max bids (fairness). Others see only their own max.
+          const isMe     = b.rosterId === myTeam.roster_id;
+          const showMax  = isMe && !state.isCommissioner;
           return `<div class="bid-row">
             <span class="bid-row-team">${UI.getTeamName(b.rosterId, state)}${isMe ? ' <span style="color:var(--accent2);font-size:10px;">(you)</span>' : ''}</span>
-            <span class="bid-row-amount">${isMe ? `max $${b.maxBid}` : 'bid placed'}</span>
+            <span class="bid-row-amount">${showMax ? `max $${b.maxBid}` : 'bid placed'}</span>
             <span class="bid-row-time">${UI.timeAgo(b.timestamp)}</span>
           </div>`;
         }).join('')
@@ -641,6 +682,21 @@ const App = (() => {
     UI.toast('All FAAB balances updated!', 'success');
   }
 
+  async function commSetAllRosterSizes() {
+    const rows = document.querySelectorAll('.roster-bulk-row');
+    const updates = [];
+    for (const row of rows) {
+      const rId = parseInt(row.dataset.rosterId);
+      const val = parseInt(row.querySelector('input').value);
+      if (isNaN(val) || val < 0) { UI.toast('All values must be 0 or greater.', 'error'); return; }
+      updates.push({ rId, val });
+    }
+    for (const { rId, val } of updates) {
+      await Auction.setRosterSize(state.leagueId, rId, val);
+    }
+    UI.toast('Roster sizes saved!', 'success');
+  }
+
   async function confirmReset() {
     if (confirm('Reset ALL auction data and FAAB overrides? Cannot be undone.')) {
       await Auction.resetAll(state.leagueId);
@@ -671,6 +727,7 @@ const App = (() => {
     enableNotifications,
     computeCustomPts,
     openNomModal, closeNomModal, closeNomModalOutside, submitNomination,
+    commSetAllRosterSizes,
     openBidModal,  closeBidModal,  closeBidModalOutside, submitBid, updateBidHint,
     markProcessed, cancelAuction, deleteAuction, commOverrideFaab, commSetAllFaab, confirmReset,
   };
