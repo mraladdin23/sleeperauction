@@ -96,6 +96,11 @@ const Auction = (() => {
     await auctionRef(leagueId, auctionId).update({ cancelled: true });
   }
 
+  // ── Delete an auction entirely (commissioner only) ───────
+  async function deleteAuction(leagueId, auctionId) {
+    await auctionRef(leagueId, auctionId).remove();
+  }
+
   // ── Mark auction as processed ────────────────────────────
   async function markProcessed(leagueId, auctionId) {
     await auctionRef(leagueId, auctionId).update({ processed: true });
@@ -116,11 +121,15 @@ const Auction = (() => {
   }
 
   // ── Proxy bid computation ────────────────────────────────
+  // displayBid = the current PRICE (what winner pays if auction ended now)
+  // This is blind/proxy: solo bidder pays their opening floor, not their secret max.
+  // When a second bidder enters, price rises to second.maxBid + 1 (capped at winner.maxBid).
   function computeLeadingBid(auction) {
     const bids = Array.isArray(auction.bids)
       ? auction.bids : Object.values(auction.bids || {});
-    if (!bids.length) return { rosterId: null, displayBid: 0 };
+    if (!bids.length) return { rosterId: null, displayBid: 1 };
 
+    // Get highest max per roster
     const maxByRoster = {};
     bids.forEach(b => {
       if (!maxByRoster[b.rosterId] || b.maxBid > maxByRoster[b.rosterId])
@@ -131,7 +140,15 @@ const Auction = (() => {
       .map(([id, max]) => ({ rosterId: parseInt(id), maxBid: max }))
       .sort((a, b) => b.maxBid - a.maxBid);
 
-    if (entries.length === 1) return { rosterId: entries[0].rosterId, displayBid: entries[0].maxBid };
+    if (entries.length === 1) {
+      // Solo bidder: price is the first bid ever placed (the nomination floor)
+      // This is the lowest bid made by this roster — their opening bid
+      const firstBid = [...bids]
+        .filter(b => b.rosterId === entries[0].rosterId)
+        .sort((a, b) => a.timestamp - b.timestamp)[0];
+      return { rosterId: entries[0].rosterId, displayBid: firstBid?.maxBid ?? 1 };
+    }
+
     const winner = entries[0], second = entries[1];
     return { rosterId: winner.rosterId, displayBid: Math.min(winner.maxBid, second.maxBid + 1) };
   }
@@ -153,7 +170,7 @@ const Auction = (() => {
   return {
     DURATION_MS, isNightPause, msTillPauseEnd, effectiveTimeLeft,
     subscribe, unsubscribe, subscribeFaabOverrides,
-    nominate, placeBid, cancelAuction, markProcessed,
+    nominate, placeBid, cancelAuction, deleteAuction, markProcessed,
     setFaabOverride, clearFaabOverride, resetAll,
     computeLeadingBid, getMyMaxBid, getCommittedFaab,
   };

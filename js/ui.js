@@ -160,6 +160,11 @@ const UI = (() => {
       ? `<button class="btn btn-sm" style="background:var(--red-dim);color:var(--red);border:1px solid rgba(255,77,106,0.25);margin-left:6px;"
            onclick="App.cancelAuction('${auction.id}')">Cancel</button>` : '';
 
+    // Delete button: commissioner can delete any auction (active or completed)
+    const deleteBtn = isComm
+      ? `<button class="btn btn-sm" style="background:transparent;color:var(--text3);border:1px solid var(--border);margin-left:6px;font-size:11px;"
+           onclick="App.deleteAuction('${auction.id}')" title="Permanently delete auction">🗑</button>` : '';
+
     const customPts = App.computeCustomPts(auction.playerId);
     const ptsTag    = customPts !== null
       ? `<span style="font-size:11px;color:var(--text3);">${customPts.toFixed(1)} pts</span>` : '';
@@ -181,7 +186,7 @@ const UI = (() => {
       </div>
       <div class="card-mid">
         <div class="bid-info">
-          <div class="bid-label">Current Bid</div>
+          <div class="bid-label">Current Price</div>
           <div class="bid-amount"><span class="dollar">$</span>${leading.displayBid || 1}</div>
           <div class="bid-leader">Leader: <span>${leading.rosterId ? getTeamName(leading.rosterId, state) : '—'}</span></div>
         </div>
@@ -190,7 +195,7 @@ const UI = (() => {
           <div class="timer ${timerCls}" id="timer-${auction.id}">${timerTxt}</div>
         </div>
       </div>
-      <div class="card-bot">${pill}${bidBtn}${cancelBtn}</div>
+      <div class="card-bot">${pill}${bidBtn}${cancelBtn}${deleteBtn}</div>
     </div>`;
   }
 
@@ -341,36 +346,89 @@ const UI = (() => {
   // ── Teams ────────────────────────────────────────────────
   function renderTeams(faabOverrides) {
     const { state } = App;
-    const maxBudget = Math.max(...state.teams.map(t => t.faab_budget), 1);
-    const grid      = document.getElementById('teams-grid');
+    const now        = Date.now();
+    const maxBudget  = Math.max(...state.teams.map(t => t.faab_budget), 1);
+    const rosterSize = state.rosterPositions?.length || 0;
+    const grid       = document.getElementById('teams-grid');
 
-    grid.innerHTML = state.teams.map(t => {
-      const override  = faabOverrides?.[t.roster_id];
-      const avail     = override !== undefined ? override : Math.max(0, t.faab_budget - (t.faab_used || 0));
-      const committed = Auction.getCommittedFaab(state.auctions, t.roster_id);
-      const pct       = Math.round((avail / maxBudget) * 100);
-      const isMe      = t.owner_id === state.user.user_id;
+    // Build per-team auction info
+    const activeAuctions = state.auctions.filter(a => !a.processed && !a.cancelled && a.expiresAt > now);
 
-      return `<div class="team-card" style="${isMe ? 'border-color:rgba(124,92,252,0.4);' : ''}">
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-          <div class="avatar" style="width:28px;height:28px;font-size:11px;">
-            ${t.avatar
-              ? `<img src="https://sleepercdn.com/avatars/thumbs/${t.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"
-                      onerror="this.parentElement.textContent='${(t.display_name||'?')[0].toUpperCase()}'" />`
-              : (t.display_name || '?')[0].toUpperCase()}
+    grid.innerHTML = state.teams
+      .map(t => {
+        const override   = faabOverrides?.[t.roster_id];
+        const baseFaab   = override !== undefined ? override : Math.max(0, t.faab_budget - (t.faab_used || 0));
+        const committed  = Auction.getCommittedFaab(state.auctions, t.roster_id);
+        const available  = Math.max(0, baseFaab - committed);
+        const pct        = Math.round((baseFaab / maxBudget) * 100);
+        const isMe       = String(t.owner_id) === String(state.user.user_id);
+
+        // Active bids this team has placed
+        const myActiveBids = activeAuctions.filter(a => Auction.getMyMaxBid(a, t.roster_id) > 0);
+        const bidCount     = myActiveBids.length;
+
+        // Roster stats
+        const rosterCount = (t.players || []).length;
+        const openSpots   = rosterSize > 0 ? Math.max(0, rosterSize - rosterCount) : '?';
+
+        // Players they're leading on (winning auctions)
+        const leadingOn = myActiveBids.filter(a => Auction.computeLeadingBid(a).rosterId === t.roster_id);
+
+        return `<div class="team-card ${isMe ? 'team-card-me' : ''}">
+          <div class="team-card-header">
+            <div class="avatar" style="width:30px;height:30px;font-size:12px;flex-shrink:0;">
+              ${t.avatar
+                ? `<img src="https://sleepercdn.com/avatars/thumbs/${t.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"
+                        onerror="this.parentElement.textContent='${(t.display_name||'?')[0].toUpperCase()}'" />`
+                : (t.display_name || '?')[0].toUpperCase()}
+            </div>
+            <div style="font-weight:600;font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+              ${t.display_name || t.username}
+            </div>
+            ${isMe ? '<span class="you-badge">You</span>' : ''}
           </div>
-          <div style="font-weight:600;font-size:14px;">${t.display_name || t.username}
-            ${isMe ? '<span style="font-size:10px;color:var(--accent2);margin-left:4px;">(You)</span>' : ''}
+
+          <div class="team-stats-grid">
+            <div class="team-stat">
+              <div class="team-stat-label">FAAB Balance</div>
+              <div class="team-stat-val" style="color:var(--green);">$${baseFaab}</div>
+            </div>
+            <div class="team-stat">
+              <div class="team-stat-label">Committed</div>
+              <div class="team-stat-val" style="color:${committed > 0 ? 'var(--yellow)' : 'var(--text3)'};">$${committed}</div>
+            </div>
+            <div class="team-stat">
+              <div class="team-stat-label">Available</div>
+              <div class="team-stat-val" style="color:var(--accent2);">$${available}</div>
+            </div>
+            <div class="team-stat">
+              <div class="team-stat-label">Roster</div>
+              <div class="team-stat-val">${rosterCount}<span style="color:var(--text3);font-size:11px;">/${rosterSize || '?'}</span></div>
+            </div>
+            <div class="team-stat">
+              <div class="team-stat-label">Open Spots</div>
+              <div class="team-stat-val" style="color:${openSpots === 0 ? 'var(--red)' : 'var(--text2)'};">${openSpots}</div>
+            </div>
+            <div class="team-stat">
+              <div class="team-stat-label">Active Bids</div>
+              <div class="team-stat-val" style="color:${bidCount > 0 ? 'var(--accent2)' : 'var(--text3)'};">${bidCount}</div>
+            </div>
           </div>
-        </div>
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;">
-          <span style="font-size:12px;color:var(--text3);">FAAB Available</span>
-          <span style="font-family:var(--font-mono);font-size:15px;font-weight:600;color:var(--green);">$${avail}</span>
-        </div>
-        ${committed > 0 ? `<div style="font-size:11px;color:var(--yellow);margin-top:3px;">$${committed} committed in bids</div>` : ''}
-        <div class="team-faab-bar-bg"><div class="team-faab-bar-fill" style="width:${pct}%"></div></div>
-      </div>`;
-    }).join('');
+
+          ${leadingOn.length > 0 ? `
+            <div style="margin-top:8px;font-size:11px;color:var(--text3);">
+              Winning: ${leadingOn.map(a => {
+                const p = state.players[a.playerId] || {};
+                const price = Auction.computeLeadingBid(a).displayBid;
+                return `<span style="color:var(--green);font-weight:500;">${p.first_name ? p.last_name : '?'} $${price}</span>`;
+              }).join(', ')}
+            </div>` : ''}
+
+          <div class="team-faab-bar-bg" style="margin-top:10px;">
+            <div class="team-faab-bar-fill" style="width:${pct}%"></div>
+          </div>
+        </div>`;
+      }).join('');
   }
 
   // ── Auction history tab ───────────────────────────────────

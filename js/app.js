@@ -496,16 +496,25 @@ const App = (() => {
     // Stat breakdown panel
     UI.renderStatBreakdown(auction.playerId, state.statsMap[auction.playerId], state.scoringSettings);
 
-    // Bid history
+    // Bid history — show max only to the person who placed it (blind proxy)
     const bids   = Array.isArray(auction.bids) ? auction.bids : Object.values(auction.bids || {});
     const sorted = [...bids].sort((a, b) => b.timestamp - a.timestamp);
-    document.getElementById('bid-history-list').innerHTML = sorted.length
-      ? sorted.map(b => `
-          <div class="bid-row">
-            <span class="bid-row-team">${UI.getTeamName(b.rosterId, state)}</span>
-            <span class="bid-row-amount">max $${b.maxBid}</span>
+    // Deduplicate: only show the latest bid entry per roster (hide superseded bids)
+    const seenRosters = new Set();
+    const dedupedBids = sorted.filter(b => {
+      if (seenRosters.has(b.rosterId)) return false;
+      seenRosters.add(b.rosterId);
+      return true;
+    });
+    document.getElementById('bid-history-list').innerHTML = dedupedBids.length
+      ? dedupedBids.map(b => {
+          const isMe = b.rosterId === myTeam.roster_id;
+          return `<div class="bid-row">
+            <span class="bid-row-team">${UI.getTeamName(b.rosterId, state)}${isMe ? ' <span style="color:var(--accent2);font-size:10px;">(you)</span>' : ''}</span>
+            <span class="bid-row-amount">${isMe ? `max $${b.maxBid}` : 'bid placed'}</span>
             <span class="bid-row-time">${UI.timeAgo(b.timestamp)}</span>
-          </div>`).join('')
+          </div>`;
+        }).join('')
       : `<div style="padding:10px 12px;color:var(--text3);font-size:12px;">No bids yet.</div>`;
 
     updateBidHint();
@@ -590,6 +599,12 @@ const App = (() => {
     UI.toast('Auction cancelled.', 'info');
   }
 
+  async function deleteAuction(auctionId) {
+    if (!confirm('PERMANENTLY DELETE this auction? It will be removed from history entirely. Cannot be undone.')) return;
+    await Auction.deleteAuction(state.leagueId, auctionId);
+    UI.toast('Auction deleted.', 'info');
+  }
+
   async function commOverrideFaab() {
     const rId = parseInt(document.getElementById('comm-team-select').value);
     const val = parseInt(document.getElementById('comm-faab-val').value);
@@ -646,7 +661,7 @@ const App = (() => {
     computeCustomPts,
     openNomModal, closeNomModal, closeNomModalOutside, submitNomination,
     openBidModal,  closeBidModal,  closeBidModalOutside, submitBid, updateBidHint,
-    markProcessed, cancelAuction, commOverrideFaab, commSetAllFaab, confirmReset,
+    markProcessed, cancelAuction, deleteAuction, commOverrideFaab, commSetAllFaab, confirmReset,
   };
 })();
 
