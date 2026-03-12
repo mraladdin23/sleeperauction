@@ -182,6 +182,13 @@
         </div>
 
         <div class="card-panel">
+          <div style="font-weight:600;margin-bottom:6px;">Roster Sizes — All Teams</div>
+          <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Enter each team's total roster size (excluding taxi). Open spots = size minus current players minus auctions they're winning.</div>
+          <div id="comm-roster-bulk"></div>
+          <button class="btn btn-primary btn-sm" style="margin-top:12px;" onclick="App.commSetAllRosterSizes()">Save Roster Sizes</button>
+        </div>
+
+        <div class="card-panel">
           <div style="font-weight:600;margin-bottom:6px;">Set FAAB Balances — All Teams</div>
           <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Set each team's current FAAB balance. Use this at season start or to correct balances.</div>
           <div id="comm-faab-bulk"></div>
@@ -264,12 +271,16 @@
     </div>
     <div class="modal-body">
       <div id="nom-player-info" class="info-box" style="display:flex;align-items:center;gap:12px;margin-bottom:16px;"></div>
+      <div id="nom-team-row" style="display:none;margin-bottom:12px;">
+        <label class="input-label">Nominating On Behalf Of</label>
+        <select id="nom-team-select" style="font-size:14px;padding:9px 12px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;cursor:pointer;"></select>
+      </div>
       <div class="faab-bar">
-        <span class="faab-bar-label">Your FAAB Balance</span>
+        <span class="faab-bar-label">Available FAAB</span>
         <span class="faab-bar-value" id="nom-faab">$0</span>
       </div>
       <div class="input-group">
-        <label class="input-label">Your Opening Max Bid</label>
+        <label class="input-label">Opening Max Bid</label>
         <div style="position:relative;">
           <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-family:var(--font-mono);font-size:16px;pointer-events:none;">$</span>
           <input type="number" id="nom-bid-input" min="1" value="1" placeholder="1"
