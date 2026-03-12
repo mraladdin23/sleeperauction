@@ -311,6 +311,20 @@ const UI = (() => {
       const canNom    = !inAuction && !myActiveNom;
       const customPts = App.computeCustomPts(id);
       const ptsLabel  = customPts !== null ? customPts.toFixed(1) : '—';
+      const raw       = (App.state.statsMap || {})[id] || {};
+
+      // Position-relevant inline stats
+      const statBits = [];
+      if (raw.pass_yd)  statBits.push(`${Math.round(raw.pass_yd)} PaYd`);
+      if (raw.pass_td)  statBits.push(`${raw.pass_td} PaTD`);
+      if (raw.rush_yd)  statBits.push(`${Math.round(raw.rush_yd)} RuYd`);
+      if (raw.rush_td)  statBits.push(`${raw.rush_td} RuTD`);
+      if (raw.rec)      statBits.push(`${raw.rec} Rec`);
+      if (raw.rec_yd)   statBits.push(`${Math.round(raw.rec_yd)} ReYd`);
+      if (raw.rec_td)   statBits.push(`${raw.rec_td} ReTD`);
+      const statLine = statBits.length
+        ? `<div style="font-size:10px;color:var(--text3);margin-top:2px;line-height:1.5;">${statBits.join(' · ')}</div>`
+        : '';
 
       return `<tr>
         <td>
@@ -323,6 +337,7 @@ const UI = (() => {
             <div>
               <div style="font-weight:500;">${playerName(p)}</div>
               <div style="display:flex;gap:6px;margin-top:2px;"><span class="pos-badge pos-${pos2}">${pos2}</span></div>
+              ${statLine}
             </div>
           </div>
         </td>
@@ -348,91 +363,68 @@ const UI = (() => {
     const { state } = App;
     const now        = Date.now();
     const maxBudget  = Math.max(...state.teams.map(t => t.faab_budget), 1);
-    const rosterSize = state.rosterPositions?.length || 0;
     const grid       = document.getElementById('teams-grid');
-
-    // Build per-team auction info
     const activeAuctions = state.auctions.filter(a => !a.processed && !a.cancelled && a.expiresAt > now);
 
-    grid.innerHTML = state.teams
-      .map(t => {
-        const override   = faabOverrides?.[t.roster_id];
-        const baseFaab   = override !== undefined ? override : Math.max(0, t.faab_budget - (t.faab_used || 0));
-        const committed  = Auction.getCommittedFaab(state.auctions, t.roster_id);
-        const available  = Math.max(0, baseFaab - committed);
-        const pct        = Math.round((baseFaab / maxBudget) * 100);
-        const isMe       = String(t.owner_id) === String(state.user.user_id);
+    grid.innerHTML = state.teams.map(t => {
+      const override   = faabOverrides?.[t.roster_id];
+      const baseFaab   = override !== undefined ? override : Math.max(0, t.faab_budget - (t.faab_used || 0));
+      const committed  = Auction.getCommittedFaab(state.auctions, t.roster_id);
+      const available  = Math.max(0, baseFaab - committed);
+      const pct        = Math.round((baseFaab / maxBudget) * 100);
+      const isMe       = String(t.owner_id) === String(state.user.user_id);
 
-        // Active bids this team has placed
-        const myActiveBids = activeAuctions.filter(a => Auction.getMyMaxBid(a, t.roster_id) > 0);
-        const bidCount     = myActiveBids.length;
+      const myActiveBids = activeAuctions.filter(a => Auction.getMyMaxBid(a, t.roster_id) > 0);
+      const bidCount     = myActiveBids.length;
+      const leadingOn    = myActiveBids.filter(a => Auction.computeLeadingBid(a).rosterId === t.roster_id);
 
-        // Roster stats — taxi squad players don't count toward active roster limit
-        const taxiCount   = (t.taxi || []).length;
-        const rosterCount = Math.max(0, (t.players || []).length - taxiCount);
-        // rosterPositions excludes taxi slots — count non-taxi positions only
-        const activeSlotsTotal = state.rosterPositions.filter(p => p !== 'TXP').length;
-        const effectiveSize    = activeSlotsTotal || rosterSize;
-        const openSpots        = effectiveSize > 0 ? Math.max(0, effectiveSize - rosterCount) : '?';
-
-        // Players they're leading on (winning auctions)
-        const leadingOn = myActiveBids.filter(a => Auction.computeLeadingBid(a).rosterId === t.roster_id);
-
-        return `<div class="team-card ${isMe ? 'team-card-me' : ''}">
-          <div class="team-card-header">
-            <div class="avatar" style="width:30px;height:30px;font-size:12px;flex-shrink:0;">
-              ${t.avatar
-                ? `<img src="https://sleepercdn.com/avatars/thumbs/${t.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"
-                        onerror="this.parentElement.textContent='${(t.display_name||'?')[0].toUpperCase()}'" />`
-                : (t.display_name || '?')[0].toUpperCase()}
-            </div>
-            <div style="font-weight:600;font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-              ${t.display_name || t.username}
-            </div>
-            ${isMe ? '<span class="you-badge">You</span>' : ''}
+      return `<div class="team-card ${isMe ? 'team-card-me' : ''}">
+        <div class="team-card-header">
+          <div class="avatar" style="width:30px;height:30px;font-size:12px;flex-shrink:0;">
+            ${t.avatar
+              ? `<img src="https://sleepercdn.com/avatars/thumbs/${t.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;"
+                      onerror="this.parentElement.textContent='${(t.display_name||'?')[0].toUpperCase()}'" />`
+              : (t.display_name || '?')[0].toUpperCase()}
           </div>
-
-          <div class="team-stats-grid">
-            <div class="team-stat">
-              <div class="team-stat-label">FAAB Balance</div>
-              <div class="team-stat-val" style="color:var(--green);">$${baseFaab}</div>
-            </div>
-            <div class="team-stat">
-              <div class="team-stat-label">Committed</div>
-              <div class="team-stat-val" style="color:${committed > 0 ? 'var(--yellow)' : 'var(--text3)'};">$${committed}</div>
-            </div>
-            <div class="team-stat">
-              <div class="team-stat-label">Available</div>
-              <div class="team-stat-val" style="color:var(--accent2);">$${available}</div>
-            </div>
-            <div class="team-stat">
-              <div class="team-stat-label">Roster</div>
-              <div class="team-stat-val">${rosterCount}<span style="color:var(--text3);font-size:11px;">/${effectiveSize || '?'}</span>${taxiCount > 0 ? `<span style="color:var(--text3);font-size:10px;display:block;">+${taxiCount} taxi</span>` : ''}</div>
-            </div>
-            <div class="team-stat">
-              <div class="team-stat-label">Open Spots</div>
-              <div class="team-stat-val" style="color:${openSpots === 0 ? 'var(--red)' : 'var(--text2)'};">${openSpots}</div>
-            </div>
-            <div class="team-stat">
-              <div class="team-stat-label">Active Bids</div>
-              <div class="team-stat-val" style="color:${bidCount > 0 ? 'var(--accent2)' : 'var(--text3)'};">${bidCount}</div>
-            </div>
+          <div style="font-weight:600;font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+            ${t.display_name || t.username}
           </div>
+          ${isMe ? '<span class="you-badge">You</span>' : ''}
+        </div>
 
-          ${leadingOn.length > 0 ? `
-            <div style="margin-top:8px;font-size:11px;color:var(--text3);">
-              Winning: ${leadingOn.map(a => {
-                const p = state.players[a.playerId] || {};
-                const price = Auction.computeLeadingBid(a).displayBid;
-                return `<span style="color:var(--green);font-weight:500;">${p.first_name ? p.last_name : '?'} $${price}</span>`;
-              }).join(', ')}
-            </div>` : ''}
-
-          <div class="team-faab-bar-bg" style="margin-top:10px;">
-            <div class="team-faab-bar-fill" style="width:${pct}%"></div>
+        <div class="team-stats-grid">
+          <div class="team-stat">
+            <div class="team-stat-label">Balance</div>
+            <div class="team-stat-val" style="color:var(--green);">$${baseFaab}</div>
           </div>
-        </div>`;
-      }).join('');
+          <div class="team-stat">
+            <div class="team-stat-label">Committed</div>
+            <div class="team-stat-val" style="color:${committed > 0 ? 'var(--yellow)' : 'var(--text3)'};">$${committed}</div>
+          </div>
+          <div class="team-stat">
+            <div class="team-stat-label">Available</div>
+            <div class="team-stat-val" style="color:var(--accent2);">$${available}</div>
+          </div>
+          <div class="team-stat">
+            <div class="team-stat-label">Active Bids</div>
+            <div class="team-stat-val" style="color:${bidCount > 0 ? 'var(--accent2)' : 'var(--text3)'};">${bidCount}</div>
+          </div>
+        </div>
+
+        ${leadingOn.length > 0 ? `
+          <div style="margin-top:8px;font-size:11px;color:var(--text3);">
+            Winning: ${leadingOn.map(a => {
+              const p = state.players[a.playerId] || {};
+              const price = Auction.computeLeadingBid(a).displayBid;
+              return `<span style="color:var(--green);font-weight:500;">${p.last_name || '?'} $${price}</span>`;
+            }).join(', ')}
+          </div>` : ''}
+
+        <div class="team-faab-bar-bg" style="margin-top:10px;">
+          <div class="team-faab-bar-fill" style="width:${pct}%"></div>
+        </div>
+      </div>`;
+    }).join('');
   }
 
   // ── Auction history tab ───────────────────────────────────
@@ -490,37 +482,77 @@ const UI = (() => {
   // ── Commissioner ──────────────────────────────────────────
   function renderCommissioner(faabOverrides) {
     const { state } = App;
-    const now     = Date.now();
-    const pending = state.auctions.filter(a => !a.processed && !a.cancelled && a.expiresAt <= now);
-    const list    = document.getElementById('comm-pending-list');
-    const sel     = document.getElementById('comm-team-select');
-    const bulk    = document.getElementById('comm-faab-bulk');
+    const now = Date.now();
 
-    list.innerHTML = pending.length
-      ? pending.map(a => {
+    // ── All Auctions management list ──
+    const allList = document.getElementById('comm-all-auctions');
+    if (allList) {
+      const sorted = [...state.auctions].sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
+      if (!sorted.length) {
+        allList.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:8px 0;">No auctions yet.</div>`;
+      } else {
+        allList.innerHTML = sorted.map(a => {
           const p       = state.players[a.playerId] || {};
+          const pos     = playerPos(p);
           const leading = Auction.computeLeadingBid(a);
-          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border);gap:10px;flex-wrap:wrap;">
-            <div style="display:flex;align-items:center;gap:10px;">
-              ${playerAvatarHTML(a.playerId, 32)}
+          const isActive = !a.processed && !a.cancelled && a.expiresAt > now;
+          const isExp    = !a.cancelled && !a.processed && a.expiresAt <= now;
+
+          let statusHtml;
+          if (a.cancelled) {
+            statusHtml = `<span class="status-pill status-expired" style="font-size:10px;">Cancelled</span>`;
+          } else if (a.processed) {
+            statusHtml = `<span class="status-pill status-won" style="font-size:10px;">Processed</span>
+              <span style="font-size:12px;color:var(--green);font-family:var(--font-mono);">$${leading.displayBid}</span>
+              <span style="font-size:11px;color:var(--text3);">→ ${leading.rosterId ? getTeamName(leading.rosterId, state) : '—'}</span>`;
+          } else if (isExp) {
+            statusHtml = `<span class="status-pill status-expired" style="font-size:10px;">Needs Processing</span>
+              <span style="font-size:12px;color:var(--green);font-family:var(--font-mono);">$${leading.displayBid}</span>
+              <span style="font-size:11px;color:var(--text3);">→ ${leading.rosterId ? getTeamName(leading.rosterId, state) : '—'}</span>`;
+          } else {
+            const left = a.expiresAt - now;
+            statusHtml = `<span class="status-pill status-winning" style="font-size:10px;">Live</span>
+              <span style="font-size:12px;color:var(--green);font-family:var(--font-mono);">$${leading.displayBid}</span>
+              <span style="font-size:11px;color:var(--text3);">${formatTime(left)} left</span>`;
+          }
+
+          const cancelBtn = isActive
+            ? `<button class="btn btn-sm" style="background:var(--red-dim);color:var(--red);border:1px solid rgba(255,77,106,0.25);font-size:11px;padding:4px 8px;"
+                 onclick="App.cancelAuction('${a.id}')">Cancel</button>` : '';
+
+          const processBtn = isExp
+            ? `<button class="btn btn-green btn-sm" style="font-size:11px;padding:4px 8px;white-space:nowrap;"
+                 onclick="App.markProcessed('${a.id}')">Mark Processed ✓</button>` : '';
+
+          const deleteBtn = `<button class="btn btn-sm" style="background:transparent;color:var(--red);border:1px solid rgba(255,77,106,0.25);font-size:11px;padding:4px 8px;"
+               onclick="App.deleteAuction('${a.id}')" title="Permanently delete">🗑 Delete</button>`;
+
+          return `<div class="comm-auction-row">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:140px;">
+              ${playerAvatarHTML(a.playerId, 30)}
               <div>
-                <div style="font-weight:500;font-size:14px;">${playerName(p)}</div>
-                <div style="font-size:12px;color:var(--text3);">
-                  Won by <strong style="color:var(--accent2);">${leading.rosterId ? getTeamName(leading.rosterId, state) : '—'}</strong>
-                  for <strong style="color:var(--green);">$${leading.displayBid}</strong>
+                <div style="font-weight:500;font-size:13px;">${playerName(p)}
+                  <span class="pos-badge pos-${pos}" style="font-size:9px;vertical-align:middle;margin-left:4px;">${pos}</span>
                 </div>
+                <div style="font-size:11px;color:var(--text3);margin-top:1px;">nom: ${getTeamName(a.nominatedBy, state)}</div>
               </div>
             </div>
-            <button class="btn btn-green btn-sm" onclick="App.markProcessed('${a.id}')">Mark Processed ✓</button>
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1;">${statusHtml}</div>
+            <div style="display:flex;gap:4px;flex-shrink:0;">${processBtn}${cancelBtn}${deleteBtn}</div>
           </div>`;
-        }).join('')
-      : `<div style="color:var(--text3);font-size:13px;">No pending auctions.</div>`;
+        }).join('');
+      }
+    }
 
-    sel.innerHTML = state.teams
-      .map(t => `<option value="${t.roster_id}">${t.display_name || t.username}</option>`)
-      .join('');
+    const sel  = document.getElementById('comm-team-select');
+    const bulk = document.getElementById('comm-faab-bulk');
 
-    // Bulk FAAB setter
+    if (sel) {
+      sel.innerHTML = state.teams
+        .map(t => `<option value="${t.roster_id}">${t.display_name || t.username}</option>`)
+        .join('');
+    }
+
     if (bulk) {
       bulk.innerHTML = state.teams.map(t => {
         const current = faabOverrides?.[t.roster_id] !== undefined
