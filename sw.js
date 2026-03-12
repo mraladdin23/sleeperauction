@@ -1,64 +1,67 @@
 // SleeperBid Service Worker
-// Caches the app shell for offline launch; data always fetches live.
+// !! Bump this version string every time you deploy changes !!
+// Format: 'sleeperbid-YYYY-MM-DD-N' (N = deploy count that day)
+const CACHE = 'sleeperbid-2026-01-01-1';
 
-const CACHE = 'sleeperbid-v1';
-
-// Files to cache on install — the app shell
-const SHELL = [
-  '/',
-  '/index.html',
-  '/css/style.css',
-  '/js/firebase-config.js',
-  '/js/sleeper.js',
-  '/js/auction.js',
-  '/js/ui.js',
-  '/js/app.js',
+const STATIC = [
   '/icons/icon-192.png',
   '/icons/icon-512.png',
 ];
 
-// Install: cache the shell
+// Install: only cache icons (not JS/CSS — those always fetch fresh)
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting())
+    caches.open(CACHE).then(c => c.addAll(STATIC)).then(() => self.skipWaiting())
   );
 });
 
-// Activate: clear old caches
+// Activate: clear ALL old caches, take control immediately
 self.addEventListener('activate', e => {
   e.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    caches.keys()
+      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(() => self.clients.claim())
   );
 });
 
-// Fetch: network-first for API/Firebase calls, cache-first for shell assets
+// Fetch strategy:
+//  - JS, CSS, HTML  → network-first (always get latest, fall back to cache if offline)
+//  - Firebase/API   → network only (never cache live data)
+//  - Icons          → cache-first (never change)
 self.addEventListener('fetch', e => {
   const url = e.request.url;
 
-  // Always go live for Firebase, Sleeper API, fonts
+  // Live data — never cache
   if (
     url.includes('firebaseio.com') ||
-    url.includes('firebase') ||
+    url.includes('firebase.google') ||
     url.includes('sleeper.app') ||
     url.includes('sleepercdn.com') ||
     url.includes('fonts.googleapis.com') ||
     url.includes('fonts.gstatic.com')
   ) {
-    e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
+    e.respondWith(fetch(e.request));
     return;
   }
 
-  // Shell assets: cache-first, fall back to network
+  // App code — network-first so deploys are always picked up
+  if (url.endsWith('.js') || url.endsWith('.css') || url.endsWith('.html') || url.endsWith('/')) {
+    e.respondWith(
+      fetch(e.request)
+        .then(res => {
+          if (res.ok) {
+            const clone = res.clone();
+            caches.open(CACHE).then(c => c.put(e.request, clone));
+          }
+          return res;
+        })
+        .catch(() => caches.match(e.request))
+    );
+    return;
+  }
+
+  // Icons etc. — cache-first
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request).then(res => {
-      // Cache fresh copies of shell files
-      if (res.ok && e.request.method === 'GET') {
-        const clone = res.clone();
-        caches.open(CACHE).then(c => c.put(e.request, clone));
-      }
-      return res;
-    }))
+    caches.match(e.request).then(cached => cached || fetch(e.request))
   );
 });
