@@ -29,8 +29,7 @@ body.light-mode .topbar{background:rgba(255,255,255,.95);}
 
 /* HERO */
 .team-hero{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
-.team-avatar-lg{width:64px;height:64px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:28px;font-family:var(--font-display);letter-spacing:1px;color:#fff;flex-shrink:0;overflow:hidden;}
-.team-avatar-lg img{width:100%;height:100%;object-fit:cover;}
+.team-avatar-lg{width:64px;height:64px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:28px;font-family:var(--font-display);letter-spacing:1px;color:#fff;flex-shrink:0;}
 .team-hero-info{flex:1;}
 .team-hero-name{font-family:var(--font-display);font-size:28px;letter-spacing:.5px;}
 .team-hero-user{font-size:13px;color:var(--text3);margin-top:2px;}
@@ -38,14 +37,11 @@ body.light-mode .topbar{background:rgba(255,255,255,.95);}
 .hero-stat{text-align:center;}
 .hero-stat-val{font-family:var(--font-mono);font-size:20px;font-weight:600;}
 .hero-stat-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-top:2px;}
-
-/* CAP BAR */
 .cap-bar-wrap{background:var(--surface3);border-radius:99px;height:6px;overflow:hidden;margin:14px 0 4px;}
 .cap-bar-fill{height:100%;border-radius:99px;transition:width .4s;}
 .cap-bar-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--text3);}
 
-/* SECTIONS */
-.section-title{font-size:16px;font-weight:600;margin-bottom:12px;}
+/* CARDS */
 .card-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px;}
 .card-box-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface2);}
 .card-box-title{font-size:14px;font-weight:600;}
@@ -58,10 +54,32 @@ body.light-mode .topbar{background:rgba(255,255,255,.95);}
 .rtable tr:hover td{background:rgba(255,255,255,.015);}
 .sec-label{background:rgba(30,32,41,.7);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);padding:5px 14px;}
 .pos-badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;}
-.pb-QB{background:rgba(124,92,252,.2);color:#b89ffe;}.pb-RB{background:rgba(24,224,122,.15);color:#18e07a;}.pb-WR{background:rgba(0,212,255,.15);color:#00d4ff;}.pb-TE{background:rgba(255,201,77,.15);color:#ffc94d;}.pb-Taxi{background:rgba(90,94,114,.25);color:var(--text3);}.pb-IR{background:rgba(255,77,106,.15);color:#ff4d6a;}
+.pb-QB{background:rgba(124,92,252,.2);color:#b89ffe;}
+.pb-RB{background:rgba(24,224,122,.15);color:#18e07a;}
+.pb-WR{background:rgba(0,212,255,.15);color:#00d4ff;}
+.pb-TE{background:rgba(255,201,77,.15);color:#ffc94d;}
+.pb-Taxi{background:rgba(90,94,114,.25);color:var(--text3);}
+.pb-IR{background:rgba(255,77,106,.15);color:#ff4d6a;}
 .sal-bar{height:3px;background:var(--surface3);border-radius:99px;overflow:hidden;margin-top:3px;width:80px;}
 .sal-bar-fill{height:100%;border-radius:99px;}
 .holdout-badge{display:inline-block;font-size:10px;background:rgba(255,201,77,.15);color:var(--yellow);border-radius:4px;padding:1px 6px;margin-left:6px;}
+.promo-badge{display:inline-block;font-size:10px;background:rgba(24,224,122,.12);color:var(--green);border-radius:4px;padding:1px 6px;margin-left:6px;}
+
+/* COMMISSIONER ACTION BUTTONS in table */
+.act-cell{text-align:right;white-space:nowrap;}
+.act-btn{font-size:13px;padding:3px 7px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text2);cursor:pointer;font-family:var(--font-body);margin-left:3px;transition:all .15s;}
+.act-btn:hover{border-color:var(--border2);color:var(--text);}
+.promo-btn{font-size:11px;padding:3px 9px;border:1px solid rgba(24,224,122,.3);border-radius:4px;background:none;color:var(--green);cursor:pointer;font-family:var(--font-body);}
+.undo-btn{font-size:11px;padding:3px 9px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text3);cursor:pointer;font-family:var(--font-body);}
+.add-row-btn{display:flex;align-items:center;gap:6px;padding:9px 14px;font-size:12px;color:var(--accent2);cursor:pointer;background:none;border:none;font-family:var(--font-body);width:100%;text-align:left;}
+.add-row-btn:hover{color:var(--accent);}
+
+/* COMM BADGE */
+.comm-badge{display:inline-flex;align-items:center;gap:4px;font-size:10px;background:rgba(124,92,252,.15);color:var(--accent2);border-radius:4px;padding:2px 7px;margin-left:8px;}
+
+/* POS row */
+.pos-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.pos-chip{padding:6px 12px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;text-align:center;}
 
 /* ACTIVITY FEED */
 .feed-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
@@ -70,20 +88,32 @@ body.light-mode .topbar{background:rgba(255,255,255,.95);}
 .feed-text{font-size:13px;flex:1;}
 .feed-time{font-size:11px;color:var(--text3);margin-top:2px;}
 
-/* POS GRID */
-.pos-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
-.pos-chip{padding:6px 12px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;text-align:center;}
+/* MODAL */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;align-items:center;justify-content:center;z-index:999;padding:20px;}
+.modal-overlay.open{display:flex;}
+.modal-box{background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);padding:28px;width:100%;max-width:380px;}
+.modal-title{font-size:16px;font-weight:600;margin-bottom:18px;}
+.form-group{margin-bottom:14px;}
+.form-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;}
+.form-input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:9px 12px;color:var(--text);font-size:13px;font-family:var(--font-body);outline:none;}
+.form-input:focus{border-color:var(--accent);}
+.form-row{display:flex;gap:10px;}
+.form-row .form-group{flex:1;}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:8px 16px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;cursor:pointer;border:none;font-family:var(--font-body);transition:all .15s;}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-primary:hover{background:var(--accent2);}
+.btn-ghost{background:none;color:var(--text2);border:1px solid var(--border);}
+.btn-ghost:hover{color:var(--text);border-color:var(--border2);}
+.btn-danger{background:none;color:var(--red);border:1px solid rgba(255,77,106,.3);}
+.btn-danger:hover{background:rgba(255,77,106,.1);}
+.modal-err{font-size:12px;color:var(--red);margin-top:8px;min-height:16px;}
 
-/* Auction history */
-.aw-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);}
-.aw-row:last-child{border-bottom:none;}
+/* TOAST */
+@keyframes slideIn{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
 
-@media print{
-  .topbar,.tbtn{display:none!important;}
-  body{background:#fff!important;color:#000!important;}
-  .card-box{break-inside:avoid;}
-}
-@media(max-width:600px){.team-hero{flex-direction:column;align-items:flex-start;}.hero-stats{gap:12px;}}
+@media print{.topbar,.tbtn,.act-cell,.add-row-btn,.modal-overlay{display:none!important;}body{background:#fff!important;color:#000!important;}.card-box{break-inside:avoid;}}
+@media(max-width:600px){.team-hero{flex-direction:column;align-items:flex-start;}.hero-stats{gap:12px;}.rtable th:nth-child(3),.rtable td:nth-child(3){display:none;}}
 </style>
 </head>
 <body>
@@ -94,7 +124,7 @@ body.light-mode .topbar{background:rgba(255,255,255,.95);}
     <button class="tbtn" onclick="toggleTheme()" id="theme-btn">☀️</button>
     <a href="rosters.html" class="tbtn">📊 Salaries</a>
     <a href="index.html" class="tbtn">🏈 Auctions</a>
-    <button class="tbtn" onclick="window.print()">🖨 Print</button>
+    <button class="tbtn" onclick="window.print()">🖨</button>
   </div>
 </div>
 
@@ -103,6 +133,36 @@ body.light-mode .topbar{background:rgba(255,255,255,.95);}
     <div class="spinner"></div><span>Loading team…</span>
   </div>
   <div id="team-content" style="display:none;"></div>
+</div>
+
+<!-- Edit Modal -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title">Edit Player</div>
+    <div class="form-group">
+      <div class="form-label">Player Name</div>
+      <input class="form-input" id="modal-name" type="text" placeholder="e.g. Patrick Mahomes"/>
+    </div>
+    <div class="form-row">
+      <div class="form-group" id="modal-pos-field">
+        <div class="form-label">Position</div>
+        <select class="form-input" id="modal-pos">
+          <option>QB</option><option>RB</option><option>WR</option><option>TE</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <div class="form-label">Salary ($)</div>
+        <input class="form-input" id="modal-salary" type="number" min="100000" step="100000" placeholder="e.g. 25000000"/>
+      </div>
+    </div>
+    <input type="hidden" id="modal-slot"/>
+    <div class="modal-err" id="modal-err"></div>
+    <div class="modal-actions">
+      <button class="btn btn-danger" id="modal-delete-btn" onclick="deletePlayer()" style="margin-right:auto;">Delete</button>
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="savePlayer()">Save</button>
+    </div>
+  </div>
 </div>
 
 <!-- Firebase -->
@@ -122,120 +182,120 @@ if (localStorage.getItem('sb_theme') === 'light') {
   document.getElementById('theme-btn').textContent = '🌙';
 }
 
-// ── Helpers ───────────────────────────────────────────────
-const CAP = 301_200_000;
+// ── Constants ─────────────────────────────────────────────
+const CAP       = 301_200_000;
+const COMM      = 'mraladdin23';
 const POS_COLORS = {QB:'#b89ffe',RB:'#18e07a',WR:'#00d4ff',TE:'#ffc94d'};
+const POSITIONS  = ['QB','RB','WR','TE'];
 
-function fmtM(n) {
-  if (!n) return '$0';
-  if (n >= 1e6) return '$' + (n/1e6).toFixed(n % 1e6 === 0 ? 0 : 1) + 'M';
-  if (n >= 1e3) return '$' + Math.round(n/1e3) + 'K';
-  return '$' + n;
-}
-function fmtFaab(n) {
-  if (!n) return '$0';
-  if (n >= 1e6) return '$' + (n/1e6).toFixed(1) + 'M';
-  if (n >= 1e3) return '$' + Math.round(n/1e3) + 'K';
-  return '$' + n;
-}
-function timeAgo(ts) {
-  const d = Date.now() - ts;
-  if (d < 60000) return 'just now';
-  if (d < 3600000) return Math.floor(d/60000) + 'm ago';
-  if (d < 86400000) return Math.floor(d/3600000) + 'h ago';
-  return Math.floor(d/86400000) + 'd ago';
-}
-function posClr(pos) { return POS_COLORS[pos] || 'var(--text3)'; }
-function posBadge(pos, slot) {
-  const cls = slot === 'ir' ? 'pb-IR' : slot === 'taxi' ? 'pb-Taxi' : `pb-${pos}`;
-  const lbl = slot === 'ir' ? 'IR' : slot === 'taxi' ? 'Taxi' : pos;
-  return `<span class="pos-badge ${cls}">${lbl}</span>`;
-}
-
-// ── Get URL param ─────────────────────────────────────────
-const params = new URLSearchParams(location.search);
-const teamKey = params.get('team'); // Sleeper username key
-
-// ── Embedded salary data (subset needed) ─────────────────
-// ── Embedded fallback (mirrors rosters.html FALLBACK) ────────
-const FALLBACK = {"mraladdin23": {"team_name": "Show Me The Money!!!", "cap_spent": 194800000, "starters": [{"pos": "QB", "name": "Jalen Hurts", "salary": 61000000}, {"pos": "QB", "name": "Dak Prescott", "salary": 44500000}, {"pos": "RB", "name": "Jonathan Taylor", "salary": 20000000}, {"pos": "RB", "name": "Saquon Barkley", "salary": 17000000}, {"pos": "RB", "name": "Kyren Williams", "salary": 16100000}, {"pos": "RB", "name": "Keaton Mitchell", "salary": 1000000}, {"pos": "WR", "name": "DK Metcalf", "salary": 17000000}, {"pos": "WR", "name": "Courtland Sutton", "salary": 17100000}, {"pos": "TE", "name": "Cade Otton", "salary": 1000000}, {"pos": "TE", "name": "Colby Parkinson", "salary": 100000}], "ir": [], "taxi": [{"name": "Darnell Washington", "salary": 2000000}, {"name": "Troy Franklin", "salary": 5000000}, {"name": "Ja'Tavion Sanders", "salary": 2000000}, {"name": "Kaleb Johnson", "salary": 10000000}, {"name": "Elijah Arroyo", "salary": 5000000}, {"name": "Kyle Williams", "salary": 2000000}, {"name": "Tahj Brooks", "salary": 1000000}]}, "spicytunaroll": {"team_name": "SpicyTunaRoll", "cap_spent": 187600000, "starters": [{"pos": "QB", "name": "Patrick Mahomes", "salary": 60000000}, {"pos": "QB", "name": "Jared Goff", "salary": 41500000}, {"pos": "QB", "name": "Aaron Rodgers", "salary": 5500000}, {"pos": "RB", "name": "Breece Hall", "salary": 21000000}, {"pos": "RB", "name": "Jordan Mason", "salary": 14000000}, {"pos": "RB", "name": "RJ Harvey", "salary": 10000000}, {"pos": "RB", "name": "Tyrone Tracy", "salary": 1000000}, {"pos": "WR", "name": "DJ Moore", "salary": 14500000}, {"pos": "WR", "name": "Jayden Reed", "salary": 10000000}, {"pos": "WR", "name": "Tank Dell", "salary": 3000000}, {"pos": "WR", "name": "Alec Pierce", "salary": 2000000}, {"pos": "WR", "name": "Curtis Samuel", "salary": 1000000}, {"pos": "WR", "name": "Khalil Shakir", "salary": 1000000}, {"pos": "WR", "name": "Xavier Hutchinson", "salary": 100000}, {"pos": "TE", "name": "Juwan Johnson", "salary": 2000000}, {"pos": "TE", "name": "Noah Gray", "salary": 1000000}], "ir": [], "taxi": [{"name": "Blake Corum", "salary": 5000000}, {"name": "Jared Wiley", "salary": 700000}, {"name": "Jalen Royals", "salary": 2000000}, {"name": "Jordan James", "salary": 1000000}]}, "schardt312": {"team_name": "schardt312", "cap_spent": 188900000, "starters": [{"pos": "QB", "name": "Brock Purdy", "salary": 36500000}, {"pos": "QB", "name": "Jarrett Stidham", "salary": 2000000}, {"pos": "QB", "name": "Gardner Minshew", "salary": 1000000}, {"pos": "RB", "name": "Travis Etienne", "salary": 17000000}, {"pos": "RB", "name": "Brian Robinson", "salary": 16000000}, {"pos": "RB", "name": "Ashton Jeanty", "salary": 15000000}, {"pos": "RB", "name": "Zach Charbonnet", "salary": 10000000}, {"pos": "RB", "name": "Tyler Allgeier", "salary": 4000000}, {"pos": "RB", "name": "Dylan Sampson", "salary": 3000000}, {"pos": "RB", "name": "Elijah Mitchell", "salary": 2100000}, {"pos": "WR", "name": "Chris Olave", "salary": 26000000}, {"pos": "WR", "name": "Christian Watson", "salary": 14000000}, {"pos": "WR", "name": "John Metchie", "salary": 5000000}, {"pos": "WR", "name": "Wan'Dale Robinson", "salary": 12200000}, {"pos": "WR", "name": "Luke McCaffrey", "salary": 1000000}, {"pos": "WR", "name": "Ricky Pearsall", "salary": 7500000}, {"pos": "WR", "name": "Jalen Nailor", "salary": 100000}, {"pos": "TE", "name": "Colston Loveland", "salary": 7500000}, {"pos": "TE", "name": "Tucker Kraft", "salary": 4000000}, {"pos": "TE", "name": "Erick All", "salary": 3000000}, {"pos": "TE", "name": "Dawson Knox", "salary": 2000000}], "ir": [], "taxi": [{"name": "DeWayne McBride", "salary": 5000000}, {"name": "Luke Musgrave", "salary": 4000000}, {"name": "Elic Ayomanor", "salary": 1000000}]}, "stupend0us": {"team_name": "Achilles Healed?", "cap_spent": 195100000, "starters": [{"pos": "QB", "name": "Josh Allen", "salary": 61000000}, {"pos": "QB", "name": "Cameron Ward", "salary": 15000000}, {"pos": "QB", "name": "Dillon Gabriel", "salary": 1000000}, {"pos": "QB", "name": "Tyson Bagent", "salary": 100000}, {"pos": "RB", "name": "Christian McCaffrey", "salary": 26000000}, {"pos": "RB", "name": "Kenneth Walker", "salary": 18000000}, {"pos": "RB", "name": "Cam Skattebo", "salary": 7500000}, {"pos": "RB", "name": "Ty Johnson", "salary": 500000}, {"pos": "RB", "name": "Malik Davis", "salary": 300000}, {"pos": "RB", "name": "LeQuint Allen", "salary": 100000}, {"pos": "WR", "name": "Amon-Ra St. Brown", "salary": 28000000}, {"pos": "WR", "name": "Brian Thomas", "salary": 21500000}, {"pos": "WR", "name": "Parker Washington", "salary": 1000000}, {"pos": "TE", "name": "Hunter Henry", "salary": 12100000}, {"pos": "TE", "name": "Harold Fannin", "salary": 3000000}], "ir": [], "taxi": [{"name": "Thomas Fidone", "salary": 100000}, {"name": "Darius Cooper", "salary": 100000}, {"name": "Arian Smith", "salary": 100000}, {"name": "Cam Miller", "salary": 100000}, {"name": "LaJohntay Wester", "salary": 100000}, {"name": "Kyle McCord", "salary": 100000}, {"name": "Beaux Collins", "salary": 100000}]}, "mkim521": {"team_name": "mkim521", "cap_spent": 170900000, "starters": [{"pos": "QB", "name": "Anthony Richardson", "salary": 31000000}, {"pos": "QB", "name": "JJ McCarthy", "salary": 15000000}, {"pos": "QB", "name": "Jake Browning", "salary": 9100000}, {"pos": "QB", "name": "Mac Jones", "salary": 7000000}, {"pos": "RB", "name": "TreVeon Henderson", "salary": 15000000}, {"pos": "RB", "name": "Rachaad White", "salary": 1100000}, {"pos": "RB", "name": "Jaleel McLaughlin", "salary": 400000}, {"pos": "RB", "name": "Emanuel Wilson", "salary": 100000}, {"pos": "WR", "name": "Jaxon Smith-Njigba", "salary": 21000000}, {"pos": "WR", "name": "Jordan Addison", "salary": 21000000}, {"pos": "WR", "name": "Jerry Jeudy", "salary": 17500000}, {"pos": "WR", "name": "Josh Downs", "salary": 11000000}, {"pos": "WR", "name": "Matthew Golden", "salary": 7500000}, {"pos": "WR", "name": "Malik Washington", "salary": 4000000}, {"pos": "WR", "name": "Kayshon Boutte", "salary": 3000000}, {"pos": "WR", "name": "Ryan Flournoy", "salary": 1100000}, {"pos": "WR", "name": "Dontayvion Wicks", "salary": 1000000}, {"pos": "WR", "name": "Tyler Lockett", "salary": 700000}, {"pos": "WR", "name": "Dyami Brown", "salary": 500000}, {"pos": "WR", "name": "Olamide Zaccheaus", "salary": 100000}, {"pos": "TE", "name": "Gunnar Helm", "salary": 3000000}, {"pos": "TE", "name": "Taysom Hill", "salary": 600000}, {"pos": "TE", "name": "Michael Mayer", "salary": 100000}, {"pos": "TE", "name": "Tyler Higbee", "salary": 100000}], "ir": [], "taxi": [{"name": "Jalen Milroe", "salary": 5000000}, {"name": "Mitchell Evans", "salary": 100000}, {"name": "KeAndre Lambert-Smith", "salary": 100000}, {"name": "Efton Chism", "salary": 200000}, {"name": "Jarquez Hunter", "salary": 1000000}]}, "iowafan30": {"team_name": "iowafan30", "cap_spent": 170500000, "starters": [{"pos": "QB", "name": "Jordan Love", "salary": 37500000}, {"pos": "QB", "name": "Drake Maye", "salary": 35500000}, {"pos": "QB", "name": "Malik Willis", "salary": 900000}, {"pos": "QB", "name": "Deshaun Watson", "salary": 400000}, {"pos": "QB", "name": "Sam Howell", "salary": 100000}, {"pos": "QB", "name": "Josh Dobbs", "salary": 100000}, {"pos": "QB", "name": "Zach Wilson", "salary": 100000}, {"pos": "QB", "name": "Will Levis", "salary": 100000}, {"pos": "RB", "name": "Aaron Jones", "salary": 13000000}, {"pos": "RB", "name": "Tyjae Spears", "salary": 11000000}, {"pos": "RB", "name": "James Conner", "salary": 10500000}, {"pos": "RB", "name": "Rico Dowdle", "salary": 6000000}, {"pos": "RB", "name": "Michael Carter", "salary": 100000}, {"pos": "RB", "name": "Roschon Johnson", "salary": 100000}, {"pos": "WR", "name": "Tetairoa McMillan", "salary": 10000000}, {"pos": "WR", "name": "Stefon Diggs", "salary": 7000000}, {"pos": "WR", "name": "Jalin Hyatt", "salary": 100000}, {"pos": "TE", "name": "Mark Andrews", "salary": 18000000}, {"pos": "TE", "name": "Isaiah Likely", "salary": 14000000}, {"pos": "TE", "name": "Dalton Schultz", "salary": 6000000}], "ir": [], "taxi": [{"name": "Audric Estime", "salary": 2000000}, {"name": "Adonai Mitchell", "salary": 5000000}, {"name": "Theo Johnson", "salary": 1000000}, {"name": "Jayden Higgins", "salary": 5000000}, {"name": "Tyler Shough", "salary": 2000000}, {"name": "Tory Horton", "salary": 1000000}, {"name": "Xavier Restrepo", "salary": 100000}, {"name": "Luke Lachey", "salary": 100000}]}, "southy610": {"team_name": "Southy610", "cap_spent": 191400000, "starters": [{"pos": "QB", "name": "Bryce Young", "salary": 20000000}, {"pos": "QB", "name": "CJ Stroud", "salary": 20000000}, {"pos": "QB", "name": "Caleb Williams", "salary": 37000000}, {"pos": "QB", "name": "Joe Milton", "salary": 100000}, {"pos": "RB", "name": "Devon Achane", "salary": 16200000}, {"pos": "RB", "name": "Omarion Hampton", "salary": 15000000}, {"pos": "RB", "name": "Jacory Croskey-Merritt", "salary": 1500000}, {"pos": "RB", "name": "Jaylen Wright", "salary": 900000}, {"pos": "WR", "name": "Puka Nacua", "salary": 55000000}, {"pos": "WR", "name": "Rome Odunze", "salary": 15000000}, {"pos": "WR", "name": "Luther Burden", "salary": 7500000}, {"pos": "WR", "name": "Jalen Coker", "salary": 100000}, {"pos": "WR", "name": "Jordan Whittington", "salary": 100000}, {"pos": "TE", "name": "Mason Taylor", "salary": 3000000}], "ir": [], "taxi": [{"name": "Damien Martinez", "salary": 1700000}, {"name": "Javon Baker", "salary": 3000000}, {"name": "Dallin Holker", "salary": 100000}, {"name": "Johnny Wilson", "salary": 300000}, {"name": "Jaheim Bell", "salary": 100000}, {"name": "Chimere Dike", "salary": 1400000}, {"name": "Ja'Corey Brooks", "salary": 100000}, {"name": "Kurtis Rourke", "salary": 100000}, {"name": "Isaiah Bond", "salary": 1000000}, {"name": "Jimmy Horn Jr.", "salary": 100000}]}, "kodypetey": {"team_name": "kissin TDs", "cap_spent": 187200000, "starters": [{"pos": "QB", "name": "Lamar Jackson", "salary": 53000000}, {"pos": "QB", "name": "Baker Mayfield", "salary": 43500000}, {"pos": "QB", "name": "Jimmy Garoppolo", "salary": 100000}, {"pos": "QB", "name": "Tanner McKee", "salary": 100000}, {"pos": "QB", "name": "Mason Rudolph", "salary": 100000}, {"pos": "RB", "name": "Jahmyr Gibbs", "salary": 19000000}, {"pos": "RB", "name": "Jaylen Warren", "salary": 2000000}, {"pos": "RB", "name": "Najee Harris", "salary": 500000}, {"pos": "RB", "name": "Isaiah Davis", "salary": 300000}, {"pos": "WR", "name": "Garrett Wilson", "salary": 34000000}, {"pos": "WR", "name": "Ladd McConkey", "salary": 15000000}, {"pos": "WR", "name": "Emeka Egbuka", "salary": 10000000}, {"pos": "WR", "name": "Jalen McMillan", "salary": 2000000}, {"pos": "WR", "name": "Demario Douglas", "salary": 1000000}, {"pos": "WR", "name": "Jahdae Walker", "salary": 100000}, {"pos": "TE", "name": "AJ Barner", "salary": 5500000}, {"pos": "WR", "name": "Dont'e Thornton", "salary": 1000000}], "ir": [], "taxi": [{"name": "Ricky White", "salary": 100000}, {"name": "Xavier Legette", "salary": 5000000}, {"name": "Cade Stover", "salary": 800000}, {"name": "Jaylin Noel", "salary": 5000000}, {"name": "Pat Bryant", "salary": 2000000}, {"name": "Breshard Smith", "salary": 1000000}, {"name": "Riley Leonard", "salary": 1000000}, {"name": "Tai Felton", "salary": 1000000}, {"name": "Konata Mumpfield", "salary": 100000}, {"name": "Savion Williams", "salary": 1000000}]}, "tmill85": {"team_name": "Tmill85", "cap_spent": 195100000, "starters": [{"pos": "QB", "name": "Justin Herbert", "salary": 61000000}, {"pos": "QB", "name": "Bo Nix", "salary": 40000000}, {"pos": "RB", "name": "Quinshon Judkins", "salary": 15000000}, {"pos": "RB", "name": "Chase Brown", "salary": 12000000}, {"pos": "RB", "name": "Kyle Monangai", "salary": 2100000}, {"pos": "WR", "name": "Malik Nabers", "salary": 23000000}, {"pos": "WR", "name": "Tee Higgins", "salary": 19500000}, {"pos": "WR", "name": "Isaac TeSlaa", "salary": 2500000}, {"pos": "TE", "name": "Kyle Pitts", "salary": 19000000}, {"pos": "TE", "name": "Brenton Strange", "salary": 1000000}], "ir": [], "taxi": [{"name": "Rasheen Ali", "salary": 1000000}, {"name": "Jacob Cowing", "salary": 1000000}, {"name": "Isaac Guerendo", "salary": 1000000}, {"name": "Will Howard", "salary": 1000000}, {"name": "Tre Harris", "salary": 7500000}]}, "dlon16": {"team_name": "dlon16", "cap_spent": 187700000, "starters": [{"pos": "QB", "name": "Jayden Daniels", "salary": 37500000}, {"pos": "QB", "name": "Kyler Murray", "salary": 27000000}, {"pos": "QB", "name": "Tyrod Taylor", "salary": 100000}, {"pos": "QB", "name": "Davis Mills", "salary": 100000}, {"pos": "RB", "name": "Bijan Robinson", "salary": 28000000}, {"pos": "WR", "name": "Devonta Smith", "salary": 20000000}, {"pos": "WR", "name": "Drake London", "salary": 18500000}, {"pos": "WR", "name": "George Pickens", "salary": 23000000}, {"pos": "WR", "name": "Rashee Rice", "salary": 5000000}, {"pos": "WR", "name": "Tre Tucker", "salary": 100000}, {"pos": "TE", "name": "Trey McBride", "salary": 15700000}, {"pos": "TE", "name": "Tyler Warren", "salary": 12700000}], "ir": [], "taxi": [{"name": "Devontez Walker", "salary": 1000000}, {"name": "Jack Bech", "salary": 5000000}, {"name": "Oronde Gadsden", "salary": 1600000}, {"name": "Jackson Hawes", "salary": 1600000}, {"name": "Jaylin Lane", "salary": 600000}]}, "abomb25": {"team_name": "abomb25", "cap_spent": 187400000, "starters": [{"pos": "QB", "name": "Jaxson Dart", "salary": 10000000}, {"pos": "QB", "name": "Matthew Stafford", "salary": 34000000}, {"pos": "RB", "name": "James Cook", "salary": 17700000}, {"pos": "RB", "name": "Javonte Williams", "salary": 7500000}, {"pos": "RB", "name": "Sean Tucker", "salary": 4000000}, {"pos": "RB", "name": "Kenneth Gainwell", "salary": 100000}, {"pos": "WR", "name": "Justin Jefferson", "salary": 39000000}, {"pos": "WR", "name": "Ja'Marr Chase", "salary": 38000000}, {"pos": "WR", "name": "Jaylen Waddle", "salary": 28000000}, {"pos": "WR", "name": "Mack Hollins", "salary": 100000}, {"pos": "TE", "name": "Jake Ferguson", "salary": 9000000}], "ir": [], "taxi": [{"name": "MarShawn Lloyd", "salary": 5000000}, {"name": "Terrance Ferguson", "salary": 5000000}, {"name": "Quinn Ewers", "salary": 2000000}, {"name": "DJ Giddens", "salary": 1000000}]}, "notgreatbob": {"team_name": "Not Great Bob", "cap_spent": 182100000, "starters": [{"pos": "QB", "name": "Joe Burrow", "salary": 59000000}, {"pos": "QB", "name": "Sam Darnold", "salary": 26200000}, {"pos": "QB", "name": "Cooper Rush", "salary": 300000}, {"pos": "QB", "name": "Marcus Mariota", "salary": 100000}, {"pos": "QB", "name": "Andy Dalton", "salary": 100000}, {"pos": "QB", "name": "Trey Lance", "salary": 100000}, {"pos": "QB", "name": "Jacoby Brissett", "salary": 100000}, {"pos": "QB", "name": "Teddy Bridgewater", "salary": 100000}, {"pos": "RB", "name": "Bucky Irving", "salary": 3000000}, {"pos": "RB", "name": "Woody Marks", "salary": 3000000}, {"pos": "RB", "name": "Devin Neal", "salary": 1000000}, {"pos": "RB", "name": "Raheim Sanders", "salary": 100000}, {"pos": "RB", "name": "Samaje Perine", "salary": 100000}, {"pos": "RB", "name": "Phil Mafah", "salary": 100000}, {"pos": "WR", "name": "CeeDee Lamb", "salary": 32000000}, {"pos": "WR", "name": "Marvin Harrison", "salary": 15000000}, {"pos": "WR", "name": "Jakobi Meyers", "salary": 4000000}, {"pos": "WR", "name": "Kendrick Bourne", "salary": 100000}, {"pos": "WR", "name": "Noah Brown", "salary": 100000}, {"pos": "TE", "name": "David Njoku", "salary": 10500000}, {"pos": "TE", "name": "Evan Engram", "salary": 12000000}, {"pos": "TE", "name": "Brock Bowers", "salary": 15000000}, {"pos": "RB", "name": "Chris Brooks", "salary": 100000}], "ir": [], "taxi": [{"name": "Tank Bigsby", "salary": 1000000}, {"name": "Chris Rodriguez", "salary": 1000000}, {"name": "Michael Penix", "salary": 7500000}, {"name": "Braelon Allen", "salary": 1000000}, {"name": "Ray Davis", "salary": 1000000}, {"name": "Will Shipley", "salary": 2000000}, {"name": "Travis Hunter", "salary": 15000000}, {"name": "Bhayshul Tuten", "salary": 7500000}]}};
-
+// ── URL param ─────────────────────────────────────────────
+const params  = new URLSearchParams(location.search);
+const teamKey = params.get('team');
 const leagueId = localStorage.getItem('sb_leagueId') || '';
 
+// ── Helpers ───────────────────────────────────────────────
+const fmtM = n => !n ? '$0' : n>=1e6 ? '$'+(n/1e6).toFixed(n%1e6===0?0:1)+'M' : n>=1e3 ? '$'+Math.round(n/1e3)+'K' : '$'+n;
+const fmtFaab = n => !n ? '$0' : n>=1e6 ? '$'+(n/1e6).toFixed(1)+'M' : n>=1e3 ? '$'+Math.round(n/1e3)+'K' : '$'+n;
+const timeAgo = ts => { const d=Date.now()-ts; if(d<60000)return 'just now'; if(d<3600000)return Math.floor(d/60000)+'m ago'; if(d<86400000)return Math.floor(d/3600000)+'h ago'; return Math.floor(d/86400000)+'d ago'; };
+const posClr  = pos => POS_COLORS[pos] || 'var(--text3)';
+const posBadge = (pos, slot) => {
+  const cls = slot==='ir'?'pb-IR':slot==='taxi'?'pb-Taxi':`pb-${pos}`;
+  const lbl = slot==='ir'?'IR':slot==='taxi'?'Taxi':pos;
+  return `<span class="pos-badge ${cls}">${lbl}</span>`;
+};
+const isComm = () => (localStorage.getItem('sb_username')||'').toLowerCase() === COMM;
+const safeName = n => n.replace(/[.#$\/\[\]]/g,'_');
+
+// ── State ─────────────────────────────────────────────────
+let allRosters = {};
+let faabOverrides = {};
+let holdouts = {};
+let promos = {};
+let allFeed = [];
+let editCtx = null;
+
+// ── Embedded FALLBACK ─────────────────────────────────────
+const FALLBACK = {"mraladdin23":{"team_name":"Show Me The Money!!!","cap_spent":194800000,"starters":[{"pos":"QB","name":"Jalen Hurts","salary":61000000},{"pos":"QB","name":"Dak Prescott","salary":44500000},{"pos":"RB","name":"Jonathan Taylor","salary":20000000},{"pos":"RB","name":"Saquon Barkley","salary":17000000},{"pos":"RB","name":"Kyren Williams","salary":16100000},{"pos":"RB","name":"Keaton Mitchell","salary":1000000},{"pos":"WR","name":"DK Metcalf","salary":17000000},{"pos":"WR","name":"Courtland Sutton","salary":17100000},{"pos":"TE","name":"Cade Otton","salary":1000000},{"pos":"TE","name":"Colby Parkinson","salary":100000}],"ir":[],"taxi":[{"name":"Darnell Washington","salary":2000000},{"name":"Troy Franklin","salary":5000000},{"name":"Ja'Tavion Sanders","salary":2000000},{"name":"Kaleb Johnson","salary":10000000},{"name":"Elijah Arroyo","salary":5000000},{"name":"Kyle Williams","salary":2000000},{"name":"Tahj Brooks","salary":1000000}]},"spicytunaroll":{"team_name":"SpicyTunaRoll","cap_spent":187600000,"starters":[{"pos":"QB","name":"Patrick Mahomes","salary":60000000},{"pos":"QB","name":"Jared Goff","salary":41500000},{"pos":"QB","name":"Aaron Rodgers","salary":5500000},{"pos":"RB","name":"Breece Hall","salary":21000000},{"pos":"RB","name":"Jordan Mason","salary":14000000},{"pos":"RB","name":"RJ Harvey","salary":10000000},{"pos":"RB","name":"Tyrone Tracy","salary":1000000},{"pos":"WR","name":"DJ Moore","salary":14500000},{"pos":"WR","name":"Jayden Reed","salary":10000000},{"pos":"WR","name":"Tank Dell","salary":3000000},{"pos":"WR","name":"Alec Pierce","salary":2000000},{"pos":"WR","name":"Curtis Samuel","salary":1000000},{"pos":"WR","name":"Khalil Shakir","salary":1000000},{"pos":"WR","name":"Xavier Hutchinson","salary":100000},{"pos":"TE","name":"Juwan Johnson","salary":2000000},{"pos":"TE","name":"Noah Gray","salary":1000000}],"ir":[],"taxi":[{"name":"Blake Corum","salary":5000000},{"name":"Jared Wiley","salary":700000},{"name":"Jalen Royals","salary":2000000},{"name":"Jordan James","salary":1000000}]},"schardt312":{"team_name":"schardt312","cap_spent":188900000,"starters":[{"pos":"QB","name":"Brock Purdy","salary":36500000},{"pos":"QB","name":"Jarrett Stidham","salary":2000000},{"pos":"QB","name":"Gardner Minshew","salary":1000000},{"pos":"RB","name":"Travis Etienne","salary":17000000},{"pos":"RB","name":"Brian Robinson","salary":16000000},{"pos":"RB","name":"Ashton Jeanty","salary":15000000},{"pos":"RB","name":"Zach Charbonnet","salary":10000000},{"pos":"RB","name":"Tyler Allgeier","salary":4000000},{"pos":"RB","name":"Dylan Sampson","salary":3000000},{"pos":"RB","name":"Elijah Mitchell","salary":2100000},{"pos":"WR","name":"Chris Olave","salary":26000000},{"pos":"WR","name":"Christian Watson","salary":14000000},{"pos":"WR","name":"John Metchie","salary":5000000},{"pos":"WR","name":"Wan'Dale Robinson","salary":12200000},{"pos":"WR","name":"Luke McCaffrey","salary":1000000},{"pos":"WR","name":"Ricky Pearsall","salary":7500000},{"pos":"WR","name":"Jalen Nailor","salary":100000},{"pos":"TE","name":"Colston Loveland","salary":7500000},{"pos":"TE","name":"Tucker Kraft","salary":4000000},{"pos":"TE","name":"Erick All","salary":3000000},{"pos":"TE","name":"Dawson Knox","salary":2000000}],"ir":[],"taxi":[{"name":"DeWayne McBride","salary":5000000},{"name":"Luke Musgrave","salary":4000000},{"name":"Elic Ayomanor","salary":1000000}]},"stupend0us":{"team_name":"Achilles Healed?","cap_spent":195100000,"starters":[{"pos":"QB","name":"Josh Allen","salary":61000000},{"pos":"QB","name":"Cameron Ward","salary":15000000},{"pos":"QB","name":"Dillon Gabriel","salary":1000000},{"pos":"QB","name":"Tyson Bagent","salary":100000},{"pos":"RB","name":"Christian McCaffrey","salary":26000000},{"pos":"RB","name":"Kenneth Walker","salary":18000000},{"pos":"RB","name":"Cam Skattebo","salary":7500000},{"pos":"RB","name":"Ty Johnson","salary":500000},{"pos":"RB","name":"Malik Davis","salary":300000},{"pos":"RB","name":"LeQuint Allen","salary":100000},{"pos":"WR","name":"Amon-Ra St. Brown","salary":28000000},{"pos":"WR","name":"Brian Thomas","salary":21500000},{"pos":"WR","name":"Parker Washington","salary":1000000},{"pos":"TE","name":"Hunter Henry","salary":12100000},{"pos":"TE","name":"Harold Fannin","salary":3000000}],"ir":[],"taxi":[{"name":"Thomas Fidone","salary":100000},{"name":"Darius Cooper","salary":100000},{"name":"Arian Smith","salary":100000},{"name":"Cam Miller","salary":100000},{"name":"LaJohntay Wester","salary":100000},{"name":"Kyle McCord","salary":100000},{"name":"Beaux Collins","salary":100000}]},"mkim521":{"team_name":"mkim521","cap_spent":170900000,"starters":[{"pos":"QB","name":"Anthony Richardson","salary":31000000},{"pos":"QB","name":"JJ McCarthy","salary":15000000},{"pos":"QB","name":"Jake Browning","salary":9100000},{"pos":"QB","name":"Mac Jones","salary":7000000},{"pos":"RB","name":"TreVeon Henderson","salary":15000000},{"pos":"RB","name":"Rachaad White","salary":1100000},{"pos":"RB","name":"Jaleel McLaughlin","salary":400000},{"pos":"RB","name":"Emanuel Wilson","salary":100000},{"pos":"WR","name":"Jaxon Smith-Njigba","salary":21000000},{"pos":"WR","name":"Jordan Addison","salary":21000000},{"pos":"WR","name":"Jerry Jeudy","salary":17500000},{"pos":"WR","name":"Josh Downs","salary":11000000},{"pos":"WR","name":"Matthew Golden","salary":7500000},{"pos":"WR","name":"Malik Washington","salary":4000000},{"pos":"WR","name":"Kayshon Boutte","salary":3000000},{"pos":"WR","name":"Ryan Flournoy","salary":1100000},{"pos":"WR","name":"Dontayvion Wicks","salary":1000000},{"pos":"WR","name":"Tyler Lockett","salary":700000},{"pos":"WR","name":"Dyami Brown","salary":500000},{"pos":"WR","name":"Olamide Zaccheaus","salary":100000},{"pos":"TE","name":"Gunnar Helm","salary":3000000},{"pos":"TE","name":"Taysom Hill","salary":600000},{"pos":"TE","name":"Michael Mayer","salary":100000},{"pos":"TE","name":"Tyler Higbee","salary":100000}],"ir":[],"taxi":[{"name":"Jalen Milroe","salary":5000000},{"name":"Mitchell Evans","salary":100000},{"name":"KeAndre Lambert-Smith","salary":100000},{"name":"Efton Chism","salary":200000},{"name":"Jarquez Hunter","salary":1000000}]},"iowafan30":{"team_name":"iowafan30","cap_spent":170500000,"starters":[{"pos":"QB","name":"Jordan Love","salary":37500000},{"pos":"QB","name":"Drake Maye","salary":35500000},{"pos":"QB","name":"Malik Willis","salary":900000},{"pos":"QB","name":"Deshaun Watson","salary":400000},{"pos":"QB","name":"Sam Howell","salary":100000},{"pos":"QB","name":"Josh Dobbs","salary":100000},{"pos":"QB","name":"Zach Wilson","salary":100000},{"pos":"QB","name":"Will Levis","salary":100000},{"pos":"RB","name":"Aaron Jones","salary":13000000},{"pos":"RB","name":"Tyjae Spears","salary":11000000},{"pos":"RB","name":"James Conner","salary":10500000},{"pos":"RB","name":"Rico Dowdle","salary":6000000},{"pos":"RB","name":"Michael Carter","salary":100000},{"pos":"RB","name":"Roschon Johnson","salary":100000},{"pos":"WR","name":"Tetairoa McMillan","salary":10000000},{"pos":"WR","name":"Stefon Diggs","salary":7000000},{"pos":"WR","name":"Jalin Hyatt","salary":100000},{"pos":"TE","name":"Mark Andrews","salary":18000000},{"pos":"TE","name":"Isaiah Likely","salary":14000000},{"pos":"TE","name":"Dalton Schultz","salary":6000000}],"ir":[],"taxi":[{"name":"Audric Estime","salary":2000000},{"name":"Adonai Mitchell","salary":5000000},{"name":"Theo Johnson","salary":1000000},{"name":"Jayden Higgins","salary":5000000},{"name":"Tyler Shough","salary":2000000},{"name":"Tory Horton","salary":1000000},{"name":"Xavier Restrepo","salary":100000},{"name":"Luke Lachey","salary":100000}]},"southy610":{"team_name":"Southy610","cap_spent":191400000,"starters":[{"pos":"QB","name":"Bryce Young","salary":20000000},{"pos":"QB","name":"CJ Stroud","salary":20000000},{"pos":"QB","name":"Caleb Williams","salary":37000000},{"pos":"QB","name":"Joe Milton","salary":100000},{"pos":"RB","name":"Devon Achane","salary":16200000},{"pos":"RB","name":"Omarion Hampton","salary":15000000},{"pos":"RB","name":"Jacory Croskey-Merritt","salary":1500000},{"pos":"RB","name":"Jaylen Wright","salary":900000},{"pos":"WR","name":"Puka Nacua","salary":55000000},{"pos":"WR","name":"Rome Odunze","salary":15000000},{"pos":"WR","name":"Luther Burden","salary":7500000},{"pos":"WR","name":"Jalen Coker","salary":100000},{"pos":"WR","name":"Jordan Whittington","salary":100000},{"pos":"TE","name":"Mason Taylor","salary":3000000}],"ir":[],"taxi":[{"name":"Damien Martinez","salary":1700000},{"name":"Javon Baker","salary":3000000},{"name":"Dallin Holker","salary":100000},{"name":"Johnny Wilson","salary":300000},{"name":"Jaheim Bell","salary":100000},{"name":"Chimere Dike","salary":1400000},{"name":"Ja'Corey Brooks","salary":100000},{"name":"Kurtis Rourke","salary":100000},{"name":"Isaiah Bond","salary":1000000},{"name":"Jimmy Horn Jr.","salary":100000}]},"kodypetey":{"team_name":"kissin TDs","cap_spent":187200000,"starters":[{"pos":"QB","name":"Lamar Jackson","salary":53000000},{"pos":"QB","name":"Baker Mayfield","salary":43500000},{"pos":"QB","name":"Jimmy Garoppolo","salary":100000},{"pos":"QB","name":"Tanner McKee","salary":100000},{"pos":"QB","name":"Mason Rudolph","salary":100000},{"pos":"RB","name":"Jahmyr Gibbs","salary":19000000},{"pos":"RB","name":"Jaylen Warren","salary":2000000},{"pos":"RB","name":"Najee Harris","salary":500000},{"pos":"RB","name":"Isaiah Davis","salary":300000},{"pos":"WR","name":"Garrett Wilson","salary":34000000},{"pos":"WR","name":"Ladd McConkey","salary":15000000},{"pos":"WR","name":"Emeka Egbuka","salary":10000000},{"pos":"WR","name":"Jalen McMillan","salary":2000000},{"pos":"WR","name":"Demario Douglas","salary":1000000},{"pos":"WR","name":"Jahdae Walker","salary":100000},{"pos":"TE","name":"AJ Barner","salary":5500000},{"pos":"WR","name":"Dont'e Thornton","salary":1000000}],"ir":[],"taxi":[{"name":"Ricky White","salary":100000},{"name":"Xavier Legette","salary":5000000},{"name":"Cade Stover","salary":800000},{"name":"Jaylin Noel","salary":5000000},{"name":"Pat Bryant","salary":2000000},{"name":"Breshard Smith","salary":1000000},{"name":"Riley Leonard","salary":1000000},{"name":"Tai Felton","salary":1000000},{"name":"Konata Mumpfield","salary":100000},{"name":"Savion Williams","salary":1000000}]},"tmill85":{"team_name":"Tmill85","cap_spent":195100000,"starters":[{"pos":"QB","name":"Justin Herbert","salary":61000000},{"pos":"QB","name":"Bo Nix","salary":40000000},{"pos":"RB","name":"Quinshon Judkins","salary":15000000},{"pos":"RB","name":"Chase Brown","salary":12000000},{"pos":"RB","name":"Kyle Monangai","salary":2100000},{"pos":"WR","name":"Malik Nabers","salary":23000000},{"pos":"WR","name":"Tee Higgins","salary":19500000},{"pos":"WR","name":"Isaac TeSlaa","salary":2500000},{"pos":"TE","name":"Kyle Pitts","salary":19000000},{"pos":"TE","name":"Brenton Strange","salary":1000000}],"ir":[],"taxi":[{"name":"Rasheen Ali","salary":1000000},{"name":"Jacob Cowing","salary":1000000},{"name":"Isaac Guerendo","salary":1000000},{"name":"Will Howard","salary":1000000},{"name":"Tre Harris","salary":7500000}]},"dlon16":{"team_name":"dlon16","cap_spent":187700000,"starters":[{"pos":"QB","name":"Jayden Daniels","salary":37500000},{"pos":"QB","name":"Kyler Murray","salary":27000000},{"pos":"QB","name":"Tyrod Taylor","salary":100000},{"pos":"QB","name":"Davis Mills","salary":100000},{"pos":"RB","name":"Bijan Robinson","salary":28000000},{"pos":"WR","name":"Devonta Smith","salary":20000000},{"pos":"WR","name":"Drake London","salary":18500000},{"pos":"WR","name":"George Pickens","salary":23000000},{"pos":"WR","name":"Rashee Rice","salary":5000000},{"pos":"WR","name":"Tre Tucker","salary":100000},{"pos":"TE","name":"Trey McBride","salary":15700000},{"pos":"TE","name":"Tyler Warren","salary":12700000}],"ir":[],"taxi":[{"name":"Devontez Walker","salary":1000000},{"name":"Jack Bech","salary":5000000},{"name":"Oronde Gadsden","salary":1600000},{"name":"Jackson Hawes","salary":1600000},{"name":"Jaylin Lane","salary":600000}]},"abomb25":{"team_name":"abomb25","cap_spent":187400000,"starters":[{"pos":"QB","name":"Jaxson Dart","salary":10000000},{"pos":"QB","name":"Matthew Stafford","salary":34000000},{"pos":"RB","name":"James Cook","salary":17700000},{"pos":"RB","name":"Javonte Williams","salary":7500000},{"pos":"RB","name":"Sean Tucker","salary":4000000},{"pos":"RB","name":"Kenneth Gainwell","salary":100000},{"pos":"WR","name":"Justin Jefferson","salary":39000000},{"pos":"WR","name":"Ja'Marr Chase","salary":38000000},{"pos":"WR","name":"Jaylen Waddle","salary":28000000},{"pos":"WR","name":"Mack Hollins","salary":100000},{"pos":"TE","name":"Jake Ferguson","salary":9000000}],"ir":[],"taxi":[{"name":"MarShawn Lloyd","salary":5000000},{"name":"Terrance Ferguson","salary":5000000},{"name":"Quinn Ewers","salary":2000000},{"name":"DJ Giddens","salary":1000000}]},"notgreatbob":{"team_name":"Not Great Bob","cap_spent":182100000,"starters":[{"pos":"QB","name":"Joe Burrow","salary":59000000},{"pos":"QB","name":"Sam Darnold","salary":26200000},{"pos":"QB","name":"Cooper Rush","salary":300000},{"pos":"QB","name":"Marcus Mariota","salary":100000},{"pos":"QB","name":"Andy Dalton","salary":100000},{"pos":"QB","name":"Trey Lance","salary":100000},{"pos":"QB","name":"Jacoby Brissett","salary":100000},{"pos":"QB","name":"Teddy Bridgewater","salary":100000},{"pos":"RB","name":"Bucky Irving","salary":3000000},{"pos":"RB","name":"Woody Marks","salary":3000000},{"pos":"RB","name":"Devin Neal","salary":1000000},{"pos":"RB","name":"Raheim Sanders","salary":100000},{"pos":"RB","name":"Samaje Perine","salary":100000},{"pos":"RB","name":"Phil Mafah","salary":100000},{"pos":"WR","name":"CeeDee Lamb","salary":32000000},{"pos":"WR","name":"Marvin Harrison","salary":15000000},{"pos":"WR","name":"Jakobi Meyers","salary":4000000},{"pos":"WR","name":"Kendrick Bourne","salary":100000},{"pos":"WR","name":"Noah Brown","salary":100000},{"pos":"TE","name":"David Njoku","salary":10500000},{"pos":"TE","name":"Evan Engram","salary":12000000},{"pos":"TE","name":"Brock Bowers","salary":15000000},{"pos":"RB","name":"Chris Brooks","salary":100000}],"ir":[],"taxi":[{"name":"Tank Bigsby","salary":1000000},{"name":"Chris Rodriguez","salary":1000000},{"name":"Michael Penix","salary":7500000},{"name":"Braelon Allen","salary":1000000},{"name":"Ray Davis","salary":1000000},{"name":"Will Shipley","salary":2000000},{"name":"Travis Hunter","salary":15000000},{"name":"Bhayshul Tuten","salary":7500000}]}};
+
+// ── Load ──────────────────────────────────────────────────
 async function loadTeam() {
   if (!teamKey) {
     document.getElementById('loading-wrap').innerHTML =
       '<div style="color:var(--red);padding:40px;text-align:center;">No team specified. Go back and click a team name.</div>';
     return;
   }
-
-  // Load Firebase data if leagueId available, otherwise use fallback
-  let allRosters = {};
-  let faabOverrides = {};
-  let holdouts = {};
-  let allFeed = [];
-
   if (leagueId) {
     try {
-      const [rosterSnap, feedSnap, faabSnap, holdoutSnap] = await Promise.all([
+      const [rSnap, feedSnap, faabSnap, hoSnap, promoSnap] = await Promise.all([
         db.ref(`leagues/${leagueId}/rosterData`).once('value'),
         db.ref(`leagues/${leagueId}/activityFeed`).orderByChild('timestamp').limitToLast(200).once('value'),
         db.ref(`leagues/${leagueId}/faabOverrides`).once('value'),
         db.ref(`leagues/${leagueId}/holdouts`).once('value'),
+        db.ref(`leagues/${leagueId}/taxiPromos`).once('value'),
       ]);
-      const fbRosters = rosterSnap.val();
-      allRosters    = (fbRosters && Object.keys(fbRosters).length) ? fbRosters : FALLBACK;
+      const fbRosters = rSnap.val();
+      allRosters    = (fbRosters && Object.keys(fbRosters).length) ? fbRosters : JSON.parse(JSON.stringify(FALLBACK));
       faabOverrides = faabSnap.val() || {};
-      holdouts      = holdoutSnap.val() || {};
+      holdouts      = hoSnap.val() || {};
+      promos        = promoSnap.val() || {};
       feedSnap.forEach(c => allFeed.push(c.val()));
       allFeed.reverse();
     } catch(e) {
       console.warn('Firebase error, using fallback:', e);
-      allRosters = FALLBACK;
+      allRosters = JSON.parse(JSON.stringify(FALLBACK));
     }
   } else {
-    allRosters = FALLBACK;
+    allRosters = JSON.parse(JSON.stringify(FALLBACK));
   }
+  renderTeam();
+}
 
+function saveKey() { return `leagues/${leagueId}/rosterData`; }
+
+async function saveToFirebase() {
+  if (!leagueId) return;
+  Object.values(allRosters).forEach(t => {
+    t.cap_spent = t.starters.reduce((s,p)=>s+p.salary,0)
+      + (t.ir||[]).reduce((s,p)=>s+Math.round(p.salary*.75),0);
+  });
+  await db.ref(saveKey()).set(allRosters);
+}
+
+// ── Render ────────────────────────────────────────────────
+function renderTeam() {
   const teamData = allRosters[teamKey];
-
   if (!teamData) {
     document.getElementById('loading-wrap').innerHTML =
-      `<div style="color:var(--red);padding:40px;text-align:center;">Team "${teamKey}" not found in roster data.</div>`;
+      `<div style="color:var(--red);padding:40px;text-align:center;">Team "${teamKey}" not found.</div>`;
     return;
   }
 
-  const teamFeed = allFeed.filter(item =>
-    item.teamName === teamData.team_name ||
-    (item.teamName || '').toLowerCase() === teamKey
-  ).slice(0, 20);
+  const comm       = isComm();
+  const capSpent   = teamData.cap_spent || 0;
+  const capAvail   = CAP - capSpent;
+  const capPct     = Math.min(100, capSpent/CAP*100).toFixed(1);
+  const capClr     = capSpent/CAP>.72?'var(--red)':capSpent/CAP>.58?'var(--yellow)':'var(--green)';
+  const faabBal    = faabOverrides[teamKey] ?? null;
+  const allSals    = (teamData.starters||[]).map(p=>p.salary);
+  const maxSal     = Math.max(...allSals,1);
+  const teamHO     = holdouts[teamKey] || {};
+  const teamPromos = promos[teamKey] || {};
+  const taxiPlayers = (teamData.taxi||[]).filter(p=>p.name);
+  const irPlayers   = (teamData.ir||[]).filter(p=>p.name);
 
-  const faabBal = faabOverrides[teamKey] ?? null;
-  const capSpent = teamData.cap_spent || 0;
-  const capAvail = CAP - capSpent;
-  const capPct   = Math.min(100, (capSpent / CAP * 100)).toFixed(1);
-  const capClr   = capSpent/CAP > .72 ? 'var(--red)' : capSpent/CAP > .58 ? 'var(--yellow)' : 'var(--green)';
+  // pos totals/counts
+  const posTotals={QB:0,RB:0,WR:0,TE:0}, posCounts={QB:0,RB:0,WR:0,TE:0};
+  (teamData.starters||[]).forEach(p=>{if(posTotals[p.pos]!==undefined){posTotals[p.pos]+=p.salary;posCounts[p.pos]++;}});
 
-  // Position totals
-  const posTotals = {QB:0, RB:0, WR:0, TE:0};
-  const posCounts = {QB:0, RB:0, WR:0, TE:0};
-  (teamData.starters || []).forEach(p => {
-    if (posTotals[p.pos] !== undefined) { posTotals[p.pos] += p.salary; posCounts[p.pos]++; }
-  });
-
-  // Max salary for bar scale
-  const allSals = (teamData.starters || []).map(p => p.salary);
-  const maxSal  = Math.max(...allSals, 1);
-
-  // Holdouts for this team
-  const teamHoldouts = holdouts[teamKey] || {};
-
-  // ── HERO ────────────────────────────────────────────────
+  // ── HERO ──────────────────────────────────────────────
   const heroHTML = `
     <div class="team-hero">
       <div class="team-avatar-lg">${teamData.team_name[0]}</div>
       <div class="team-hero-info">
-        <div class="team-hero-name">${teamData.team_name}</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="team-hero-name">${teamData.team_name}</div>
+          ${comm ? '<span class="comm-badge">⚙️ Comm</span>' : ''}
+        </div>
         <div class="team-hero-user">@${teamKey}</div>
         <div class="hero-stats">
           <div class="hero-stat">
@@ -244,128 +304,134 @@ async function loadTeam() {
           </div>
           <div class="hero-stat">
             <div class="hero-stat-val" style="color:var(--green);">${fmtM(capAvail)}</div>
-            <div class="hero-stat-label">Cap Available</div>
+            <div class="hero-stat-label">Available</div>
           </div>
-          ${faabBal !== null ? `<div class="hero-stat">
+          ${faabBal!==null?`<div class="hero-stat">
             <div class="hero-stat-val" style="color:var(--accent2);">${fmtFaab(faabBal)}</div>
-            <div class="hero-stat-label">FAAB Balance</div>
-          </div>` : ''}
+            <div class="hero-stat-label">FAAB</div>
+          </div>`:''}
           <div class="hero-stat">
             <div class="hero-stat-val">${(teamData.starters||[]).length}</div>
-            <div class="hero-stat-label">Rostered</div>
+            <div class="hero-stat-label">Active</div>
           </div>
-          ${(teamData.taxi||[]).length ? `<div class="hero-stat">
-            <div class="hero-stat-val" style="color:var(--text3);">${teamData.taxi.length}</div>
-            <div class="hero-stat-label">Taxi Squad</div>
-          </div>` : ''}
+          ${taxiPlayers.length?`<div class="hero-stat">
+            <div class="hero-stat-val" style="color:var(--text3);">${taxiPlayers.length}</div>
+            <div class="hero-stat-label">Taxi</div>
+          </div>`:''}
         </div>
-        <div class="cap-bar-wrap">
-          <div class="cap-bar-fill" style="width:${capPct}%;background:${capClr};"></div>
-        </div>
+        <div class="cap-bar-wrap"><div class="cap-bar-fill" style="width:${capPct}%;background:${capClr};"></div></div>
         <div class="cap-bar-labels"><span>${fmtM(capSpent)} spent</span><span>Cap: ${fmtM(CAP)}</span></div>
       </div>
     </div>`;
 
-  // ── POSITION BREAKDOWN ──────────────────────────────────
+  // ── POSITION BREAKDOWN ─────────────────────────────────
+  const warnMissing = POSITIONS.filter(p=>posCounts[p]===0);
+  const warnLow     = POSITIONS.filter(p=>posCounts[p]===1);
   const posHTML = `
     <div class="card-box">
       <div class="card-box-header"><div class="card-box-title">Cap by Position</div></div>
       <div style="padding:14px 16px;">
-        <div class="pos-row">${['QB','RB','WR','TE'].map(pos => `
+        <div class="pos-row">${POSITIONS.map(pos=>`
           <div class="pos-chip" style="background:${posClr(pos)}22;color:${posClr(pos)};flex:1;min-width:70px;">
             <div style="font-size:11px;margin-bottom:3px;">${pos}</div>
             <div style="font-family:var(--font-mono);font-size:15px;">${fmtM(posTotals[pos])}</div>
             <div style="font-size:10px;opacity:.7;">${posCounts[pos]} player${posCounts[pos]!==1?'s':''}</div>
           </div>`).join('')}
         </div>
-        ${['QB','RB','WR','TE'].filter(pos => posCounts[pos] === 0).length > 0 ?
-          `<div style="font-size:12px;color:var(--red);padding:6px 0;">⚠️ Missing position${['QB','RB','WR','TE'].filter(pos=>posCounts[pos]===0).length>1?'s':''}: ${['QB','RB','WR','TE'].filter(pos=>posCounts[pos]===0).join(', ')}</div>`
-          : ''}
-        ${['QB','RB','WR','TE'].filter(pos => posCounts[pos] === 1).length > 0 ?
-          `<div style="font-size:12px;color:var(--yellow);padding:4px 0;">⚠️ Only 1 player at: ${['QB','RB','WR','TE'].filter(pos=>posCounts[pos]===1).join(', ')}</div>`
-          : ''}
+        ${warnMissing.length?`<div style="font-size:12px;color:var(--red);padding:4px 0;">⚠️ Missing: ${warnMissing.join(', ')}</div>`:''}
+        ${warnLow.length?`<div style="font-size:12px;color:var(--yellow);padding:4px 0;">⚠️ Only 1 at: ${warnLow.join(', ')}</div>`:''}
       </div>
     </div>`;
 
-  // ── FULL ROSTER ──────────────────────────────────────────
-  const byPos = {QB:[],RB:[],WR:[],TE:[]};
-  (teamData.starters||[]).forEach(p => { if(byPos[p.pos]) byPos[p.pos].push(p); });
+  // ── ROSTER TABLE ───────────────────────────────────────
+  const byPos={QB:[],RB:[],WR:[],TE:[]};
+  (teamData.starters||[]).forEach(p=>{if(byPos[p.pos])byPos[p.pos].push(p);});
 
   let rosterRows = '';
-  ['QB','RB','WR','TE'].forEach(pos => {
+  const commColspan = comm ? 4 : 3;
+  const editTh = comm ? '<th class="act-cell">Actions</th>' : '';
+
+  POSITIONS.forEach(pos => {
     const players = (byPos[pos]||[]).sort((a,b)=>b.salary-a.salary);
-    if (!players.length) return;
     const tot = players.reduce((s,p)=>s+p.salary,0);
-    rosterRows += `<tr><td colspan="3" class="sec-label">${pos} · ${fmtM(tot)} · ${players.length} player${players.length!==1?'s':''}</td></tr>`;
-    rosterRows += players.map(p => {
-      const isHoldout = !!teamHoldouts[p.name];
-      const bw = Math.round(p.salary/maxSal*100);
+    const addBtn = comm ? `<button class="add-row-btn" onclick="openAdd('starters','${pos}')">+ Add ${pos}</button>` : '';
+    rosterRows += `<tr><td colspan="${commColspan}" class="sec-label">${pos}${players.length?` · ${fmtM(tot)} · ${players.length} player${players.length!==1?'s':''}`:'— none ⚠️'}</td></tr>`;
+    if (!players.length && !comm) return;
+    if (!players.length && comm) { rosterRows += `<tr><td colspan="${commColspan}">${addBtn}</td></tr>`; return; }
+    rosterRows += players.map((p,i) => {
+      const idx = teamData.starters.findIndex(s=>s.name===p.name&&s.pos===p.pos&&s.salary===p.salary);
+      const bw  = Math.round(p.salary/maxSal*100);
+      const ho  = teamHO[p.name];
+      const hoBadge = ho ? `<span class="holdout-badge">🔥${ho.note?' '+ho.note:''}</span>` : '';
+      const actionCell = comm ? `<td class="act-cell">
+        <button class="act-btn" onclick="toggleHoldout('${p.name.replace(/'/g,"\\'")}')" title="${ho?'Remove holdout':'Flag holdout'}">${ho?'🔥':'🏳'}</button>
+        <button class="act-btn" onclick="openEdit('starters',${idx})" title="Edit">✏️</button>
+      </td>` : '';
       return `<tr>
-        <td>${p.name}${isHoldout ? '<span class="holdout-badge">🔥 Holdout</span>' : ''}</td>
+        <td>${p.name}${hoBadge}</td>
         <td>${posBadge(p.pos)}</td>
         <td style="text-align:right;font-family:var(--font-mono);font-size:12px;">
           ${fmtM(p.salary)}
           <div class="sal-bar"><div class="sal-bar-fill" style="width:${bw}%;background:${posClr(p.pos)};"></div></div>
         </td>
+        ${actionCell}
       </tr>`;
-    }).join('');
+    }).join('') + (comm ? `<tr><td colspan="${commColspan}">${addBtn}</td></tr>` : '');
   });
 
-  const irPlayers = (teamData.ir||[]).filter(p=>p.name);
-  if (irPlayers.length) {
-    rosterRows += `<tr><td colspan="3" class="sec-label">IR · 75% cap hit</td></tr>`;
-    rosterRows += irPlayers.map(p => `<tr>
-      <td style="color:var(--text2);">${p.name}</td>
-      <td>${posBadge('','ir')}</td>
-      <td style="text-align:right;font-family:var(--font-mono);font-size:12px;">${fmtM(Math.round(p.salary*.75))} <span style="color:var(--text3);font-size:10px;">(${fmtM(p.salary)})</span></td>
-    </tr>`).join('');
+  // IR
+  if (irPlayers.length || comm) {
+    const tot = irPlayers.reduce((s,p)=>s+Math.round(p.salary*.75),0);
+    rosterRows += `<tr><td colspan="${commColspan}" class="sec-label">IR · 75% cap hit${irPlayers.length?` · ${fmtM(tot)}`:''}</td></tr>`;
+    rosterRows += irPlayers.map((p,i)=>{
+      const actionCell = comm ? `<td class="act-cell"><button class="act-btn" onclick="openEdit('ir',${i})">✏️</button></td>` : '';
+      return `<tr>
+        <td style="color:var(--text2);">${p.name}</td>
+        <td>${posBadge('','ir')}</td>
+        <td style="text-align:right;font-family:var(--font-mono);font-size:12px;">${fmtM(Math.round(p.salary*.75))} <span style="color:var(--text3);font-size:10px;">(${fmtM(p.salary)})</span></td>
+        ${actionCell}
+      </tr>`;
+    }).join('') + (comm ? `<tr><td colspan="${commColspan}"><button class="add-row-btn" onclick="openAdd('ir','')">+ Add IR Player</button></td></tr>` : '');
   }
 
-  const taxiPlayers = (teamData.taxi||[]).filter(p=>p.name);
-  if (taxiPlayers.length) {
+  // Taxi — with promo buttons for comm
+  if (taxiPlayers.length || comm) {
     const taxiTot = taxiPlayers.reduce((s,p)=>s+p.salary,0);
-    rosterRows += `<tr><td colspan="3" class="sec-label">Taxi Squad · no cap hit · ${fmtM(taxiTot)} banked</td></tr>`;
-    rosterRows += taxiPlayers.sort((a,b)=>b.salary-a.salary).map(p => `<tr>
-      <td style="color:var(--text3);">${p.name}</td>
-      <td>${posBadge('','taxi')}</td>
-      <td style="text-align:right;font-family:var(--font-mono);font-size:12px;color:var(--text3);">${fmtM(p.salary)}</td>
-    </tr>`).join('');
+    rosterRows += `<tr><td colspan="${commColspan}" class="sec-label">Taxi Squad · no cap hit${taxiPlayers.length?` · ${fmtM(taxiTot)} banked`:''}</td></tr>`;
+    rosterRows += taxiPlayers.sort((a,b)=>b.salary-a.salary).map((p,i)=>{
+      const taxiIdx = (teamData.taxi||[]).findIndex(x=>x.name===p.name);
+      const promo   = teamPromos[p.name];
+      const promoBadge = promo ? `<span class="promo-badge">⬆️ Promoted${promo.note?' · '+promo.note:''}</span>` : '';
+      const actionCell = comm ? `<td class="act-cell">
+        ${!promo ? `<button class="promo-btn" onclick="doPromote('${p.name.replace(/'/g,"\\'")}')">⬆️ Promote</button>` : `<button class="undo-btn" onclick="undoPromo('${p.name.replace(/'/g,"\\'")}')">↩ Undo</button>`}
+        <button class="act-btn" onclick="openEdit('taxi',${taxiIdx})" title="Edit">✏️</button>
+      </td>` : '';
+      return `<tr>
+        <td style="color:${promo?'var(--text3)':''};">${p.name}${promoBadge}</td>
+        <td>${posBadge('','taxi')}</td>
+        <td style="text-align:right;font-family:var(--font-mono);font-size:12px;color:var(--text3);">${fmtM(p.salary)}</td>
+        ${actionCell}
+      </tr>`;
+    }).join('') + (comm ? `<tr><td colspan="${commColspan}"><button class="add-row-btn" onclick="openAdd('taxi','')">+ Add Taxi Player</button></td></tr>` : '');
   }
 
+  const colgroup = comm ? `<colgroup><col/><col style="width:55px;"/><col style="width:130px;"/><col style="width:120px;"/></colgroup>` : '';
   const rosterHTML = `
     <div class="card-box">
-      <div class="card-box-header"><div class="card-box-title">Full Roster</div><span style="font-size:12px;color:var(--text3);">${(teamData.starters||[]).length} active · ${taxiPlayers.length} taxi</span></div>
-      <table class="rtable">
-        <thead><tr><th>Player</th><th>Pos</th><th style="text-align:right;">Salary</th></tr></thead>
+      <div class="card-box-header">
+        <div class="card-box-title">Full Roster</div>
+        <span style="font-size:12px;color:var(--text3);">${(teamData.starters||[]).length} active · ${taxiPlayers.length} taxi${comm?' · Comm editing on':''}</span>
+      </div>
+      <table class="rtable">${colgroup}
+        <thead><tr><th>Player</th><th>Pos</th><th style="text-align:right;">Salary</th>${editTh}</tr></thead>
         <tbody>${rosterRows}</tbody>
       </table>
     </div>`;
 
-  // ── ACTIVITY FEED ─────────────────────────────────────────
-  const icons = {nomination:'🏷',bid:'💰',claim:'✅',cancel:'❌'};
-  const feedHTML = teamFeed.length ? `
-    <div class="card-box">
-      <div class="card-box-header"><div class="card-box-title">Recent Activity</div></div>
-      <div style="padding:0 14px;">
-        ${teamFeed.map(item => {
-          let desc = '';
-          if (item.type==='nomination') desc = `Nominated <strong>${item.playerName}</strong> · opening ${fmtFaab(item.amount)}`;
-          else if (item.type==='bid')   desc = `Placed a bid on <strong>${item.playerName}</strong>`;
-          else if (item.type==='claim') desc = `Claimed <strong>${item.playerName}</strong> for <strong style="color:var(--green);">${fmtFaab(item.amount)}</strong>`;
-          else if (item.type==='cancel') desc = `Auction cancelled for <strong>${item.playerName}</strong>`;
-          return `<div class="feed-row">
-            <div class="feed-icon">${icons[item.type]||'📋'}</div>
-            <div><div class="feed-text">${desc}</div><div class="feed-time">${timeAgo(item.timestamp)}</div></div>
-          </div>`;
-        }).join('')}
-      </div>
-    </div>` : '';
-
-  // ── COMPARE WITH LEAGUE ──────────────────────────────────
-  const allTeams = Object.values(allRosters).sort((a,b) => b.cap_spent - a.cap_spent);
-  const rank = allTeams.findIndex(t => t.team_name === teamData.team_name) + 1;
+  // ── LEAGUE STANDING ────────────────────────────────────
+  const allTeams = Object.values(allRosters).sort((a,b)=>b.cap_spent-a.cap_spent);
+  const rank = allTeams.findIndex(t=>t.team_name===teamData.team_name)+1;
   const leagueAvg = Math.round(allTeams.reduce((s,t)=>s+t.cap_spent,0)/allTeams.length);
-
   const compareHTML = `
     <div class="card-box">
       <div class="card-box-header"><div class="card-box-title">League Standing</div></div>
@@ -375,7 +441,7 @@ async function loadTeam() {
           <div class="hero-stat-label">Cap Rank (of ${allTeams.length})</div>
         </div>
         <div class="hero-stat">
-          <div class="hero-stat-val" style="color:${capSpent > leagueAvg ? 'var(--red)' : 'var(--green)'};">${capSpent > leagueAvg ? '+' : ''}${fmtM(capSpent - leagueAvg)}</div>
+          <div class="hero-stat-val" style="color:${capSpent>leagueAvg?'var(--red)':'var(--green)'};">${capSpent>leagueAvg?'+':''}${fmtM(capSpent-leagueAvg)}</div>
           <div class="hero-stat-label">vs League Avg (${fmtM(leagueAvg)})</div>
         </div>
         <div class="hero-stat">
@@ -385,9 +451,162 @@ async function loadTeam() {
       </div>
     </div>`;
 
-  document.getElementById('loading-wrap').style.display = 'none';
-  document.getElementById('team-content').style.display = '';
+  // ── ACTIVITY FEED ──────────────────────────────────────
+  const teamFeed = allFeed.filter(item =>
+    item.teamName===teamData.team_name || (item.teamName||'').toLowerCase()===teamKey
+  ).slice(0,20);
+  const icons = {nomination:'🏷',bid:'💰',claim:'✅',cancel:'❌'};
+  const feedHTML = teamFeed.length ? `
+    <div class="card-box">
+      <div class="card-box-header"><div class="card-box-title">Recent Activity</div></div>
+      <div style="padding:0 14px;">
+        ${teamFeed.map(item=>{
+          let desc='';
+          if(item.type==='nomination') desc=`Nominated <strong>${item.playerName}</strong> · opening ${fmtFaab(item.amount)}`;
+          else if(item.type==='bid')   desc=`Placed a bid on <strong>${item.playerName}</strong>`;
+          else if(item.type==='claim') desc=`Claimed <strong>${item.playerName}</strong> for <strong style="color:var(--green);">${fmtFaab(item.amount)}</strong>`;
+          else if(item.type==='cancel') desc=`Auction cancelled for <strong>${item.playerName}</strong>`;
+          return `<div class="feed-row">
+            <div class="feed-icon">${icons[item.type]||'📋'}</div>
+            <div><div class="feed-text">${desc}</div><div class="feed-time">${timeAgo(item.timestamp)}</div></div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : '';
+
+  document.getElementById('loading-wrap').style.display='none';
+  document.getElementById('team-content').style.display='';
   document.getElementById('team-content').innerHTML = heroHTML + posHTML + compareHTML + rosterHTML + feedHTML;
+}
+
+// ── HOLDOUT ───────────────────────────────────────────────
+async function toggleHoldout(playerName) {
+  if (!leagueId) { showToast('No league ID set','error'); return; }
+  const existing = (holdouts[teamKey]||{})[playerName];
+  const safe = safeName(playerName);
+  if (existing) {
+    if (holdouts[teamKey]) delete holdouts[teamKey][playerName];
+    await db.ref(`leagues/${leagueId}/holdouts/${teamKey}/${safe}`).remove();
+    showToast('Holdout flag removed','info');
+  } else {
+    const note = prompt(`Holdout note for ${playerName} (optional):`);
+    if (note === null) return;
+    if (!holdouts[teamKey]) holdouts[teamKey] = {};
+    const data = {note:note||'', year:new Date().getFullYear(), flaggedAt:Date.now()};
+    holdouts[teamKey][playerName] = data;
+    await db.ref(`leagues/${leagueId}/holdouts/${teamKey}/${safe}`).set(data);
+    showToast(`${playerName} flagged as holdout 🔥`, 'warn');
+  }
+  renderTeam();
+}
+
+// ── PROMO ─────────────────────────────────────────────────
+async function doPromote(playerName) {
+  if (!leagueId) return;
+  const note = prompt(`Promotion note for ${playerName} (optional, e.g. "Week 3, added to 53-man"):`);
+  if (note === null) return;
+  const safe = safeName(playerName);
+  if (!promos[teamKey]) promos[teamKey] = {};
+  const data = {note:note||'', promoted:true, promotedAt:Date.now()};
+  promos[teamKey][playerName] = data;
+  await db.ref(`leagues/${leagueId}/taxiPromos/${teamKey}/${safe}`).set(data);
+  showToast(`${playerName} marked as promoted ⬆️`, 'success');
+  renderTeam();
+}
+async function undoPromo(playerName) {
+  if (!leagueId) return;
+  const safe = safeName(playerName);
+  if (promos[teamKey]) delete promos[teamKey][playerName];
+  await db.ref(`leagues/${leagueId}/taxiPromos/${teamKey}/${safe}`).remove();
+  showToast('Promotion undone','info');
+  renderTeam();
+}
+
+// ── EDITOR ────────────────────────────────────────────────
+function openEdit(slot, idx) {
+  const t = allRosters[teamKey];
+  const p = slot==='ir' ? t.ir[idx] : slot==='taxi' ? t.taxi[idx] : t.starters[idx];
+  if (!p) return;
+  editCtx = {slot, idx, isNew:false};
+  document.getElementById('modal-title').textContent = 'Edit Player';
+  document.getElementById('modal-name').value = p.name;
+  document.getElementById('modal-salary').value = p.salary;
+  document.getElementById('modal-slot').value = slot;
+  document.getElementById('modal-delete-btn').style.display = '';
+  document.getElementById('modal-err').textContent = '';
+  const pf = document.getElementById('modal-pos-field');
+  if (slot==='starters') { pf.style.display=''; document.getElementById('modal-pos').value = p.pos||'WR'; }
+  else pf.style.display = 'none';
+  document.getElementById('edit-modal').classList.add('open');
+}
+function openAdd(slot, defaultPos) {
+  editCtx = {slot, idx:-1, isNew:true};
+  document.getElementById('modal-title').textContent = `Add ${slot==='taxi'?'Taxi':slot==='ir'?'IR':'Roster'} Player`;
+  document.getElementById('modal-name').value = '';
+  document.getElementById('modal-salary').value = '';
+  document.getElementById('modal-slot').value = slot;
+  document.getElementById('modal-delete-btn').style.display = 'none';
+  document.getElementById('modal-err').textContent = '';
+  const pf = document.getElementById('modal-pos-field');
+  pf.style.display = '';
+  document.getElementById('modal-pos').value = defaultPos || 'WR';
+  document.getElementById('edit-modal').classList.add('open');
+}
+function closeModal() {
+  document.getElementById('edit-modal').classList.remove('open');
+  editCtx = null;
+}
+async function savePlayer() {
+  if (!editCtx) return;
+  const name   = document.getElementById('modal-name').value.trim();
+  const salary = parseInt(document.getElementById('modal-salary').value);
+  const slot   = document.getElementById('modal-slot').value;
+  const pos    = document.getElementById('modal-pos').value;
+  const errEl  = document.getElementById('modal-err');
+  if (!name)         { errEl.textContent='Player name required.'; return; }
+  if (!salary||salary<0) { errEl.textContent='Enter a valid salary.'; return; }
+  const t = allRosters[teamKey];
+  if (!editCtx.isNew) {
+    const s = editCtx.slot;
+    if (s==='starters') t.starters.splice(editCtx.idx,1);
+    else if (s==='ir')  t.ir.splice(editCtx.idx,1);
+    else if (s==='taxi') t.taxi.splice(editCtx.idx,1);
+  }
+  const player = slot==='starters' ? {pos, name, salary} : {name, salary};
+  if (slot==='starters') t.starters.push(player);
+  else if (slot==='ir')  { if(!t.ir)t.ir=[]; t.ir.push(player); }
+  else if (slot==='taxi'){ if(!t.taxi)t.taxi=[]; t.taxi.push(player); }
+  closeModal();
+  await saveToFirebase();
+  renderTeam();
+  showToast(`${name} saved ✓`, 'success');
+}
+async function deletePlayer() {
+  if (!editCtx||editCtx.isNew) return;
+  const {slot, idx} = editCtx;
+  const t = allRosters[teamKey];
+  const name = slot==='starters' ? t.starters[idx]?.name : slot==='ir' ? t.ir[idx]?.name : t.taxi[idx]?.name;
+  if (slot==='starters') t.starters.splice(idx,1);
+  else if (slot==='ir')  t.ir.splice(idx,1);
+  else if (slot==='taxi') t.taxi.splice(idx,1);
+  closeModal();
+  await saveToFirebase();
+  renderTeam();
+  showToast(`${name||'Player'} removed`, 'info');
+}
+
+document.getElementById('edit-modal').addEventListener('click', e => {
+  if (e.target === document.getElementById('edit-modal')) closeModal();
+});
+
+// ── TOAST ─────────────────────────────────────────────────
+function showToast(msg, type='info') {
+  let c = document.getElementById('tc');
+  if (!c) { c=document.createElement('div'); c.id='tc'; c.style.cssText='position:fixed;bottom:20px;right:16px;display:flex;flex-direction:column;gap:8px;z-index:9999;'; document.body.appendChild(c); }
+  const colors = {success:'var(--green)',warn:'var(--yellow)',error:'var(--red)',info:'var(--accent)'};
+  const el = document.createElement('div');
+  el.style.cssText = `background:var(--surface2);border:1px solid var(--border2);border-left:3px solid ${colors[type]||colors.info};border-radius:var(--radius-sm);padding:10px 16px;font-size:13px;max-width:280px;box-shadow:0 4px 20px rgba(0,0,0,.4);animation:slideIn .2s ease;`;
+  el.textContent = msg; c.appendChild(el); setTimeout(()=>el.remove(), 3200);
 }
 
 loadTeam().catch(err => {

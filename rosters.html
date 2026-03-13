@@ -424,11 +424,12 @@ function renderRosters() {
       `<option value="${k}"${k===rosterFilter?' selected':''}>${t.team_name}</option>`
     ).join('');
 
-  const teamsToShow = rosterFilter==='all'
-    ? Object.entries(DATA)
-    : Object.entries(DATA).filter(([k])=>k===rosterFilter);
+  // Always render ALL teams so search works across all rosters.
+  // Non-selected teams are hidden by CSS display:none initially.
+  const teamsToShow = Object.entries(DATA);
 
   const cards = teamsToShow.map(([key,t]) => {
+    const hidden = (rosterFilter !== 'all' && key !== rosterFilter) ? ' style="display:none;"' : '';
     const sp=t.cap_spent, av=CAP-sp, clr=capClr(sp), pct=(sp/CAP*100).toFixed(1);
     const byPos={}; POSITIONS.forEach(p=>byPos[p]=[]);
     t.starters.forEach(p=>{if(byPos[p.pos])byPos[p.pos].push({...p});});
@@ -503,7 +504,7 @@ function renderRosters() {
       rows+=`<tr class="sec-row"><td colspan="3">Taxi</td><td class="sec-add"><button class="add-slot-btn" onclick="openAdd('${key}','taxi','')">+Taxi</button></td></tr>`;
     }
 
-    return `<div class="det-card">
+    return `<div class="det-card" data-team="${key}"${hidden}>
       <div class="det-header">
         <div>
           <a href="team.html?team=${key}" style="text-decoration:none;color:inherit;">
@@ -532,26 +533,53 @@ function renderRosters() {
 
   el.innerHTML = `
     <div class="roster-controls">
-      <select class="team-select" onchange="rosterFilter=this.value;renderRosters();">${options}</select>
-      <div class="search-wrap">🔍<input id="roster-search" type="text" placeholder="Search players…"/></div>
-      <span style="font-size:12px;color:var(--text3);">${rosterFilter==='all'?'All '+Object.keys(DATA).length+' teams':'1 team'}${comm?' · Comm':''}</span>
+      <select class="team-select" id="roster-team-select" onchange="rosterFilter=this.value;renderRosters();">${options}</select>
+      <div class="search-wrap">🔍<input id="roster-search" type="text" placeholder="Search all rosters…"/></div>
+      <span style="font-size:12px;color:var(--text3);" id="roster-info">${rosterFilter==='all'?'All '+Object.keys(DATA).length+' teams':'1 team'}${comm?' · Comm':''}</span>
     </div>
     <div id="rc">${cards}</div>`;
 
   // Attach AFTER render — no focus stealing
   document.getElementById('roster-search')?.addEventListener('input', function() {
     const q = this.value.toLowerCase().trim();
-    document.querySelectorAll('#rc .pr').forEach(r => {
-      r.style.display = (!q || (r.cells[0]?.textContent||'').toLowerCase().includes(q)) ? '' : 'none';
+    if (!q) {
+      // No query: restore normal team-filter view
+      document.querySelectorAll('#rc .pr').forEach(r => r.style.display = '');
+      document.querySelectorAll('#rc .sec-row').forEach(r => r.style.display = '');
+      document.querySelectorAll('#rc .det-card').forEach(c => {
+        const key = c.dataset.team;
+        c.style.display = (rosterFilter==='all' || key===rosterFilter) ? '' : 'none';
+      });
+      document.getElementById('roster-info').textContent =
+        (rosterFilter==='all'?'All '+Object.keys(DATA).length+' teams':'1 team')+(comm?' · Comm':'');
+      return;
+    }
+
+    // Search ALL teams regardless of rosterFilter
+    let matchCount = 0;
+    document.querySelectorAll('#rc .det-card').forEach(card => {
+      let cardHasMatch = false;
+      card.querySelectorAll('.pr').forEach(r => {
+        const name = (r.cells[0]?.textContent||'').toLowerCase();
+        const hit = name.includes(q);
+        r.style.display = hit ? '' : 'none';
+        if (hit) cardHasMatch = true;
+      });
+      // Hide section headers with no visible rows
+      card.querySelectorAll('.sec-row').forEach(sec => {
+        let sib=sec.nextElementSibling, any=false;
+        while(sib && !sib.classList.contains('sec-row')){
+          if(sib.style.display!=='none'){any=true;break;}
+          sib=sib.nextElementSibling;
+        }
+        sec.style.display=any?'':'none';
+      });
+      // Always show all team cards when searching so you can see which team
+      card.style.display = cardHasMatch ? '' : 'none';
+      if (cardHasMatch) matchCount++;
     });
-    document.querySelectorAll('#rc .sec-row').forEach(sec => {
-      let sib=sec.nextElementSibling, any=false;
-      while(sib && !sib.classList.contains('sec-row')){
-        if(sib.style.display!=='none'){any=true;break;}
-        sib=sib.nextElementSibling;
-      }
-      sec.style.display=any?'':'none';
-    });
+    document.getElementById('roster-info').textContent =
+      `Search results: ${matchCount} team${matchCount!==1?'s':''} matched`;
   });
 }
 
