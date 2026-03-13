@@ -408,19 +408,34 @@ const UI = (() => {
     const pg = document.getElementById('fa-pagination');
     if (pg) {
       if (totalPages <= 1) { pg.innerHTML = ''; return; }
-      const btnStyle = 'padding:6px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-size:13px;font-family:var(--font-body);';
-      const activeBtnStyle = btnStyle + 'background:var(--accent);color:#fff;border-color:var(--accent);';
+      const base = 'padding:8px 20px;border-radius:var(--radius-sm);font-size:14px;font-weight:500;font-family:var(--font-body);cursor:pointer;transition:all .15s;';
+      const btnOn  = base + 'border:1px solid var(--accent);background:var(--accent);color:#fff;';
+      const btnOff = base + 'border:1px solid var(--border);background:var(--surface2);color:var(--text3);cursor:not-allowed;opacity:.5;';
       const start = faPage * PAGE_SIZE + 1;
       const end   = Math.min((faPage + 1) * PAGE_SIZE, allFiltered.length);
+      pg.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:14px;padding:18px 0 8px;border-top:1px solid var(--border);margin-top:8px;';
       pg.innerHTML = `
-        <button style="${btnStyle}" ${faPage===0?'disabled':''} onclick="UI.faPagePrev()">← Prev</button>
-        <span style="font-size:12px;color:var(--text3);">Page ${faPage+1} of ${totalPages} &nbsp;·&nbsp; ${start}–${end} of ${allFiltered.length}</span>
-        <button style="${btnStyle}" ${faPage>=totalPages-1?'disabled':''} onclick="UI.faPageNext()">Next →</button>`;
+        <button style="${faPage===0?btnOff:btnOn}" ${faPage===0?'disabled':''} onclick="UI.faPagePrev()">← Prev</button>
+        <span style="font-size:13px;color:var(--text2);font-family:var(--font-mono);">
+          ${start}–${end} <span style="color:var(--text3);">of ${allFiltered.length}</span>
+          &nbsp;·&nbsp; Page ${faPage+1}/${totalPages}
+        </span>
+        <button style="${faPage>=totalPages-1?btnOff:btnOn}" ${faPage>=totalPages-1?'disabled':''} onclick="UI.faPageNext()">Next →</button>`;
     }
   }
 
-  function faPagePrev() { if (faPage > 0) { faPage--; renderFreeAgents(App.state.currentPosFilter || 'ALL'); } }
-  function faPageNext() { faPage++; renderFreeAgents(App.state.currentPosFilter || 'ALL'); }
+  function faPagePrev() {
+    if (faPage > 0) {
+      faPage--;
+      renderFreeAgents(App.state.posFilter || App.state.currentPosFilter || 'ALL');
+      document.getElementById('fa-tbody')?.closest('table')?.scrollIntoView({behavior:'smooth',block:'start'});
+    }
+  }
+  function faPageNext() {
+    faPage++;
+    renderFreeAgents(App.state.posFilter || App.state.currentPosFilter || 'ALL');
+    document.getElementById('fa-tbody')?.closest('table')?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
 
 
   // ── Teams ────────────────────────────────────────────────
