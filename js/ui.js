@@ -334,10 +334,7 @@ const UI = (() => {
       return true;
     });
 
-    const PAGE_SIZE = 25;
-    const totalPages = Math.max(1, Math.ceil(allFiltered.length / PAGE_SIZE));
-    if (window.faPage >= totalPages) window.faPage = totalPages - 1;
-    const filtered = allFiltered.slice(window.faPage * PAGE_SIZE, (window.faPage + 1) * PAGE_SIZE);
+    const filtered = allFiltered;
 
     document.getElementById('fa-count').textContent = `${allFiltered.length} players`;
 
@@ -405,24 +402,9 @@ const UI = (() => {
     }).join('');
 
     // Render pagination
+    // Clear pagination bar (no longer used)
     const pg = document.getElementById('fa-pagination');
-    if (pg) {
-      if (totalPages <= 1) { pg.innerHTML = ''; return; }
-      const base = 'padding:8px 20px;border-radius:var(--radius-sm);font-size:14px;font-weight:500;font-family:var(--font-body);cursor:pointer;transition:all .15s;';
-      const btnOn  = base + 'border:1px solid var(--accent);background:var(--accent);color:#fff;';
-      const btnOff = base + 'border:1px solid var(--border);background:var(--surface2);color:var(--text3);cursor:not-allowed;opacity:.5;';
-      const cur = window.faPage;
-      const start = cur * PAGE_SIZE + 1;
-      const end   = Math.min((cur + 1) * PAGE_SIZE, allFiltered.length);
-      pg.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:14px;padding:18px 0 8px;border-top:1px solid var(--border);margin-top:8px;';
-      pg.innerHTML = `
-        <button style="${cur===0?btnOff:btnOn}" ${cur===0?'disabled':''} onclick="faPagePrev()">← Prev</button>
-        <span style="font-size:13px;color:var(--text2);font-family:var(--font-mono);">
-          ${start}–${end} <span style="color:var(--text3);">of ${allFiltered.length}</span>
-          &nbsp;·&nbsp; Page ${cur+1}/${totalPages}
-        </span>
-        <button style="${cur>=totalPages-1?btnOff:btnOn}" ${cur>=totalPages-1?'disabled':''} onclick="faPageNext()">Next →</button>`;
-    }
+    if (pg) pg.innerHTML = '';
   }
 
 
