@@ -197,7 +197,10 @@ const App = (() => {
         const p = players[id];
         if (rostered.has(id)) return false;
         if (!p.fantasy_positions?.some(pos => SKILL_POSITIONS.has(pos))) return false;
-        return p.active || p.search_rank;
+        // Keep if on an NFL roster OR scored any points in 2025
+        const hasTeam  = p.team && p.team !== 'FA';
+        const hasPts   = (state.statsMap[id]?.pts_ppr ?? 0) > 0;
+        return hasTeam || hasPts;
       })
       .sort((a, b) => {
         const apts = computeCustomPts(a);
@@ -318,7 +321,9 @@ const App = (() => {
           const p = players[id];
           if (rostered.has(id)) return false;
           if (!p.fantasy_positions?.some(pos => SKILL_POSITIONS.has(pos))) return false;
-          return p.active || p.search_rank;
+          const hasTeam = p.team && p.team !== 'FA';
+          const hasPts  = (state.statsMap[id]?.pts_ppr ?? 0) > 0;
+          return hasTeam || hasPts;
         })
         .sort((a, b) => {
           const apts = computeCustomPts(a), bpts = computeCustomPts(b);
