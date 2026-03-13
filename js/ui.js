@@ -787,14 +787,18 @@ const UI = (() => {
   }
 
   function faPagePrev() {
+    console.log('[FA] faPagePrev called, window.faPage=', window.faPage);
     if (window.faPage > 0) {
       window.faPage--;
+      console.log('[FA] faPage now', window.faPage);
       renderFreeAgents(App.state.posFilter || 'ALL');
       document.getElementById('fa-tbody')?.closest('table')?.scrollIntoView({behavior:'smooth',block:'start'});
     }
   }
   function faPageNext() {
+    console.log('[FA] faPageNext called, window.faPage=', window.faPage);
     window.faPage++;
+    console.log('[FA] faPage now', window.faPage);
     renderFreeAgents(App.state.posFilter || 'ALL');
     document.getElementById('fa-tbody')?.closest('table')?.scrollIntoView({behavior:'smooth',block:'start'});
   }
