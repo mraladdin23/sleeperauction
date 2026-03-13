@@ -13,7 +13,6 @@ const UI = (() => {
   }
 
   function setLoading(msg) { document.getElementById('loading-text').textContent = msg; }
-
   // ── Tabs ─────────────────────────────────────────────────
   function switchTab(name) {
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
@@ -311,11 +310,12 @@ const UI = (() => {
   }
 
   // ── Free agents ───────────────────────────────────────────
-  let faPage = 0;
+  // faPage on window so onclick= handlers in innerHTML always reach it
+  if (window.faPage === undefined) window.faPage = 0;
 
   function renderFreeAgents(posFilter, resetPage) {
     const { state } = App;
-    if (resetPage) faPage = 0;
+    if (resetPage) window.faPage = 0;
     const query     = (document.getElementById('fa-search')?.value || '').toLowerCase();
     const myTeam    = getMyTeam(state);
     const now       = Date.now();
@@ -336,8 +336,8 @@ const UI = (() => {
 
     const PAGE_SIZE = 25;
     const totalPages = Math.max(1, Math.ceil(allFiltered.length / PAGE_SIZE));
-    if (faPage >= totalPages) faPage = totalPages - 1;
-    const filtered = allFiltered.slice(faPage * PAGE_SIZE, (faPage + 1) * PAGE_SIZE);
+    if (window.faPage >= totalPages) window.faPage = totalPages - 1;
+    const filtered = allFiltered.slice(window.faPage * PAGE_SIZE, (window.faPage + 1) * PAGE_SIZE);
 
     document.getElementById('fa-count').textContent = `${allFiltered.length} players`;
 
@@ -411,30 +411,18 @@ const UI = (() => {
       const base = 'padding:8px 20px;border-radius:var(--radius-sm);font-size:14px;font-weight:500;font-family:var(--font-body);cursor:pointer;transition:all .15s;';
       const btnOn  = base + 'border:1px solid var(--accent);background:var(--accent);color:#fff;';
       const btnOff = base + 'border:1px solid var(--border);background:var(--surface2);color:var(--text3);cursor:not-allowed;opacity:.5;';
-      const start = faPage * PAGE_SIZE + 1;
-      const end   = Math.min((faPage + 1) * PAGE_SIZE, allFiltered.length);
+      const cur = window.faPage;
+      const start = cur * PAGE_SIZE + 1;
+      const end   = Math.min((cur + 1) * PAGE_SIZE, allFiltered.length);
       pg.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:14px;padding:18px 0 8px;border-top:1px solid var(--border);margin-top:8px;';
       pg.innerHTML = `
-        <button style="${faPage===0?btnOff:btnOn}" ${faPage===0?'disabled':''} onclick="UI.faPagePrev()">← Prev</button>
+        <button style="${cur===0?btnOff:btnOn}" ${cur===0?'disabled':''} onclick="faPagePrev()">← Prev</button>
         <span style="font-size:13px;color:var(--text2);font-family:var(--font-mono);">
           ${start}–${end} <span style="color:var(--text3);">of ${allFiltered.length}</span>
-          &nbsp;·&nbsp; Page ${faPage+1}/${totalPages}
+          &nbsp;·&nbsp; Page ${cur+1}/${totalPages}
         </span>
-        <button style="${faPage>=totalPages-1?btnOff:btnOn}" ${faPage>=totalPages-1?'disabled':''} onclick="UI.faPageNext()">Next →</button>`;
+        <button style="${cur>=totalPages-1?btnOff:btnOn}" ${cur>=totalPages-1?'disabled':''} onclick="faPageNext()">Next →</button>`;
     }
-  }
-
-  function faPagePrev() {
-    if (faPage > 0) {
-      faPage--;
-      renderFreeAgents(App.state.posFilter || App.state.currentPosFilter || 'ALL');
-      document.getElementById('fa-tbody')?.closest('table')?.scrollIntoView({behavior:'smooth',block:'start'});
-    }
-  }
-  function faPageNext() {
-    faPage++;
-    renderFreeAgents(App.state.posFilter || App.state.currentPosFilter || 'ALL');
-    document.getElementById('fa-tbody')?.closest('table')?.scrollIntoView({behavior:'smooth',block:'start'});
   }
 
 
@@ -798,6 +786,19 @@ const UI = (() => {
     return t ? (t.display_name || t.username) : `Team ${rosterId}`;
   }
 
+  function faPagePrev() {
+    if (window.faPage > 0) {
+      window.faPage--;
+      renderFreeAgents(App.state.posFilter || 'ALL');
+      document.getElementById('fa-tbody')?.closest('table')?.scrollIntoView({behavior:'smooth',block:'start'});
+    }
+  }
+  function faPageNext() {
+    window.faPage++;
+    renderFreeAgents(App.state.posFilter || 'ALL');
+    document.getElementById('fa-tbody')?.closest('table')?.scrollIntoView({behavior:'smooth',block:'start'});
+  }
+
   return {
     showScreen, setLoading, switchTab, setAvatar,
     playerName, playerPos, playerTeam, playerEmoji, playerAvatarHTML,
@@ -811,3 +812,8 @@ const UI = (() => {
     faPagePrev, faPageNext,
   };
 })();
+
+// Expose pagination as true globals so onclick="faPagePrev()" always works
+// regardless of whether UI module is in scope
+window.faPagePrev = UI.faPagePrev;
+window.faPageNext = UI.faPageNext;
