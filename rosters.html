@@ -204,7 +204,6 @@ body.light-mode .sec-row td{background:rgba(200,205,225,.4);}
 
 <div class="nav-tabs">
   <button class="nav-tab active" onclick="setTab('overview')">Overview</button>
-  <button class="nav-tab" onclick="setTab('rosters')">Teams</button>
   <button class="nav-tab" onclick="setTab('allplayers')">All Players</button>
   <button class="nav-tab" onclick="setTab('compare')">Compare</button>
   <button class="nav-tab" onclick="setTab('toppaid')">Top Paid</button>
@@ -216,7 +215,6 @@ body.light-mode .sec-row td{background:rgba(200,205,225,.4);}
   <div id="loading" class="loading"><div class="spinner"></div><div>Connecting…</div></div>
   <div id="app" style="display:none;">
     <div id="tab-overview"></div>
-    <div id="tab-rosters"     style="display:none;"></div>
     <div id="tab-allplayers"  style="display:none;"></div>
     <div id="tab-compare"     style="display:none;"></div>
     <div id="tab-toppaid"     style="display:none;"></div>
@@ -353,18 +351,17 @@ const badge   = pos => `<span class="pos-badge pb-${pos}">${pos}</span>`;
 // ── Tab switcher ──────────────────────────────────────────────
 function setTab(t) {
   tab = t;
-  ['overview','rosters','allplayers','compare','toppaid','taxi','commish'].forEach(n => {
+  ['overview','allplayers','compare','toppaid','taxi','commish'].forEach(n => {
     document.getElementById('tab-'+n).style.display = n===t?'':'none';
   });
   document.querySelectorAll('.nav-tab').forEach((b,i) =>
-    b.classList.toggle('active', ['overview','rosters','allplayers','compare','toppaid','taxi','commish'][i]===t)
+    b.classList.toggle('active', ['overview','allplayers','compare','toppaid','taxi','commish'][i]===t)
   );
   renderTab(t);
 }
 function renderTab(t) {
   if (!DATA) return;
   if      (t==='overview')   renderOverview();
-  else if (t==='rosters')    renderRosters();
   else if (t==='allplayers') renderAllPlayers();
   else if (t==='compare')    renderCompare();
   else if (t==='toppaid')    renderTopPaid();
@@ -401,7 +398,7 @@ function renderOverview() {
       if(cnt===1) return `<span class="scar-one">${pos}:1</span>`;
       return '';
     }).filter(Boolean).join('');
-    return `<div class="ov-card" onclick="window.location='team.html?team=${key}'" style="cursor:pointer;">
+    return `<div class="ov-card" onclick="openTeamPanel('${key}')" style="cursor:pointer;">
       <div class="ov-header">
         <div><div class="ov-name">${t.team_name}</div><div class="ov-user">${key}</div></div>
         <div style="text-align:right;">
