@@ -311,8 +311,11 @@ const UI = (() => {
   }
 
   // ── Free agents ───────────────────────────────────────────
-  function renderFreeAgents(posFilter) {
+  let faPage = 0;
+
+  function renderFreeAgents(posFilter, resetPage) {
     const { state } = App;
+    if (resetPage) faPage = 0;
     const query     = (document.getElementById('fa-search')?.value || '').toLowerCase();
     const myTeam    = getMyTeam(state);
     const now       = Date.now();
@@ -323,19 +326,26 @@ const UI = (() => {
       ? state.auctions.find(a => !a.processed && !a.cancelled && a.expiresAt > now && a.nominatedBy === myTeam.roster_id)
       : null;
 
-    const filtered = state.freeAgents.filter(id => {
+    const allFiltered = state.freeAgents.filter(id => {
       const p = state.players[id];
       if (!p?.first_name) return false;
       if (posFilter !== 'ALL' && !(p.fantasy_positions || []).includes(posFilter)) return false;
       if (query && !playerName(p).toLowerCase().includes(query)) return false;
       return true;
-    }).slice(0, 150);
+    });
 
-    document.getElementById('fa-count').textContent = `${filtered.length} players`;
+    const PAGE_SIZE = 25;
+    const totalPages = Math.max(1, Math.ceil(allFiltered.length / PAGE_SIZE));
+    if (faPage >= totalPages) faPage = totalPages - 1;
+    const filtered = allFiltered.slice(faPage * PAGE_SIZE, (faPage + 1) * PAGE_SIZE);
+
+    document.getElementById('fa-count').textContent = `${allFiltered.length} players`;
 
     const tbody = document.getElementById('fa-tbody');
-    if (!filtered.length) {
+    if (!allFiltered.length) {
       tbody.innerHTML = `<tr><td colspan="5">${emptyState('🔍','No players found','Try a different search or position filter.')}</td></tr>`;
+      const pg = document.getElementById('fa-pagination');
+      if (pg) pg.innerHTML = '';
       return;
     }
 
@@ -393,7 +403,25 @@ const UI = (() => {
         </td>
       </tr>`;
     }).join('');
+
+    // Render pagination
+    const pg = document.getElementById('fa-pagination');
+    if (pg) {
+      if (totalPages <= 1) { pg.innerHTML = ''; return; }
+      const btnStyle = 'padding:6px 14px;border-radius:var(--radius-sm);border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-size:13px;font-family:var(--font-body);';
+      const activeBtnStyle = btnStyle + 'background:var(--accent);color:#fff;border-color:var(--accent);';
+      const start = faPage * PAGE_SIZE + 1;
+      const end   = Math.min((faPage + 1) * PAGE_SIZE, allFiltered.length);
+      pg.innerHTML = `
+        <button style="${btnStyle}" ${faPage===0?'disabled':''} onclick="UI.faPagePrev()">← Prev</button>
+        <span style="font-size:12px;color:var(--text3);">Page ${faPage+1} of ${totalPages} &nbsp;·&nbsp; ${start}–${end} of ${allFiltered.length}</span>
+        <button style="${btnStyle}" ${faPage>=totalPages-1?'disabled':''} onclick="UI.faPageNext()">Next →</button>`;
+    }
   }
+
+  function faPagePrev() { if (faPage > 0) { faPage--; renderFreeAgents(App.state.currentPosFilter || 'ALL'); } }
+  function faPageNext() { faPage++; renderFreeAgents(App.state.currentPosFilter || 'ALL'); }
+
 
   // ── Teams ────────────────────────────────────────────────
   function renderTeams(faabOverrides) {
@@ -765,5 +793,6 @@ const UI = (() => {
     renderStatBreakdown,
     startTimers, openModal, closeModal, toast,
     getMyTeam, getTeamName,
+    faPagePrev, faPageNext,
   };
 })();

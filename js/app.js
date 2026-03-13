@@ -292,12 +292,13 @@ const App = (() => {
   // ── Free agents ──────────────────────────────────────────
   function setFilter(pos, el) {
     state.posFilter = pos;
+    state.currentPosFilter = pos;
     document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
     el.classList.add('active');
-    UI.renderFreeAgents(state.posFilter);
+    UI.renderFreeAgents(state.posFilter, true); // reset to page 0
   }
 
-  function renderFreeAgents() { UI.renderFreeAgents(state.posFilter); }
+  function renderFreeAgents() { UI.renderFreeAgents(state.posFilter || 'ALL', true); }
 
   async function loadFreeAgents() {
     UI.toast('Refreshing free agents…', 'info');
