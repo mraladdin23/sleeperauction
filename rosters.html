@@ -174,6 +174,10 @@ body.light-mode .sec-row td{background:rgba(200,205,225,.4);}
 .undo-btn{font-size:11px;padding:3px 9px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text3);cursor:pointer;font-family:var(--font-body);}
 
 /* PRINT */
+.ap-chip{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-size:13px;font-family:var(--font-body);font-weight:500;transition:all .15s;}
+.ap-chip:hover{border-color:var(--border2);color:var(--text);}
+.ap-chip.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+
 @media print{
   body{background:#fff!important;color:#000!important;}
   .topbar,.nav-tabs,.roster-controls,.search-wrap,.act-btn,.add-slot-btn,.promo-btn,.undo-btn,.modal-overlay{display:none!important;}
@@ -200,7 +204,8 @@ body.light-mode .sec-row td{background:rgba(200,205,225,.4);}
 
 <div class="nav-tabs">
   <button class="nav-tab active" onclick="setTab('overview')">Overview</button>
-  <button class="nav-tab" onclick="setTab('rosters')">Rosters</button>
+  <button class="nav-tab" onclick="setTab('rosters')">Teams</button>
+  <button class="nav-tab" onclick="setTab('allplayers')">All Players</button>
   <button class="nav-tab" onclick="setTab('compare')">Compare</button>
   <button class="nav-tab" onclick="setTab('toppaid')">Top Paid</button>
   <button class="nav-tab" onclick="setTab('taxi')">🚕 Taxi</button>
@@ -210,10 +215,11 @@ body.light-mode .sec-row td{background:rgba(200,205,225,.4);}
   <div id="loading" class="loading"><div class="spinner"></div><div>Connecting…</div></div>
   <div id="app" style="display:none;">
     <div id="tab-overview"></div>
-    <div id="tab-rosters"  style="display:none;"></div>
-    <div id="tab-compare"  style="display:none;"></div>
-    <div id="tab-toppaid"  style="display:none;"></div>
-    <div id="tab-taxi"     style="display:none;"></div>
+    <div id="tab-rosters"     style="display:none;"></div>
+    <div id="tab-allplayers"  style="display:none;"></div>
+    <div id="tab-compare"     style="display:none;"></div>
+    <div id="tab-toppaid"     style="display:none;"></div>
+    <div id="tab-taxi"        style="display:none;"></div>
   </div>
 </div>
 
@@ -333,21 +339,22 @@ const badge   = pos => `<span class="pos-badge pb-${pos}">${pos}</span>`;
 // ── Tab switcher ──────────────────────────────────────────────
 function setTab(t) {
   tab = t;
-  ['overview','rosters','compare','toppaid','taxi'].forEach(n => {
+  ['overview','rosters','allplayers','compare','toppaid','taxi'].forEach(n => {
     document.getElementById('tab-'+n).style.display = n===t?'':'none';
   });
   document.querySelectorAll('.nav-tab').forEach((b,i) =>
-    b.classList.toggle('active', ['overview','rosters','compare','toppaid','taxi'][i]===t)
+    b.classList.toggle('active', ['overview','rosters','allplayers','compare','toppaid','taxi'][i]===t)
   );
   renderTab(t);
 }
 function renderTab(t) {
   if (!DATA) return;
-  if      (t==='overview') renderOverview();
-  else if (t==='rosters')  renderRosters();
-  else if (t==='compare')  renderCompare();
-  else if (t==='toppaid')  renderTopPaid();
-  else if (t==='taxi')     renderTaxi();
+  if      (t==='overview')   renderOverview();
+  else if (t==='rosters')    renderRosters();
+  else if (t==='allplayers') renderAllPlayers();
+  else if (t==='compare')    renderCompare();
+  else if (t==='toppaid')    renderTopPaid();
+  else if (t==='taxi')       renderTaxi();
 }
 
 // ── OVERVIEW ─────────────────────────────────────────────────
@@ -581,6 +588,96 @@ function renderRosters() {
     document.getElementById('roster-info').textContent =
       `Search results: ${matchCount} team${matchCount!==1?'s':''} matched`;
   });
+}
+
+// ── ALL PLAYERS ──────────────────────────────────────────────
+let apPosFilter = 'ALL';
+
+function renderAllPlayers() {
+  const el = document.getElementById('tab-allplayers');
+
+  // Build flat list of every rostered player
+  let players = [];
+  Object.entries(DATA).forEach(([key, t]) => {
+    (t.starters || []).forEach(p => {
+      players.push({ name: p.name, pos: p.pos, salary: p.salary, slot: 'Active', teamName: t.team_name, teamKey: key });
+    });
+    (t.ir || []).forEach(p => {
+      if (p.name) players.push({ name: p.name, pos: p.pos || '—', salary: Math.round(p.salary * .75), rawSal: p.salary, slot: 'IR', teamName: t.team_name, teamKey: key });
+    });
+    (t.taxi || []).forEach(p => {
+      if (p.name) players.push({ name: p.name, pos: '—', salary: p.salary, slot: 'Taxi', teamName: t.team_name, teamKey: key });
+    });
+  });
+
+  // Filter by position
+  const filtered = apPosFilter === 'ALL'
+    ? players
+    : players.filter(p => p.pos === apPosFilter);
+
+  // Sort by salary descending
+  filtered.sort((a, b) => b.salary - a.salary);
+
+  const posTotal = (pos) => players.filter(p => p.pos === pos && p.slot === 'Active').reduce((s, p) => s + p.salary, 0);
+
+  const chips = ['ALL','QB','RB','WR','TE'].map(p => `
+    <button class="ap-chip${apPosFilter===p?' active':''}" onclick="apSetPos('${p}')">${p==='ALL'?'All Positions':p}</button>
+  `).join('');
+
+  const rows = filtered.map((p, i) => {
+    const posClr = POS_COLORS[p.pos] || 'var(--text3)';
+    const slotBadge = p.slot === 'IR'
+      ? `<span style="font-size:10px;background:rgba(255,77,106,.15);color:var(--red);padding:1px 5px;border-radius:3px;margin-left:5px;">IR</span>`
+      : p.slot === 'Taxi'
+      ? `<span style="font-size:10px;background:rgba(90,94,114,.25);color:var(--text3);padding:1px 5px;border-radius:3px;margin-left:5px;">Taxi</span>`
+      : '';
+    const ho = (holdouts[p.teamKey]||{})[p.name];
+    const hoBadge = ho ? `<span style="font-size:10px;background:rgba(255,201,77,.15);color:var(--yellow);border-radius:3px;padding:1px 5px;margin-left:5px;">🔥</span>` : '';
+    return `<tr>
+      <td style="font-size:13px;padding:8px 14px;">
+        <span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);margin-right:6px;min-width:22px;display:inline-block;text-align:right;">${i+1}</span>
+        ${p.name}${hoBadge}${slotBadge}
+      </td>
+      <td style="padding:8px 6px;">
+        ${p.pos !== '—' ? `<span class="pos-badge" style="background:${posClr}22;color:${posClr};">${p.pos}</span>` : `<span style="color:var(--text3);font-size:11px;">—</span>`}
+      </td>
+      <td style="padding:8px 14px;">
+        <a href="team.html?team=${p.teamKey}" style="color:var(--text2);text-decoration:none;font-size:12px;">${p.teamName} <span style="color:var(--accent2);font-size:10px;">↗</span></a>
+      </td>
+      <td style="text-align:right;font-family:var(--font-mono);font-size:13px;padding:8px 16px;color:${p.slot==='Taxi'?'var(--text3)':p.slot==='IR'?'var(--text2)':'var(--text)'};">
+        ${fmtM(p.salary)}${p.rawSal ? `<span style="color:var(--text3);font-size:10px;margin-left:4px;">(${fmtM(p.rawSal)})</span>` : ''}
+      </td>
+    </tr>`;
+  }).join('');
+
+  const totalSal = filtered.filter(p=>p.slot==='Active').reduce((s,p)=>s+p.salary,0);
+
+  el.innerHTML = `
+    <div style="padding:16px 0 8px;">
+      <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 4px 12px;">${chips}</div>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+        <div style="padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">
+          <span style="font-size:14px;font-weight:600;">${apPosFilter==='ALL'?'All Rostered Players':apPosFilter+' Players'}</span>
+          <span style="font-size:12px;color:var(--text3);">${filtered.length} players${apPosFilter!=='ALL'?` · ${fmtM(totalSal)} total cap`:''}</span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--border);">
+              <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 14px;text-align:left;font-weight:500;">Player</th>
+              <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 6px;text-align:left;font-weight:500;">Pos</th>
+              <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 14px;text-align:left;font-weight:500;">Owner</th>
+              <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 16px;text-align:right;font-weight:500;">Salary ▼</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>`;
+}
+
+function apSetPos(pos) {
+  apPosFilter = pos;
+  renderAllPlayers();
 }
 
 // ── COMPARE ──────────────────────────────────────────────────
