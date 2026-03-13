@@ -310,8 +310,10 @@ const UI = (() => {
   }
 
   // ── Free agents ───────────────────────────────────────────
-  // faPage on window so onclick= handlers in innerHTML always reach it
+  // faPage + cached list on window so onclick= handlers always reach them
   if (window.faPage === undefined) window.faPage = 0;
+  window._faAllFiltered = window._faAllFiltered || [];
+  const FA_PAGE_SIZE = 50;
 
   function renderFreeAgents(posFilter, resetPage) {
     const { state } = App;
@@ -326,7 +328,7 @@ const UI = (() => {
       ? state.auctions.find(a => !a.processed && !a.cancelled && a.expiresAt > now && a.nominatedBy === myTeam.roster_id)
       : null;
 
-    const allFiltered = state.freeAgents.filter(id => {
+    window._faAllFiltered = state.freeAgents.filter(id => {
       const p = state.players[id];
       if (!p?.first_name) return false;
       if (posFilter !== 'ALL' && !(p.fantasy_positions || []).includes(posFilter)) return false;
@@ -334,7 +336,25 @@ const UI = (() => {
       return true;
     });
 
-    const filtered = allFiltered;
+    _renderFAPage(myTeam, activeIds, myActiveNom);
+  }
+
+  function _renderFAPage(myTeam, activeIds, myActiveNom) {
+    const allFiltered = window._faAllFiltered;
+    const totalPages  = Math.max(1, Math.ceil(allFiltered.length / FA_PAGE_SIZE));
+    if (window.faPage >= totalPages) window.faPage = totalPages - 1;
+    const filtered = allFiltered.slice(window.faPage * FA_PAGE_SIZE, (window.faPage + 1) * FA_PAGE_SIZE);
+    const now = Date.now();
+
+    // Recompute activeIds/myActiveNom if not passed (called from prev/next)
+    if (!activeIds) {
+      const { state } = App;
+      activeIds = new Set(state.auctions.filter(a => !a.processed && !a.cancelled && a.expiresAt > now).map(a => a.playerId));
+      myTeam    = getMyTeam(state);
+      myActiveNom = myTeam
+        ? state.auctions.find(a => !a.processed && !a.cancelled && a.expiresAt > now && a.nominatedBy === myTeam.roster_id)
+        : null;
+    }
 
     document.getElementById('fa-count').textContent = `${allFiltered.length} players`;
 
@@ -343,6 +363,8 @@ const UI = (() => {
       tbody.innerHTML = `<tr><td colspan="5">${emptyState('🔍','No players found','Try a different search or position filter.')}</td></tr>`;
       const pg = document.getElementById('fa-pagination');
       if (pg) pg.innerHTML = '';
+      return;
+    }
       return;
     }
 
@@ -402,9 +424,25 @@ const UI = (() => {
     }).join('');
 
     // Render pagination
-    // Clear pagination bar (no longer used)
+    // Pagination bar
     const pg = document.getElementById('fa-pagination');
-    if (pg) pg.innerHTML = '';
+    if (pg) {
+      if (totalPages <= 1) { pg.innerHTML = ''; return; }
+      const base   = 'padding:7px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;font-family:var(--font-body);cursor:pointer;transition:all .15s;';
+      const btnOn  = base + 'border:1px solid var(--accent);background:var(--accent);color:#fff;';
+      const btnOff = base + 'border:1px solid var(--border);background:var(--surface2);color:var(--text3);cursor:not-allowed;opacity:.45;';
+      const cur    = window.faPage;
+      const start  = cur * FA_PAGE_SIZE + 1;
+      const end    = Math.min((cur + 1) * FA_PAGE_SIZE, allFiltered.length);
+      pg.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:12px;padding:14px 0 6px;border-top:1px solid var(--border);margin-top:6px;';
+      pg.innerHTML = `
+        <button style="${cur===0?btnOff:btnOn}" ${cur===0?'disabled':''} onclick="faPagePrev()">← Prev</button>
+        <span style="font-size:12px;color:var(--text2);font-family:var(--font-mono);">
+          ${start}–${end} <span style="color:var(--text3);">of ${allFiltered.length}</span>
+          &nbsp;·&nbsp; Page ${cur+1} / ${totalPages}
+        </span>
+        <button style="${cur>=totalPages-1?btnOff:btnOn}" ${cur>=totalPages-1?'disabled':''} onclick="faPageNext()">Next →</button>`;
+    }
   }
 
 
@@ -769,19 +807,15 @@ const UI = (() => {
   }
 
   function faPagePrev() {
-    console.log('[FA] faPagePrev called, window.faPage=', window.faPage);
     if (window.faPage > 0) {
       window.faPage--;
-      console.log('[FA] faPage now', window.faPage);
-      renderFreeAgents(App.state.posFilter || 'ALL');
+      _renderFAPage();
       document.getElementById('fa-tbody')?.closest('table')?.scrollIntoView({behavior:'smooth',block:'start'});
     }
   }
   function faPageNext() {
-    console.log('[FA] faPageNext called, window.faPage=', window.faPage);
     window.faPage++;
-    console.log('[FA] faPage now', window.faPage);
-    renderFreeAgents(App.state.posFilter || 'ALL');
+    _renderFAPage();
     document.getElementById('fa-tbody')?.closest('table')?.scrollIntoView({behavior:'smooth',block:'start'});
   }
 

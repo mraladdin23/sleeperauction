@@ -196,7 +196,8 @@ const App = (() => {
       .filter(id => {
         const p = players[id];
         if (rostered.has(id)) return false;
-        return (p.fantasy_positions || []).some(pos => SKILL_POSITIONS.has(pos));
+        if (!p.fantasy_positions?.some(pos => SKILL_POSITIONS.has(pos))) return false;
+        return p.active || p.search_rank;
       })
       .sort((a, b) => {
         const apts = computeCustomPts(a);
@@ -316,7 +317,8 @@ const App = (() => {
         .filter(id => {
           const p = players[id];
           if (rostered.has(id)) return false;
-          return (p.fantasy_positions || []).some(pos => SKILL_POSITIONS.has(pos));
+          if (!p.fantasy_positions?.some(pos => SKILL_POSITIONS.has(pos))) return false;
+          return p.active || p.search_rank;
         })
         .sort((a, b) => {
           const apts = computeCustomPts(a), bpts = computeCustomPts(b);
