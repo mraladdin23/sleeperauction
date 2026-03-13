@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SleeperBid — Team Profile</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<style>
+:root{--bg:#0d0f14;--surface:#161820;--surface2:#1e2029;--surface3:#252733;--border:#2e3040;--border2:#3a3d52;--accent:#7c5cfc;--accent2:#9d7ffe;--green:#18e07a;--red:#ff4d6a;--yellow:#ffc94d;--text:#e8eaf0;--text2:#9296a8;--text3:#5a5e72;--font-display:'Bebas Neue',sans-serif;--font-body:'DM Sans',sans-serif;--font-mono:'JetBrains Mono',monospace;--radius:10px;--radius-sm:6px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;min-height:100vh;}
+body.light-mode{--bg:#f4f5f8;--surface:#fff;--surface2:#eef0f5;--surface3:#e4e7ef;--border:#d4d8e8;--border2:#bbbfcf;--text:#18192a;--text2:#4a4e6a;--text3:#8a8eaa;}
+::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-track{background:var(--bg);}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
+
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:54px;background:rgba(22,24,32,.95);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;backdrop-filter:blur(12px);}
+body.light-mode .topbar{background:rgba(255,255,255,.95);}
+.topbar-logo{font-family:var(--font-display);font-size:22px;letter-spacing:1px;}
+.topbar-logo span{color:var(--accent);}
+.topbar-right{display:flex;align-items:center;gap:8px;}
+.tbtn{font-size:13px;color:var(--text2);text-decoration:none;padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:none;cursor:pointer;transition:all .15s;font-family:var(--font-body);}
+.tbtn:hover{color:var(--text);border-color:var(--border2);}
+
+.main{padding:20px;max-width:960px;margin:0 auto;}
+.loading-wrap{display:flex;align-items:center;justify-content:center;min-height:300px;gap:12px;color:var(--text3);}
+.spinner{width:28px;height:28px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* HERO */
+.team-hero{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:20px;display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
+.team-avatar-lg{width:64px;height:64px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:28px;font-family:var(--font-display);letter-spacing:1px;color:#fff;flex-shrink:0;overflow:hidden;}
+.team-avatar-lg img{width:100%;height:100%;object-fit:cover;}
+.team-hero-info{flex:1;}
+.team-hero-name{font-family:var(--font-display);font-size:28px;letter-spacing:.5px;}
+.team-hero-user{font-size:13px;color:var(--text3);margin-top:2px;}
+.hero-stats{display:flex;gap:20px;margin-top:14px;flex-wrap:wrap;}
+.hero-stat{text-align:center;}
+.hero-stat-val{font-family:var(--font-mono);font-size:20px;font-weight:600;}
+.hero-stat-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-top:2px;}
+
+/* CAP BAR */
+.cap-bar-wrap{background:var(--surface3);border-radius:99px;height:6px;overflow:hidden;margin:14px 0 4px;}
+.cap-bar-fill{height:100%;border-radius:99px;transition:width .4s;}
+.cap-bar-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--text3);}
+
+/* SECTIONS */
+.section-title{font-size:16px;font-weight:600;margin-bottom:12px;}
+.card-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px;}
+.card-box-header{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface2);}
+.card-box-title{font-size:14px;font-weight:600;}
+
+/* ROSTER TABLE */
+.rtable{width:100%;border-collapse:collapse;}
+.rtable th{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 14px;border-bottom:1px solid var(--border);text-align:left;font-weight:500;}
+.rtable td{padding:8px 14px;border-bottom:1px solid rgba(46,48,64,.4);font-size:13px;vertical-align:middle;}
+.rtable tr:last-child td{border-bottom:none;}
+.rtable tr:hover td{background:rgba(255,255,255,.015);}
+.sec-label{background:rgba(30,32,41,.7);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);padding:5px 14px;}
+.pos-badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;}
+.pb-QB{background:rgba(124,92,252,.2);color:#b89ffe;}.pb-RB{background:rgba(24,224,122,.15);color:#18e07a;}.pb-WR{background:rgba(0,212,255,.15);color:#00d4ff;}.pb-TE{background:rgba(255,201,77,.15);color:#ffc94d;}.pb-Taxi{background:rgba(90,94,114,.25);color:var(--text3);}.pb-IR{background:rgba(255,77,106,.15);color:#ff4d6a;}
+.sal-bar{height:3px;background:var(--surface3);border-radius:99px;overflow:hidden;margin-top:3px;width:80px;}
+.sal-bar-fill{height:100%;border-radius:99px;}
+.holdout-badge{display:inline-block;font-size:10px;background:rgba(255,201,77,.15);color:var(--yellow);border-radius:4px;padding:1px 6px;margin-left:6px;}
+
+/* ACTIVITY FEED */
+.feed-row{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);}
+.feed-row:last-child{border-bottom:none;}
+.feed-icon{font-size:18px;flex-shrink:0;width:26px;text-align:center;}
+.feed-text{font-size:13px;flex:1;}
+.feed-time{font-size:11px;color:var(--text3);margin-top:2px;}
+
+/* POS GRID */
+.pos-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;}
+.pos-chip{padding:6px 12px;border-radius:var(--radius-sm);font-size:12px;font-weight:600;text-align:center;}
+
+/* Auction history */
+.aw-row{display:flex;align-items:center;gap:10px;padding:9px 14px;border-bottom:1px solid var(--border);}
+.aw-row:last-child{border-bottom:none;}
+
+@media print{
+  .topbar,.tbtn{display:none!important;}
+  body{background:#fff!important;color:#000!important;}
+  .card-box{break-inside:avoid;}
+}
+@media(max-width:600px){.team-hero{flex-direction:column;align-items:flex-start;}.hero-stats{gap:12px;}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-logo">Sleeper<span>Bid</span></div>
+  <div class="topbar-right">
+    <button class="tbtn" onclick="toggleTheme()" id="theme-btn">☀️</button>
+    <a href="rosters.html" class="tbtn">📊 Salaries</a>
+    <a href="index.html" class="tbtn">🏈 Auctions</a>
+    <button class="tbtn" onclick="window.print()">🖨 Print</button>
+  </div>
+</div>
+
+<div class="main">
+  <div id="loading-wrap" class="loading-wrap">
+    <div class="spinner"></div><span>Loading team…</span>
+  </div>
+  <div id="team-content" style="display:none;"></div>
+</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+
+<script>
+// ── Theme ─────────────────────────────────────────────────
+function toggleTheme() {
+  const light = document.body.classList.toggle('light-mode');
+  localStorage.setItem('sb_theme', light ? 'light' : 'dark');
+  document.getElementById('theme-btn').textContent = light ? '🌙' : '☀️';
+}
+if (localStorage.getItem('sb_theme') === 'light') {
+  document.body.classList.add('light-mode');
+  document.getElementById('theme-btn').textContent = '🌙';
+}
+
+// ── Helpers ───────────────────────────────────────────────
+const CAP = 301_200_000;
+const POS_COLORS = {QB:'#b89ffe',RB:'#18e07a',WR:'#00d4ff',TE:'#ffc94d'};
+
+function fmtM(n) {
+  if (!n) return '$0';
+  if (n >= 1e6) return '$' + (n/1e6).toFixed(n % 1e6 === 0 ? 0 : 1) + 'M';
+  if (n >= 1e3) return '$' + Math.round(n/1e3) + 'K';
+  return '$' + n;
+}
+function fmtFaab(n) {
+  if (!n) return '$0';
+  if (n >= 1e6) return '$' + (n/1e6).toFixed(1) + 'M';
+  if (n >= 1e3) return '$' + Math.round(n/1e3) + 'K';
+  return '$' + n;
+}
+function timeAgo(ts) {
+  const d = Date.now() - ts;
+  if (d < 60000) return 'just now';
+  if (d < 3600000) return Math.floor(d/60000) + 'm ago';
+  if (d < 86400000) return Math.floor(d/3600000) + 'h ago';
+  return Math.floor(d/86400000) + 'd ago';
+}
+function posClr(pos) { return POS_COLORS[pos] || 'var(--text3)'; }
+function posBadge(pos, slot) {
+  const cls = slot === 'ir' ? 'pb-IR' : slot === 'taxi' ? 'pb-Taxi' : `pb-${pos}`;
+  const lbl = slot === 'ir' ? 'IR' : slot === 'taxi' ? 'Taxi' : pos;
+  return `<span class="pos-badge ${cls}">${lbl}</span>`;
+}
+
+// ── Get URL param ─────────────────────────────────────────
+const params = new URLSearchParams(location.search);
+const teamKey = params.get('team'); // Sleeper username key
+
+// ── Embedded salary data (subset needed) ─────────────────
+// Load from Firebase rosterData
+const leagueId = localStorage.getItem('sb_leagueId') || '';
+
+async function loadTeam() {
+  if (!teamKey || !leagueId) {
+    document.getElementById('loading-wrap').innerHTML =
+      '<div style="color:var(--red);padding:40px;text-align:center;">No team specified. Go back and click a team name.</div>';
+    return;
+  }
+
+  // Parallel: salary roster data + activity feed + FAAB overrides
+  const [rosterSnap, feedSnap, faabSnap, holdoutSnap] = await Promise.all([
+    db.ref(`leagues/${leagueId}/rosterData`).once('value'),
+    db.ref(`leagues/${leagueId}/activityFeed`).orderByChild('timestamp').limitToLast(200).once('value'),
+    db.ref(`leagues/${leagueId}/faabOverrides`).once('value'),
+    db.ref(`leagues/${leagueId}/holdouts`).once('value'),
+  ]);
+
+  const allRosters  = rosterSnap.val() || {};
+  const faabOverrides = faabSnap.val() || {};
+  const holdouts    = holdoutSnap.val() || {};
+  const teamData    = allRosters[teamKey];
+
+  if (!teamData) {
+    document.getElementById('loading-wrap').innerHTML =
+      `<div style="color:var(--red);padding:40px;text-align:center;">Team "${teamKey}" not found in roster data.</div>`;
+    return;
+  }
+
+  // Activity feed filtered to this team
+  const allFeed = [];
+  feedSnap.forEach(c => allFeed.push(c.val()));
+  allFeed.reverse();
+  const teamFeed = allFeed.filter(item =>
+    item.teamName === teamData.team_name ||
+    (item.teamName || '').toLowerCase() === teamKey
+  ).slice(0, 20);
+
+  const faabBal = faabOverrides[teamKey] ?? null;
+  const capSpent = teamData.cap_spent || 0;
+  const capAvail = CAP - capSpent;
+  const capPct   = Math.min(100, (capSpent / CAP * 100)).toFixed(1);
+  const capClr   = capSpent/CAP > .72 ? 'var(--red)' : capSpent/CAP > .58 ? 'var(--yellow)' : 'var(--green)';
+
+  // Position totals
+  const posTotals = {QB:0, RB:0, WR:0, TE:0};
+  const posCounts = {QB:0, RB:0, WR:0, TE:0};
+  (teamData.starters || []).forEach(p => {
+    if (posTotals[p.pos] !== undefined) { posTotals[p.pos] += p.salary; posCounts[p.pos]++; }
+  });
+
+  // Max salary for bar scale
+  const allSals = (teamData.starters || []).map(p => p.salary);
+  const maxSal  = Math.max(...allSals, 1);
+
+  // Holdouts for this team
+  const teamHoldouts = holdouts[teamKey] || {};
+
+  // ── HERO ────────────────────────────────────────────────
+  const heroHTML = `
+    <div class="team-hero">
+      <div class="team-avatar-lg">${teamData.team_name[0]}</div>
+      <div class="team-hero-info">
+        <div class="team-hero-name">${teamData.team_name}</div>
+        <div class="team-hero-user">@${teamKey}</div>
+        <div class="hero-stats">
+          <div class="hero-stat">
+            <div class="hero-stat-val" style="color:${capClr};">${fmtM(capSpent)}</div>
+            <div class="hero-stat-label">Cap Spent (${capPct}%)</div>
+          </div>
+          <div class="hero-stat">
+            <div class="hero-stat-val" style="color:var(--green);">${fmtM(capAvail)}</div>
+            <div class="hero-stat-label">Cap Available</div>
+          </div>
+          ${faabBal !== null ? `<div class="hero-stat">
+            <div class="hero-stat-val" style="color:var(--accent2);">${fmtFaab(faabBal)}</div>
+            <div class="hero-stat-label">FAAB Balance</div>
+          </div>` : ''}
+          <div class="hero-stat">
+            <div class="hero-stat-val">${(teamData.starters||[]).length}</div>
+            <div class="hero-stat-label">Rostered</div>
+          </div>
+          ${(teamData.taxi||[]).length ? `<div class="hero-stat">
+            <div class="hero-stat-val" style="color:var(--text3);">${teamData.taxi.length}</div>
+            <div class="hero-stat-label">Taxi Squad</div>
+          </div>` : ''}
+        </div>
+        <div class="cap-bar-wrap">
+          <div class="cap-bar-fill" style="width:${capPct}%;background:${capClr};"></div>
+        </div>
+        <div class="cap-bar-labels"><span>${fmtM(capSpent)} spent</span><span>Cap: ${fmtM(CAP)}</span></div>
+      </div>
+    </div>`;
+
+  // ── POSITION BREAKDOWN ──────────────────────────────────
+  const posHTML = `
+    <div class="card-box">
+      <div class="card-box-header"><div class="card-box-title">Cap by Position</div></div>
+      <div style="padding:14px 16px;">
+        <div class="pos-row">${['QB','RB','WR','TE'].map(pos => `
+          <div class="pos-chip" style="background:${posClr(pos)}22;color:${posClr(pos)};flex:1;min-width:70px;">
+            <div style="font-size:11px;margin-bottom:3px;">${pos}</div>
+            <div style="font-family:var(--font-mono);font-size:15px;">${fmtM(posTotals[pos])}</div>
+            <div style="font-size:10px;opacity:.7;">${posCounts[pos]} player${posCounts[pos]!==1?'s':''}</div>
+          </div>`).join('')}
+        </div>
+        ${['QB','RB','WR','TE'].filter(pos => posCounts[pos] === 0).length > 0 ?
+          `<div style="font-size:12px;color:var(--red);padding:6px 0;">⚠️ Missing position${['QB','RB','WR','TE'].filter(pos=>posCounts[pos]===0).length>1?'s':''}: ${['QB','RB','WR','TE'].filter(pos=>posCounts[pos]===0).join(', ')}</div>`
+          : ''}
+        ${['QB','RB','WR','TE'].filter(pos => posCounts[pos] === 1).length > 0 ?
+          `<div style="font-size:12px;color:var(--yellow);padding:4px 0;">⚠️ Only 1 player at: ${['QB','RB','WR','TE'].filter(pos=>posCounts[pos]===1).join(', ')}</div>`
+          : ''}
+      </div>
+    </div>`;
+
+  // ── FULL ROSTER ──────────────────────────────────────────
+  const byPos = {QB:[],RB:[],WR:[],TE:[]};
+  (teamData.starters||[]).forEach(p => { if(byPos[p.pos]) byPos[p.pos].push(p); });
+
+  let rosterRows = '';
+  ['QB','RB','WR','TE'].forEach(pos => {
+    const players = (byPos[pos]||[]).sort((a,b)=>b.salary-a.salary);
+    if (!players.length) return;
+    const tot = players.reduce((s,p)=>s+p.salary,0);
+    rosterRows += `<tr><td colspan="3" class="sec-label">${pos} · ${fmtM(tot)} · ${players.length} player${players.length!==1?'s':''}</td></tr>`;
+    rosterRows += players.map(p => {
+      const isHoldout = !!teamHoldouts[p.name];
+      const bw = Math.round(p.salary/maxSal*100);
+      return `<tr>
+        <td>${p.name}${isHoldout ? '<span class="holdout-badge">🔥 Holdout</span>' : ''}</td>
+        <td>${posBadge(p.pos)}</td>
+        <td style="text-align:right;font-family:var(--font-mono);font-size:12px;">
+          ${fmtM(p.salary)}
+          <div class="sal-bar"><div class="sal-bar-fill" style="width:${bw}%;background:${posClr(p.pos)};"></div></div>
+        </td>
+      </tr>`;
+    }).join('');
+  });
+
+  const irPlayers = (teamData.ir||[]).filter(p=>p.name);
+  if (irPlayers.length) {
+    rosterRows += `<tr><td colspan="3" class="sec-label">IR · 75% cap hit</td></tr>`;
+    rosterRows += irPlayers.map(p => `<tr>
+      <td style="color:var(--text2);">${p.name}</td>
+      <td>${posBadge('','ir')}</td>
+      <td style="text-align:right;font-family:var(--font-mono);font-size:12px;">${fmtM(Math.round(p.salary*.75))} <span style="color:var(--text3);font-size:10px;">(${fmtM(p.salary)})</span></td>
+    </tr>`).join('');
+  }
+
+  const taxiPlayers = (teamData.taxi||[]).filter(p=>p.name);
+  if (taxiPlayers.length) {
+    const taxiTot = taxiPlayers.reduce((s,p)=>s+p.salary,0);
+    rosterRows += `<tr><td colspan="3" class="sec-label">Taxi Squad · no cap hit · ${fmtM(taxiTot)} banked</td></tr>`;
+    rosterRows += taxiPlayers.sort((a,b)=>b.salary-a.salary).map(p => `<tr>
+      <td style="color:var(--text3);">${p.name}</td>
+      <td>${posBadge('','taxi')}</td>
+      <td style="text-align:right;font-family:var(--font-mono);font-size:12px;color:var(--text3);">${fmtM(p.salary)}</td>
+    </tr>`).join('');
+  }
+
+  const rosterHTML = `
+    <div class="card-box">
+      <div class="card-box-header"><div class="card-box-title">Full Roster</div><span style="font-size:12px;color:var(--text3);">${(teamData.starters||[]).length} active · ${taxiPlayers.length} taxi</span></div>
+      <table class="rtable">
+        <thead><tr><th>Player</th><th>Pos</th><th style="text-align:right;">Salary</th></tr></thead>
+        <tbody>${rosterRows}</tbody>
+      </table>
+    </div>`;
+
+  // ── ACTIVITY FEED ─────────────────────────────────────────
+  const icons = {nomination:'🏷',bid:'💰',claim:'✅',cancel:'❌'};
+  const feedHTML = teamFeed.length ? `
+    <div class="card-box">
+      <div class="card-box-header"><div class="card-box-title">Recent Activity</div></div>
+      <div style="padding:0 14px;">
+        ${teamFeed.map(item => {
+          let desc = '';
+          if (item.type==='nomination') desc = `Nominated <strong>${item.playerName}</strong> · opening ${fmtFaab(item.amount)}`;
+          else if (item.type==='bid')   desc = `Placed a bid on <strong>${item.playerName}</strong>`;
+          else if (item.type==='claim') desc = `Claimed <strong>${item.playerName}</strong> for <strong style="color:var(--green);">${fmtFaab(item.amount)}</strong>`;
+          else if (item.type==='cancel') desc = `Auction cancelled for <strong>${item.playerName}</strong>`;
+          return `<div class="feed-row">
+            <div class="feed-icon">${icons[item.type]||'📋'}</div>
+            <div><div class="feed-text">${desc}</div><div class="feed-time">${timeAgo(item.timestamp)}</div></div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>` : '';
+
+  // ── COMPARE WITH LEAGUE ──────────────────────────────────
+  const allTeams = Object.values(allRosters).sort((a,b) => b.cap_spent - a.cap_spent);
+  const rank = allTeams.findIndex(t => t.team_name === teamData.team_name) + 1;
+  const leagueAvg = Math.round(allTeams.reduce((s,t)=>s+t.cap_spent,0)/allTeams.length);
+
+  const compareHTML = `
+    <div class="card-box">
+      <div class="card-box-header"><div class="card-box-title">League Standing</div></div>
+      <div style="padding:14px 16px;display:flex;gap:20px;flex-wrap:wrap;">
+        <div class="hero-stat">
+          <div class="hero-stat-val" style="color:var(--accent2);">#${rank}</div>
+          <div class="hero-stat-label">Cap Rank (of ${allTeams.length})</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-val" style="color:${capSpent > leagueAvg ? 'var(--red)' : 'var(--green)'};">${capSpent > leagueAvg ? '+' : ''}${fmtM(capSpent - leagueAvg)}</div>
+          <div class="hero-stat-label">vs League Avg (${fmtM(leagueAvg)})</div>
+        </div>
+        <div class="hero-stat">
+          <div class="hero-stat-val">${(teamData.starters||[]).length}</div>
+          <div class="hero-stat-label">Active Players</div>
+        </div>
+      </div>
+    </div>`;
+
+  document.getElementById('loading-wrap').style.display = 'none';
+  document.getElementById('team-content').style.display = '';
+  document.getElementById('team-content').innerHTML = heroHTML + posHTML + compareHTML + rosterHTML + feedHTML;
+}
+
+// ── Theme persistence ─────────────────────────────────────
+function toggleTheme() {
+  const light = document.body.classList.toggle('light-mode');
+  localStorage.setItem('sb_theme', light ? 'light' : 'dark');
+  document.getElementById('theme-btn').textContent = light ? '🌙' : '☀️';
+}
+
+loadTeam().catch(err => {
+  document.getElementById('loading-wrap').innerHTML =
+    `<div style="color:var(--red);padding:40px;text-align:center;">Error: ${err.message}</div>`;
+});
+</script>
+</body>
+</html>
