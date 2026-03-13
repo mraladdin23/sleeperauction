@@ -209,6 +209,7 @@ body.light-mode .sec-row td{background:rgba(200,205,225,.4);}
   <button class="nav-tab" onclick="setTab('compare')">Compare</button>
   <button class="nav-tab" onclick="setTab('toppaid')">Top Paid</button>
   <button class="nav-tab" onclick="setTab('taxi')">🚕 Taxi</button>
+  <button class="nav-tab" id="comm-tab" style="display:none;" onclick="setTab('commish')">⚙️ Commish</button>
 </div>
 
 <div class="main">
@@ -220,6 +221,17 @@ body.light-mode .sec-row td{background:rgba(200,205,225,.4);}
     <div id="tab-compare"     style="display:none;"></div>
     <div id="tab-toppaid"     style="display:none;"></div>
     <div id="tab-taxi"        style="display:none;"></div>
+    <div id="tab-commish"     style="display:none;"></div>
+  </div>
+
+  <!-- Inline team detail panel (slides in over content) -->
+  <div id="team-panel" style="display:none;position:fixed;top:0;right:0;bottom:0;width:min(520px,100vw);background:var(--surface);border-left:1px solid var(--border);z-index:200;overflow-y:auto;box-shadow:-8px 0 32px rgba(0,0,0,.4);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);background:var(--surface2);position:sticky;top:0;z-index:10;">
+      <span id="team-panel-title" style="font-size:15px;font-weight:600;"></span>
+      <button onclick="closeTeamPanel()" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:2px 6px;">✕</button>
+    </div>
+    <div id="team-panel-body" style="padding:20px;"></div>
+  </div>
   </div>
 </div>
 
@@ -309,6 +321,7 @@ function subscribeRosters() {
     }
     document.getElementById('loading').style.display = 'none';
     document.getElementById('app').style.display = '';
+    if (isComm()) document.getElementById('comm-tab').style.display = '';
     renderTab(tab);
   });
 }
@@ -318,6 +331,7 @@ function initWithFallback() {
   document.getElementById('last-upd').textContent = 'Built-in data';
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = '';
+  if (isComm()) document.getElementById('comm-tab').style.display = '';
   renderTab(tab);
 }
 
@@ -339,11 +353,11 @@ const badge   = pos => `<span class="pos-badge pb-${pos}">${pos}</span>`;
 // ── Tab switcher ──────────────────────────────────────────────
 function setTab(t) {
   tab = t;
-  ['overview','rosters','allplayers','compare','toppaid','taxi'].forEach(n => {
+  ['overview','rosters','allplayers','compare','toppaid','taxi','commish'].forEach(n => {
     document.getElementById('tab-'+n).style.display = n===t?'':'none';
   });
   document.querySelectorAll('.nav-tab').forEach((b,i) =>
-    b.classList.toggle('active', ['overview','rosters','allplayers','compare','toppaid','taxi'][i]===t)
+    b.classList.toggle('active', ['overview','rosters','allplayers','compare','toppaid','taxi','commish'][i]===t)
   );
   renderTab(t);
 }
@@ -355,6 +369,7 @@ function renderTab(t) {
   else if (t==='compare')    renderCompare();
   else if (t==='toppaid')    renderTopPaid();
   else if (t==='taxi')       renderTaxi();
+  else if (t==='commish')    renderCommish();
 }
 
 // ── OVERVIEW ─────────────────────────────────────────────────
@@ -514,9 +529,7 @@ function renderRosters() {
     return `<div class="det-card" data-team="${key}"${hidden}>
       <div class="det-header">
         <div>
-          <a href="team.html?team=${key}" style="text-decoration:none;color:inherit;">
-            <div class="det-title">${t.team_name} <span style="font-size:11px;color:var(--accent2);">↗</span></div>
-          </a>
+          <div class="det-title" onclick="openTeamPanel('${key}')" style="cursor:pointer;">${t.team_name} <span style="font-size:11px;color:var(--accent2);">↗</span></div>
           <div class="det-user">${key}${scarHtml?' '+scarHtml:''}</div>
         </div>
         <div class="det-cap-row">
@@ -592,92 +605,194 @@ function renderRosters() {
 
 // ── ALL PLAYERS ──────────────────────────────────────────────
 let apPosFilter = 'ALL';
+let apSearch = '';
 
 function renderAllPlayers() {
   const el = document.getElementById('tab-allplayers');
-
-  // Build flat list of every rostered player
   let players = [];
   Object.entries(DATA).forEach(([key, t]) => {
-    (t.starters || []).forEach(p => {
-      players.push({ name: p.name, pos: p.pos, salary: p.salary, slot: 'Active', teamName: t.team_name, teamKey: key });
-    });
-    (t.ir || []).forEach(p => {
-      if (p.name) players.push({ name: p.name, pos: p.pos || '—', salary: Math.round(p.salary * .75), rawSal: p.salary, slot: 'IR', teamName: t.team_name, teamKey: key });
-    });
-    (t.taxi || []).forEach(p => {
-      if (p.name) players.push({ name: p.name, pos: '—', salary: p.salary, slot: 'Taxi', teamName: t.team_name, teamKey: key });
-    });
+    (t.starters||[]).forEach(p => players.push({name:p.name,pos:p.pos,salary:p.salary,slot:'Active',teamName:t.team_name,teamKey:key}));
+    (t.ir||[]).forEach(p => { if(p.name) players.push({name:p.name,pos:p.pos||'—',salary:Math.round(p.salary*.75),rawSal:p.salary,slot:'IR',teamName:t.team_name,teamKey:key}); });
+    (t.taxi||[]).forEach(p => { if(p.name) players.push({name:p.name,pos:p.pos||'—',salary:p.salary,slot:'Taxi',teamName:t.team_name,teamKey:key}); });
   });
-
-  // Filter by position
-  const filtered = apPosFilter === 'ALL'
-    ? players
-    : players.filter(p => p.pos === apPosFilter);
-
-  // Sort by salary descending
-  filtered.sort((a, b) => b.salary - a.salary);
-
-  const posTotal = (pos) => players.filter(p => p.pos === pos && p.slot === 'Active').reduce((s, p) => s + p.salary, 0);
-
-  const chips = ['ALL','QB','RB','WR','TE'].map(p => `
-    <button class="ap-chip${apPosFilter===p?' active':''}" onclick="apSetPos('${p}')">${p==='ALL'?'All Positions':p}</button>
-  `).join('');
-
-  const rows = filtered.map((p, i) => {
-    const posClr = POS_COLORS[p.pos] || 'var(--text3)';
-    const slotBadge = p.slot === 'IR'
-      ? `<span style="font-size:10px;background:rgba(255,77,106,.15);color:var(--red);padding:1px 5px;border-radius:3px;margin-left:5px;">IR</span>`
-      : p.slot === 'Taxi'
-      ? `<span style="font-size:10px;background:rgba(90,94,114,.25);color:var(--text3);padding:1px 5px;border-radius:3px;margin-left:5px;">Taxi</span>`
-      : '';
-    const ho = (holdouts[p.teamKey]||{})[p.name];
-    const hoBadge = ho ? `<span style="font-size:10px;background:rgba(255,201,77,.15);color:var(--yellow);border-radius:3px;padding:1px 5px;margin-left:5px;">🔥</span>` : '';
+  let filtered = apPosFilter==='ALL' ? players : players.filter(p=>p.pos===apPosFilter);
+  if (apSearch) filtered = filtered.filter(p=>p.name.toLowerCase().includes(apSearch));
+  filtered.sort((a,b)=>b.salary-a.salary);
+  const totalSal = filtered.filter(p=>p.slot==='Active').reduce((s,p)=>s+p.salary,0);
+  const chips = ['ALL','QB','RB','WR','TE'].map(p=>`<button class="ap-chip${apPosFilter===p?' active':''}" onclick="apSetPos('${p}')">${p==='ALL'?'All':p}</button>`).join('');
+  const rows = filtered.map((p,i)=>{
+    const posClr=POS_COLORS[p.pos]||'var(--text3)';
+    const slotBadge=p.slot==='IR'?`<span style="font-size:10px;background:rgba(255,77,106,.15);color:var(--red);padding:1px 5px;border-radius:3px;margin-left:5px;">IR</span>`:p.slot==='Taxi'?`<span style="font-size:10px;background:rgba(90,94,114,.25);color:var(--text3);padding:1px 5px;border-radius:3px;margin-left:5px;">Taxi</span>`:'';
+    const ho=(holdouts[p.teamKey]||{})[p.name];
+    const hoBadge=ho?`<span style="font-size:10px;background:rgba(255,201,77,.15);color:var(--yellow);border-radius:3px;padding:1px 5px;margin-left:5px;">🔥</span>`:'';
     return `<tr>
-      <td style="font-size:13px;padding:8px 14px;">
-        <span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);margin-right:6px;min-width:22px;display:inline-block;text-align:right;">${i+1}</span>
-        ${p.name}${hoBadge}${slotBadge}
-      </td>
-      <td style="padding:8px 6px;">
-        ${p.pos !== '—' ? `<span class="pos-badge" style="background:${posClr}22;color:${posClr};">${p.pos}</span>` : `<span style="color:var(--text3);font-size:11px;">—</span>`}
-      </td>
-      <td style="padding:8px 14px;">
-        <a href="team.html?team=${p.teamKey}" style="color:var(--text2);text-decoration:none;font-size:12px;">${p.teamName} <span style="color:var(--accent2);font-size:10px;">↗</span></a>
-      </td>
-      <td style="text-align:right;font-family:var(--font-mono);font-size:13px;padding:8px 16px;color:${p.slot==='Taxi'?'var(--text3)':p.slot==='IR'?'var(--text2)':'var(--text)'};">
-        ${fmtM(p.salary)}${p.rawSal ? `<span style="color:var(--text3);font-size:10px;margin-left:4px;">(${fmtM(p.rawSal)})</span>` : ''}
-      </td>
+      <td style="font-size:13px;padding:8px 14px;"><span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);margin-right:6px;min-width:24px;display:inline-block;text-align:right;">${i+1}</span>${p.name}${hoBadge}${slotBadge}</td>
+      <td style="padding:8px 6px;">${p.pos&&p.pos!=='—'?`<span class="pos-badge" style="background:${posClr}22;color:${posClr};">${p.pos}</span>`:'<span style="color:var(--text3);font-size:11px;">—</span>'}</td>
+      <td style="padding:8px 14px;"><span onclick="openTeamPanel('${p.teamKey}')" style="color:var(--text2);cursor:pointer;font-size:12px;">${p.teamName} <span style="color:var(--accent2);font-size:10px;">↗</span></span></td>
+      <td style="text-align:right;font-family:var(--font-mono);font-size:13px;padding:8px 16px;color:${p.slot==='Taxi'?'var(--text3)':p.slot==='IR'?'var(--text2)':'var(--text)'};">${fmtM(p.salary)}${p.rawSal?`<span style="color:var(--text3);font-size:10px;margin-left:4px;">(${fmtM(p.rawSal)})</span>`:''}</td>
     </tr>`;
   }).join('');
-
-  const totalSal = filtered.filter(p=>p.slot==='Active').reduce((s,p)=>s+p.salary,0);
-
-  el.innerHTML = `
-    <div style="padding:16px 0 8px;">
-      <div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 4px 12px;">${chips}</div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
-        <div style="padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">
-          <span style="font-size:14px;font-weight:600;">${apPosFilter==='ALL'?'All Rostered Players':apPosFilter+' Players'}</span>
-          <span style="font-size:12px;color:var(--text3);">${filtered.length} players${apPosFilter!=='ALL'?` · ${fmtM(totalSal)} total cap`:''}</span>
-        </div>
-        <table style="width:100%;border-collapse:collapse;">
-          <thead>
-            <tr style="border-bottom:1px solid var(--border);">
-              <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 14px;text-align:left;font-weight:500;">Player</th>
-              <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 6px;text-align:left;font-weight:500;">Pos</th>
-              <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 14px;text-align:left;font-weight:500;">Owner</th>
-              <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 16px;text-align:right;font-weight:500;">Salary ▼</th>
-            </tr>
-          </thead>
-          <tbody>${rows}</tbody>
-        </table>
+  el.innerHTML = `<div style="padding:16px 0 8px;">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 4px 12px;">
+      <div style="display:flex;gap:6px;">${chips}</div>
+      <div style="flex:1;min-width:180px;display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 12px;">
+        <span style="color:var(--text3);">🔍</span>
+        <input id="ap-search-input" type="text" placeholder="Search players…" value="${apSearch.replace(/"/g,'&quot;')}"
+          style="background:none;border:none;outline:none;color:var(--text);font-size:13px;font-family:var(--font-body);width:100%;"
+          oninput="apSearch=this.value.toLowerCase().trim();renderAllPlayers();document.getElementById('ap-search-input').focus();" />
       </div>
-    </div>`;
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+      <div style="padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:14px;font-weight:600;">${apPosFilter==='ALL'?'All Rostered Players':apPosFilter+' Players'}${apSearch?' · "'+apSearch+'"':''}</span>
+        <span style="font-size:12px;color:var(--text3);">${filtered.length} players${apPosFilter!=='ALL'&&!apSearch?' · '+fmtM(totalSal)+' total cap':''}</span>
+      </div>
+      ${filtered.length?`<table style="width:100%;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);">
+        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 14px;text-align:left;font-weight:500;">Player</th>
+        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 6px;text-align:left;font-weight:500;">Pos</th>
+        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 14px;text-align:left;font-weight:500;">Owner</th>
+        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 16px;text-align:right;font-weight:500;">Salary ▼</th>
+      </tr></thead><tbody>${rows}</tbody></table>`:`<div style="padding:40px;text-align:center;color:var(--text3);">No players found matching "${apSearch}"</div>`}
+    </div>
+  </div>`;
 }
+function apSetPos(pos) { apPosFilter = pos; renderAllPlayers(); }
 
-function apSetPos(pos) {
-  apPosFilter = pos;
-  renderAllPlayers();
+// ── INLINE TEAM PANEL ────────────────────────────────────────
+function openTeamPanel(key) {
+  const t = DATA[key]; if (!t) return;
+  const comm=isComm(), sp=t.cap_spent, av=CAP-sp, pct=(sp/CAP*100).toFixed(1), clr=capClr(sp);
+  const maxSal=Math.max(...(t.starters||[]).map(p=>p.salary),1);
+  const teamHO=holdouts[key]||{}, teamPromos=promos[key]||{};
+  const posTotals={QB:0,RB:0,WR:0,TE:0},posCounts={QB:0,RB:0,WR:0,TE:0};
+  (t.starters||[]).forEach(p=>{if(posTotals[p.pos]!==undefined){posTotals[p.pos]+=p.salary;posCounts[p.pos]++;}});
+  let rHTML='';
+  POSITIONS.forEach(pos=>{
+    const players=(t.starters||[]).filter(p=>p.pos===pos).sort((a,b)=>b.salary-a.salary);
+    if(!players.length)return;
+    const tot=players.reduce((s,p)=>s+p.salary,0);
+    rHTML+=`<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);padding:10px 0 4px;border-top:1px solid var(--border);margin-top:6px;">${pos} · ${fmtM(tot)}</div>`;
+    rHTML+=players.map(p=>{const ho=teamHO[p.name];const bw=Math.round(p.salary/maxSal*100);return`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;"><div style="font-size:13px;">${p.name}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:5px;">🔥</span>':''}</div><div style="font-family:var(--font-mono);font-size:12px;">${fmtM(p.salary)}</div></div>`;}).join('');
+  });
+  const taxiArr=(t.taxi||[]).filter(p=>p.name);
+  if(taxiArr.length){
+    rHTML+=`<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);padding:10px 0 4px;border-top:1px solid var(--border);margin-top:6px;">Taxi · no cap hit</div>`;
+    rHTML+=taxiArr.sort((a,b)=>b.salary-a.salary).map(p=>{const promo=teamPromos[p.name];const pc=POS_COLORS[p.pos]||'';return`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;"><div style="font-size:13px;color:var(--text3);">${p.name}${p.pos&&p.pos!=='—'?`<span style="font-size:10px;background:${pc}22;color:${pc||'var(--text3)'};padding:1px 5px;border-radius:3px;margin-left:5px;">${p.pos}</span>`:''}${promo?'<span style="font-size:10px;color:var(--green);margin-left:5px;">⬆️</span>':''}</div><div style="font-family:var(--font-mono);font-size:12px;color:var(--text3);">${fmtM(p.salary)}</div></div>`;}).join('');
+  }
+  document.getElementById('team-panel-title').textContent=t.team_name;
+  document.getElementById('team-panel-body').innerHTML=`
+    <div style="display:flex;gap:16px;margin-bottom:18px;flex-wrap:wrap;">
+      <div style="text-align:center;"><div style="font-family:var(--font-mono);font-size:18px;font-weight:600;color:${clr};">${fmtM(sp)}</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:2px;">Spent (${pct}%)</div></div>
+      <div style="text-align:center;"><div style="font-family:var(--font-mono);font-size:18px;font-weight:600;color:var(--green);">${fmtM(av)}</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:2px;">Available</div></div>
+      <div style="text-align:center;"><div style="font-family:var(--font-mono);font-size:18px;font-weight:600;">${(t.starters||[]).length}</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:2px;">Active</div></div>
+    </div>
+    <div style="background:var(--surface3);border-radius:99px;height:5px;overflow:hidden;margin-bottom:4px;"><div style="height:100%;width:${pct}%;background:${clr};border-radius:99px;"></div></div>
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:18px;">${fmtM(sp)} spent · cap ${fmtM(CAP)}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;">
+      ${POSITIONS.map(pos=>`<div style="flex:1;min-width:60px;background:${(POS_COLORS[pos]||'#888')}22;color:${POS_COLORS[pos]||'var(--text3)'};border-radius:6px;padding:6px 8px;text-align:center;"><div style="font-size:10px;margin-bottom:2px;">${pos}</div><div style="font-family:var(--font-mono);font-size:13px;font-weight:600;">${fmtM(posTotals[pos])}</div><div style="font-size:10px;opacity:.7;">${posCounts[pos]}p</div></div>`).join('')}
+    </div>
+    ${rHTML}
+    ${comm?`<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);"><button onclick="closeTeamPanel();setTab('commish');" style="width:100%;padding:9px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-family:var(--font-body);">⚙️ Open Commish Tab</button></div>`:''}`;
+  document.getElementById('team-panel').style.display='';
+}
+function closeTeamPanel() { document.getElementById('team-panel').style.display='none'; }
+
+// ── COMMISSIONER TAB ─────────────────────────────────────────
+function renderCommish() {
+  if (!isComm()) { document.getElementById('tab-commish').innerHTML='<div style="padding:40px;text-align:center;color:var(--text3);">Commissioner only.</div>'; return; }
+  const el = document.getElementById('tab-commish');
+  let taxiRows='';
+  Object.entries(DATA).forEach(([key,t])=>{
+    const taxiArr=(t.taxi||[]).filter(p=>p.name);
+    if(!taxiArr.length)return;
+    taxiRows+=`<tr><td colspan="5" style="background:var(--surface2);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);padding:6px 14px;">${t.team_name}</td></tr>`;
+    taxiArr.forEach((p)=>{
+      const ti=(t.taxi||[]).findIndex(x=>x.name===p.name);
+      const promo=(promos[key]||{})[p.name];
+      taxiRows+=`<tr>
+        <td style="padding:8px 14px;font-size:13px;">${p.name}</td>
+        <td style="padding:8px 6px;">
+          <select onchange="commSetTaxiPos('${key}',${ti},this.value)" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:3px 6px;font-size:12px;font-family:var(--font-body);">
+            <option value="">—</option>
+            ${['QB','RB','WR','TE'].map(pos=>`<option value="${pos}"${(p.pos||'')=== pos?' selected':''}>${pos}</option>`).join('')}
+          </select>
+        </td>
+        <td style="padding:8px 6px;font-family:var(--font-mono);font-size:12px;color:var(--text3);">${fmtM(p.salary)}</td>
+        <td style="padding:8px 6px;">${!promo?`<button onclick="commPromote('${key}',${ti})" style="font-size:11px;padding:3px 9px;border:1px solid rgba(24,224,122,.3);border-radius:4px;background:none;color:var(--green);cursor:pointer;font-family:var(--font-body);">⬆️ Promote</button>`:`<span style="font-size:11px;color:var(--green);">⬆️ Promoted</span> <button onclick="commUndoPromo('${key}','${p.name.replace(/'/g,"\\'")}'" style="font-size:11px;padding:3px 7px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text3);cursor:pointer;margin-left:4px;">↩</button>`}</td>
+        <td style="padding:8px 14px;text-align:right;"><button onclick="openEdit('${key}','taxi',${ti})" style="font-size:12px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text2);cursor:pointer;">✏️ Edit</button></td>
+      </tr>`;
+    });
+  });
+  let starterRows='';
+  Object.entries(DATA).forEach(([key,t])=>{
+    const starters=t.starters||[];
+    if(!starters.length)return;
+    starterRows+=`<tr><td colspan="5" style="background:var(--surface2);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);padding:6px 14px;">${t.team_name}</td></tr>`;
+    const po=['QB','RB','WR','TE'];
+    [...starters].sort((a,b)=>(po.indexOf(a.pos)-po.indexOf(b.pos))||b.salary-a.salary).forEach(p=>{
+      const idx=t.starters.findIndex(s=>s.name===p.name&&s.pos===p.pos&&s.salary===p.salary);
+      const ho=(holdouts[key]||{})[p.name];
+      starterRows+=`<tr>
+        <td style="padding:7px 14px;font-size:13px;">${p.name}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:5px;">🔥</span>':''}</td>
+        <td style="padding:7px 6px;"><span style="background:${(POS_COLORS[p.pos]||'#888')}22;color:${POS_COLORS[p.pos]||'var(--text3)'};padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;">${p.pos}</span></td>
+        <td style="padding:7px 6px;font-family:var(--font-mono);font-size:12px;">${fmtM(p.salary)}</td>
+        <td style="padding:7px 6px;"><button onclick="toggleHoldout('${key}','${p.name.replace(/'/g,"\\'")}')" style="font-size:12px;padding:3px 8px;border:1px solid ${ho?'rgba(255,201,77,.4)':'var(--border)'};border-radius:4px;background:none;color:${ho?'var(--yellow)':'var(--text3)'};cursor:pointer;">${ho?'🔥 Remove':'🏳 Flag'}</button></td>
+        <td style="padding:7px 14px;text-align:right;"><button onclick="openEdit('${key}','starters',${idx})" style="font-size:12px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text2);cursor:pointer;">✏️ Edit</button></td>
+      </tr>`;
+    });
+  });
+  el.innerHTML=`<div style="padding:16px 0;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px;">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:14px;font-weight:600;">🚕 Taxi Squad — Set Positions &amp; Promote</span>
+        <span style="font-size:12px;color:var(--text3);">Positions save instantly to Firebase</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);">
+        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:500;">Player</th>
+        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 6px;text-align:left;font-weight:500;">Pos</th>
+        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 6px;text-align:left;font-weight:500;">Salary</th>
+        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 6px;text-align:left;font-weight:500;">Status</th>
+        <th></th>
+      </tr></thead><tbody>${taxiRows}</tbody></table>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:14px;font-weight:600;">🏈 Active Rosters — Edit &amp; Holdouts</span>
+        <span style="font-size:12px;color:var(--text3);">Click ✏️ to edit salary/position/name</span>
+      </div>
+      <table style="width:100%;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);">
+        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:500;">Player</th>
+        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 6px;text-align:left;font-weight:500;">Pos</th>
+        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 6px;text-align:left;font-weight:500;">Salary</th>
+        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 6px;text-align:left;font-weight:500;">Holdout</th>
+        <th></th>
+      </tr></thead><tbody>${starterRows}</tbody></table>
+    </div>
+  </div>`;
+}
+async function commSetTaxiPos(teamKey,idx,pos){
+  if(!DATA[teamKey]?.taxi?.[idx])return;
+  DATA[teamKey].taxi[idx].pos=pos||undefined;
+  await saveToFirebase();
+  showToast('Position updated to '+(pos||'—'),'success');
+}
+async function commPromote(teamKey,idx){
+  const p=DATA[teamKey]?.taxi?.[idx]; if(!p)return;
+  const note=prompt(`Promotion note for ${p.name} (optional):`); if(note===null)return;
+  const safe=p.name.replace(/[.#$\/\[\]]/g,'_');
+  if(!promos[teamKey])promos[teamKey]={};
+  const data={note:note||'',promoted:true,promotedAt:Date.now()};
+  promos[teamKey][p.name]=data;
+  if(leagueId())await db.ref(`leagues/${leagueId()}/taxiPromos/${teamKey}/${safe}`).set(data);
+  showToast(p.name+' promoted ⬆️','success');
+  renderCommish();
+}
+async function commUndoPromo(teamKey,playerName){
+  const safe=playerName.replace(/[.#$\/\[\]]/g,'_');
+  if(promos[teamKey])delete promos[teamKey][playerName];
+  if(leagueId())await db.ref(`leagues/${leagueId()}/taxiPromos/${teamKey}/${safe}`).remove();
+  showToast('Promotion undone','info');
+  renderCommish();
 }
 
 // ── COMPARE ──────────────────────────────────────────────────
