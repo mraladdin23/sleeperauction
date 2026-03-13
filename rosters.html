@@ -785,12 +785,11 @@ async function toggleHoldout(teamKey, playerName) {
 }
 
 // ── PROMO MODAL ───────────────────────────────────────────────
-let _promoTarget = null;
-function openPromoModal(teamKey, playerName) {
+async function openPromoModal(teamKey, playerName) {
   _promoTarget = {teamKey, playerName};
   const note = prompt(`Promotion note for ${playerName} (optional, e.g. "Week 3, added to 53-man"):`);
   if (note === null) return; // cancelled
-  savePromo(note);
+  await savePromo(note);
 }
 async function savePromo(note) {
   if (!_promoTarget || !leagueId()) return;
