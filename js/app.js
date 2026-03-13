@@ -195,7 +195,7 @@ const App = (() => {
     state.freeAgents = Object.keys(players)
       .filter(id => {
         const p = players[id];
-        if (rostered.has(id) || !p.active) return false;
+        if (rostered.has(id)) return false;
         return (p.fantasy_positions || []).some(pos => SKILL_POSITIONS.has(pos));
       })
       .sort((a, b) => {
@@ -298,7 +298,9 @@ const App = (() => {
     UI.renderFreeAgents(state.posFilter, true); // reset to page 0
   }
 
-  function renderFreeAgents() { UI.renderFreeAgents(state.posFilter || 'ALL', true); }
+  function renderFreeAgents(resetPage) {
+    UI.renderFreeAgents(state.posFilter || 'ALL', resetPage === true);
+  }
 
   async function loadFreeAgents() {
     UI.toast('Refreshing free agents…', 'info');
@@ -313,7 +315,7 @@ const App = (() => {
       state.freeAgents = Object.keys(players)
         .filter(id => {
           const p = players[id];
-          if (rostered.has(id) || !p.active) return false;
+          if (rostered.has(id)) return false;
           return (p.fantasy_positions || []).some(pos => SKILL_POSITIONS.has(pos));
         })
         .sort((a, b) => {
