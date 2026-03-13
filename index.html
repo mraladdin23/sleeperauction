@@ -202,7 +202,7 @@ window.addEventListener('DOMContentLoaded',function(){
       </div>
       <div class="fa-search">
         <span class="search-icon">🔍</span>
-        <input type="text" id="fa-search" placeholder="Search players…" oninput="App.renderFreeAgents()" />
+        <input type="text" id="fa-search" placeholder="Search players…" oninput="App.renderFreeAgents(true)" />
       </div>
       <div class="fa-filters" id="pos-filters">
         <div class="filter-chip active" onclick="App.setFilter('ALL',this)">All</div>
@@ -211,6 +211,7 @@ window.addEventListener('DOMContentLoaded',function(){
         <div class="filter-chip" onclick="App.setFilter('WR',this)">WR</div>
         <div class="filter-chip" onclick="App.setFilter('TE',this)">TE</div>
       </div>
+      <div id="fa-pagination-top"></div>
       <div style="overflow-x:auto;">
         <table class="fa-table">
           <thead>
@@ -225,6 +226,7 @@ window.addEventListener('DOMContentLoaded',function(){
           <tbody id="fa-tbody"></tbody>
         </table>
       </div>
+      <div id="fa-pagination"></div>
     </div>
 
     <!-- TEAMS TAB -->
