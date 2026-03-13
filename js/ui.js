@@ -89,16 +89,38 @@ const UI = (() => {
     return `${Math.floor(d / 86400000)}d ago`;
   }
 
+  // ── Urgency glow ─────────────────────────────────────────
+  let _urgencyEl = null;
+  function setUrgencyGlow(active) {
+    if (!_urgencyEl) {
+      _urgencyEl = document.createElement('div');
+      _urgencyEl.id = 'urgency-glow';
+      _urgencyEl.style.cssText = 'pointer-events:none;position:fixed;inset:0;z-index:9999;border:3px solid var(--red);border-radius:0;animation:urgency-pulse 1s ease-in-out infinite;display:none;';
+      document.body.appendChild(_urgencyEl);
+      const style = document.createElement('style');
+      style.textContent = '@keyframes urgency-pulse{0%,100%{opacity:0}50%{opacity:.6}}';
+      document.head.appendChild(style);
+    }
+    _urgencyEl.style.display = active ? '' : 'none';
+  }
+
   // ── Auction cards ─────────────────────────────────────────
   function renderAuctions(auctions, faabOverrides) {
     const { state } = App;
-    const now     = Date.now();
-    const myTeam  = getMyTeam(state);
-    const myRid   = myTeam?.roster_id;
-    const isComm  = state.isCommissioner;
+    const now    = Date.now();
+    const myTeam = getMyTeam(state);
+    const myRid  = myTeam?.roster_id;
+    const isComm = state.isCommissioner;
 
     const active    = auctions.filter(a => !a.processed && !a.cancelled && a.expiresAt > now);
     const completed = auctions.filter(a => a.processed || a.cancelled || a.expiresAt <= now);
+
+    // Check if any active auction is under 60 seconds
+    const anyUrgent = active.some(a => {
+      const left = a.expiresAt - now;
+      return left > 0 && left < 60_000 && !Auction.isNightPause(now);
+    });
+    setUrgencyGlow(anyUrgent);
 
     document.getElementById('auction-count').innerHTML =
       `<span class="live-dot"></span>${active.length} live`;
@@ -130,28 +152,31 @@ const UI = (() => {
     const isWin   = !isExp && !isCan && leading.rosterId === myRid;
     const isOut   = !isExp && !isCan && myRid && myMax > 0 && leading.rosterId !== myRid;
     const { paused } = Auction.effectiveTimeLeft(auction, now);
+    const left     = isExp ? 0 : auction.expiresAt - now;
+    const isUrgent = !isExp && !isCan && !paused && left > 0 && left < 60_000;
+    const isWatched = !!(state.watchlist || {})[auction.playerId];
 
     let cls = 'auction-card';
-    if (isWin) cls += ' winning';
-    if (isOut) cls += ' outbid';
+    if (isWin)    cls += ' winning';
+    if (isOut)    cls += ' outbid';
     if (isExp || isCan) cls += ' expired';
+    if (isUrgent) cls += ' urgent-card';
 
     let pill = '';
-    if (isCan)                                        pill = `<span class="status-pill status-expired">Cancelled</span>`;
-    else if (auction.processed)                       pill = `<span class="status-pill status-won">Processed ✓</span>`;
-    else if (isExp && leading.rosterId === myRid)     pill = `<span class="status-pill status-won">Won ✓</span>`;
-    else if (isExp)                                   pill = `<span class="status-pill status-expired">Ended</span>`;
-    else if (paused)                                  pill = `<span class="status-pill status-paused">⏸ Paused</span>`;
-    else if (isWin)                                   pill = `<span class="status-pill status-winning">Winning ↑</span>`;
-    else if (isOut)                                   pill = `<span class="status-pill status-outbid">Outbid !</span>`;
-    else                                              pill = `<span class="status-pill status-watching">Watching</span>`;
+    if (isCan)                                       pill = `<span class="status-pill status-expired">Cancelled</span>`;
+    else if (auction.processed)                      pill = `<span class="status-pill status-won">Claimed ✓</span>`;
+    else if (isExp && leading.rosterId === myRid)    pill = `<span class="status-pill status-won">Won ✓</span>`;
+    else if (isExp)                                  pill = `<span class="status-pill status-expired">Ended</span>`;
+    else if (paused)                                 pill = `<span class="status-pill status-paused">⏸ Paused</span>`;
+    else if (isWin)                                  pill = `<span class="status-pill status-winning">Winning ↑</span>`;
+    else if (isOut)                                  pill = `<span class="status-pill status-outbid">Outbid !</span>`;
+    else                                             pill = `<span class="status-pill status-watching">Watching</span>`;
 
-    const left     = isExp ? 0 : auction.expiresAt - now;
-    const timerCls = isExp ? 'done' : paused ? 'paused' : left < 3600000 ? 'urgent' : '';
+    const timerCls = isExp ? 'done' : paused ? 'paused' : isUrgent ? 'urgent' : '';
     const timerTxt = paused ? '⏸ Paused' : formatTime(left);
 
-    const canBid = !isExp && !isCan && !auction.processed;
-    const bidBtn = canBid
+    const canBid   = !isExp && !isCan && !auction.processed;
+    const bidBtn   = canBid
       ? `<button class="btn btn-primary btn-sm" style="margin-left:auto;" onclick="App.openBidModal('${auction.id}')">
            ${isWin ? 'Update Bid' : isOut ? 'Bid Again' : 'Bid'}
          </button>` : '';
@@ -160,16 +185,23 @@ const UI = (() => {
       ? `<button class="btn btn-sm" style="background:var(--red-dim);color:var(--red);border:1px solid rgba(255,77,106,0.25);margin-left:6px;"
            onclick="App.cancelAuction('${auction.id}')">Cancel</button>` : '';
 
-    // Delete button: commissioner can delete any auction (active or completed)
+    // Push to Claim: show for expired, unprocessed auctions (commissioner only)
+    const claimBtn = isComm && isExp && !auction.processed && !isCan
+      ? `<button class="btn btn-green btn-sm" style="margin-left:6px;font-size:11px;" onclick="App.pushToClaim('${auction.id}')">✅ Claim</button>` : '';
+
     const deleteBtn = isComm
       ? `<button class="btn btn-sm" style="background:transparent;color:var(--text3);border:1px solid var(--border);margin-left:6px;font-size:11px;"
-           onclick="App.deleteAuction('${auction.id}')" title="Permanently delete auction">🗑</button>` : '';
+           onclick="App.deleteAuction('${auction.id}')" title="Delete">🗑</button>` : '';
+
+    const watchBtn = `<button class="btn btn-sm" style="background:transparent;border:1px solid var(--border);margin-left:6px;font-size:13px;padding:4px 7px;"
+         onclick="App.toggleWatch('${auction.playerId}')" title="${isWatched ? 'Remove from watchlist' : 'Add to watchlist'}">${isWatched ? '⭐' : '☆'}</button>`;
 
     const customPts = App.computeCustomPts(auction.playerId);
     const ptsTag    = customPts !== null
       ? `<span style="font-size:11px;color:var(--text3);">${customPts.toFixed(1)} pts</span>` : '';
 
     return `<div class="${cls}" id="card-${auction.id}">
+      ${isUrgent ? '<div style="background:var(--red);color:#fff;font-size:10px;font-weight:700;text-align:center;padding:3px;letter-spacing:.5px;border-radius:var(--radius) var(--radius) 0 0;">⚡ CLOSING SOON</div>' : ''}
       <div class="card-top">
         ${playerAvatarHTML(auction.playerId, 44)}
         <div class="player-info">
@@ -187,7 +219,7 @@ const UI = (() => {
       <div class="card-mid">
         <div class="bid-info">
           <div class="bid-label">Current Price</div>
-          <div class="bid-amount"><span class="dollar">$</span>${leading.displayBid || 1}</div>
+          <div class="bid-amount"><span class="dollar">$</span>${fmtBidShort(leading.displayBid)}</div>
           <div class="bid-leader">Leader: <span>${leading.rosterId ? getTeamName(leading.rosterId, state) : '—'}</span></div>
         </div>
         <div class="timer-block">
@@ -195,8 +227,16 @@ const UI = (() => {
           <div class="timer ${timerCls}" id="timer-${auction.id}">${timerTxt}</div>
         </div>
       </div>
-      <div class="card-bot">${pill}${bidBtn}${cancelBtn}${deleteBtn}</div>
+      <div class="card-bot">${pill}${watchBtn}${bidBtn}${cancelBtn}${claimBtn}${deleteBtn}</div>
     </div>`;
+  }
+
+  // Format bid amounts shorter for card display: $1.1M, $500K
+  function fmtBidShort(n) {
+    if (!n) return '100K';
+    if (n >= 1_000_000) return (n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1) + 'M';
+    if (n >= 1_000)     return Math.round(n / 1_000) + 'K';
+    return String(n);
   }
 
   // ── Timer ticks ───────────────────────────────────────────
@@ -204,53 +244,50 @@ const UI = (() => {
   function startTimers(getAuctions) {
     if (_timerInterval) clearInterval(_timerInterval);
     _timerInterval = setInterval(() => {
-      const now     = Date.now();
-      const paused  = Auction.isNightPause(now);
+      const now    = Date.now();
+      const paused = Auction.isNightPause(now);
       let needRender = false;
+      let anyUrgent  = false;
 
-      // Update/remove pause banner every tick
       renderPauseBanner();
 
       getAuctions().forEach(a => {
         if (a.processed || a.cancelled) return;
-        const el = document.getElementById(`timer-${a.id}`);
-        if (!el) return;
+        const el   = document.getElementById(`timer-${a.id}`);
         const left = a.expiresAt - now;
         if (left <= 0) {
-          el.textContent = 'Ended';
-          el.className   = 'timer done';
-          needRender     = true;
+          if (el) { el.textContent = 'Ended'; el.className = 'timer done'; }
+          needRender = true;
         } else if (paused) {
-          el.textContent = '⏸ Paused';
-          el.className   = 'timer paused';
+          if (el) { el.textContent = '⏸ Paused'; el.className = 'timer paused'; }
         } else {
-          el.textContent = formatTime(left);
-          el.className   = `timer ${left < 3600000 ? 'urgent' : ''}`;
+          if (left < 60_000) anyUrgent = true;
+          if (el) { el.textContent = formatTime(left); el.className = `timer ${left < 60_000 ? 'urgent' : left < 3_600_000 ? 'urgent' : ''}`; }
         }
       });
+
+      setUrgencyGlow(anyUrgent);
       if (needRender) App.renderAll();
     }, 1000);
   }
 
-  // ── Stat breakdown in bid modal ───────────────────────────
-  // Renders key scoring-relevant stats for a player
+  // ── Stat breakdown ────────────────────────────────────────
   function renderStatBreakdown(playerId, rawStats, scoringSettings) {
     const el = document.getElementById('bid-stat-breakdown');
     if (!el) return;
     if (!rawStats || !scoringSettings) { el.innerHTML = ''; return; }
 
-    // Define which stats to show (label, stat key, multiplier key)
     const statDefs = [
-      ['Pass Yards',  'pass_yd',    'pass_yd'],
-      ['Pass TD',     'pass_td',    'pass_td'],
-      ['Interception','pass_int',   'pass_int'],
-      ['Rush Yards',  'rush_yd',    'rush_yd'],
-      ['Rush TD',     'rush_td',    'rush_td'],
-      ['Receptions',  'rec',        'rec'],
-      ['Rec Yards',   'rec_yd',     'rec_yd'],
-      ['Rec TD',      'rec_td',     'rec_td'],
+      ['Pass Yards',  'pass_yd', 'pass_yd'],
+      ['Pass TD',     'pass_td', 'pass_td'],
+      ['Interception','pass_int','pass_int'],
+      ['Rush Yards',  'rush_yd', 'rush_yd'],
+      ['Rush TD',     'rush_td', 'rush_td'],
+      ['Receptions',  'rec',     'rec'],
+      ['Rec Yards',   'rec_yd',  'rec_yd'],
+      ['Rec TD',      'rec_td',  'rec_td'],
       ['2PT Conv',    'bonus_rec_te','bonus_rec_te'],
-      ['Fum Lost',    'fum_lost',   'fum_lost'],
+      ['Fum Lost',    'fum_lost','fum_lost'],
     ];
 
     const rows = statDefs
@@ -269,9 +306,7 @@ const UI = (() => {
     if (!rows.length) { el.innerHTML = ''; return; }
 
     el.innerHTML = `
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;margin-top:14px;">
-        2025 Season Stats
-      </div>
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;margin-top:14px;">2025 Season Stats</div>
       <div class="stat-breakdown">${rows.join('')}</div>`;
   }
 
@@ -312,18 +347,18 @@ const UI = (() => {
       const customPts = App.computeCustomPts(id);
       const ptsLabel  = customPts !== null ? customPts.toFixed(1) : '—';
       const raw       = (App.state.statsMap || {})[id] || {};
+      const isWatched = !!(state.watchlist || {})[id];
 
-      // Position-relevant inline stats
       const statBits = [];
-      if (raw.pass_yd)  statBits.push(`${Math.round(raw.pass_yd)} PaYd`);
-      if (raw.pass_td)  statBits.push(`${raw.pass_td} PaTD`);
-      if (raw.rush_yd)  statBits.push(`${Math.round(raw.rush_yd)} RuYd`);
-      if (raw.rush_td)  statBits.push(`${raw.rush_td} RuTD`);
-      if (raw.rec)      statBits.push(`${raw.rec} Rec`);
-      if (raw.rec_yd)   statBits.push(`${Math.round(raw.rec_yd)} ReYd`);
-      if (raw.rec_td)   statBits.push(`${raw.rec_td} ReTD`);
+      if (raw.pass_yd) statBits.push(`${Math.round(raw.pass_yd)} PaYd`);
+      if (raw.pass_td) statBits.push(`${raw.pass_td} PaTD`);
+      if (raw.rush_yd) statBits.push(`${Math.round(raw.rush_yd)} RuYd`);
+      if (raw.rush_td) statBits.push(`${raw.rush_td} RuTD`);
+      if (raw.rec)     statBits.push(`${raw.rec} Rec`);
+      if (raw.rec_yd)  statBits.push(`${Math.round(raw.rec_yd)} ReYd`);
+      if (raw.rec_td)  statBits.push(`${raw.rec_td} ReTD`);
       const statLine = statBits.length
-        ? `<div style="font-size:10px;color:var(--text3);margin-top:2px;line-height:1.5;">${statBits.join(' · ')}</div>`
+        ? `<div style="font-size:10px;color:var(--text3);margin-top:2px;">${statBits.join(' · ')}</div>`
         : '';
 
       return `<tr>
@@ -343,8 +378,10 @@ const UI = (() => {
         </td>
         <td style="color:var(--text2);">${playerTeam(p)}</td>
         <td style="color:var(--text3);font-family:var(--font-mono);">${p.bye_week || '—'}</td>
-        <td style="color:var(--text2);font-family:var(--font-mono);font-size:13px;" title="2025 fantasy points (your league scoring)">${ptsLabel}</td>
+        <td style="color:var(--text2);font-family:var(--font-mono);font-size:13px;">${ptsLabel}</td>
         <td style="text-align:right;">
+          <button class="btn btn-sm" style="background:transparent;border:1px solid var(--border);margin-right:4px;font-size:13px;padding:4px 7px;"
+            onclick="App.toggleWatch('${id}')" title="${isWatched ? 'Unwatch' : 'Watch'}">${isWatched ? '⭐' : '☆'}</button>
           ${inAuction
             ? `<span style="font-size:11px;color:var(--yellow);">In Auction</span>`
             : !myTeam
@@ -361,39 +398,51 @@ const UI = (() => {
   // ── Teams ────────────────────────────────────────────────
   function renderTeams(faabOverrides) {
     const { state } = App;
-    const now          = Date.now();
-    const maxBudget    = Math.max(...state.teams.map(t => t.faab_budget), 1);
-    const grid         = document.getElementById('teams-grid');
+    const now           = Date.now();
+    const grid          = document.getElementById('teams-grid');
     const activeAuctions = state.auctions.filter(a => !a.processed && !a.cancelled && a.expiresAt > now);
-    const rosterSizes  = state.rosterSizes || {};
+    const rosterSizes   = state.rosterSizes || {};
     const hasRosterData = Object.keys(rosterSizes).length > 0;
 
-    grid.innerHTML = state.teams.map(t => {
-      const override   = faabOverrides?.[t.roster_id];
-      const baseFaab   = override !== undefined ? override : Math.max(0, t.faab_budget - (t.faab_used || 0));
-      const committed  = Auction.getCommittedFaab(state.auctions, t.roster_id);
-      const available  = Math.max(0, baseFaab - committed);
-      const pct        = Math.round((baseFaab / maxBudget) * 100);
-      const isMe       = String(t.owner_id) === String(state.user.user_id);
+    // Sort: my team first, then by available FAAB descending
+    const sorted = [...state.teams].sort((a, b) => {
+      const aIsMe = String(a.owner_id) === String(state.user?.user_id);
+      const bIsMe = String(b.owner_id) === String(state.user?.user_id);
+      if (aIsMe) return -1; if (bIsMe) return 1;
+      const aAvail = Math.max(0, (faabOverrides?.[a.roster_id] ?? Math.max(0, a.faab_budget - a.faab_used)) - Auction.getCommittedFaab(state.auctions, a.roster_id));
+      const bAvail = Math.max(0, (faabOverrides?.[b.roster_id] ?? Math.max(0, b.faab_budget - b.faab_used)) - Auction.getCommittedFaab(state.auctions, b.roster_id));
+      return bAvail - aAvail;
+    });
+
+    grid.innerHTML = sorted.map(t => {
+      const override  = faabOverrides?.[t.roster_id];
+      const baseFaab  = override !== undefined ? override : Math.max(0, t.faab_budget - (t.faab_used || 0));
+      const committed = Auction.getCommittedFaab(state.auctions, t.roster_id);
+      const available = Math.max(0, baseFaab - committed);
+      const isMe      = String(t.owner_id) === String(state.user?.user_id);
 
       const myActiveBids = activeAuctions.filter(a => Auction.getMyMaxBid(a, t.roster_id) > 0);
       const bidCount     = myActiveBids.length;
       const leadingOn    = myActiveBids.filter(a => Auction.computeLeadingBid(a).rosterId === t.roster_id);
       const winningCount = leadingOn.length;
 
-      // Open spots: 25 (fixed cap) minus manually-entered current player count minus auctions they're winning
       const ROSTER_CAP  = 25;
-      const manualCount = rosterSizes[t.roster_id];  // commissioner-entered current player count
-      const openSpots   = manualCount != null
-        ? Math.max(0, ROSTER_CAP - manualCount - winningCount)
-        : null;
+      const manualCount = rosterSizes[t.roster_id];
+      const openSpots   = manualCount != null ? Math.max(0, ROSTER_CAP - manualCount - winningCount) : null;
 
       const spotsHtml = openSpots !== null
         ? `<div class="team-stat">
             <div class="team-stat-label">Open Spots</div>
             <div class="team-stat-val" style="color:${openSpots === 0 ? 'var(--red)' : openSpots <= 2 ? 'var(--yellow)' : 'var(--text2)'};">${openSpots}</div>
-          </div>`
-        : '';
+          </div>` : '';
+
+      // Max budget for bar scaling
+      const allBases = state.teams.map(tt => {
+        const ov = faabOverrides?.[tt.roster_id];
+        return ov !== undefined ? ov : Math.max(0, tt.faab_budget - (tt.faab_used || 0));
+      });
+      const maxBase = Math.max(...allBases, 1);
+      const pct = Math.round((baseFaab / maxBase) * 100);
 
       return `<div class="team-card ${isMe ? 'team-card-me' : ''}">
         <div class="team-card-header">
@@ -412,15 +461,15 @@ const UI = (() => {
         <div class="team-stats-grid" style="grid-template-columns: repeat(${hasRosterData ? 3 : 2}, 1fr);">
           <div class="team-stat">
             <div class="team-stat-label">Balance</div>
-            <div class="team-stat-val" style="color:var(--green);">$${baseFaab}</div>
+            <div class="team-stat-val" style="color:var(--green);">${App.fmtFaab(baseFaab)}</div>
           </div>
           <div class="team-stat">
             <div class="team-stat-label">Committed</div>
-            <div class="team-stat-val" style="color:${committed > 0 ? 'var(--yellow)' : 'var(--text3)'};">$${committed}</div>
+            <div class="team-stat-val" style="color:${committed > 0 ? 'var(--yellow)' : 'var(--text3)'};">${App.fmtFaab(committed)}</div>
           </div>
           <div class="team-stat">
             <div class="team-stat-label">Available</div>
-            <div class="team-stat-val" style="color:var(--accent2);">$${available}</div>
+            <div class="team-stat-val" style="color:var(--accent2);">${App.fmtFaab(available)}</div>
           </div>
           <div class="team-stat">
             <div class="team-stat-label">Active Bids</div>
@@ -436,9 +485,9 @@ const UI = (() => {
         ${leadingOn.length > 0 ? `
           <div style="margin-top:8px;font-size:11px;color:var(--text3);">
             Winning: ${leadingOn.map(a => {
-              const p = state.players[a.playerId] || {};
+              const p     = state.players[a.playerId] || {};
               const price = Auction.computeLeadingBid(a).displayBid;
-              return `<span style="color:var(--green);font-weight:500;">${p.last_name || '?'} $${price}</span>`;
+              return `<span style="color:var(--green);font-weight:500;">${p.last_name || '?'} ${App.fmtFaab(price)}</span>`;
             }).join(', ')}
           </div>` : ''}
 
@@ -449,17 +498,47 @@ const UI = (() => {
     }).join('');
   }
 
-  // ── Auction history tab ───────────────────────────────────
+  // ── History tab ───────────────────────────────────────────
   function renderHistory(auctions) {
     const el = document.getElementById('history-list');
     if (!el) return;
     const { state } = App;
-    const done = [...auctions]
+
+    // Filters
+    const teamFilter = document.getElementById('hist-team-filter')?.value || 'all';
+    const posFilter  = document.getElementById('hist-pos-filter')?.value || 'all';
+    const statusFilter = document.getElementById('hist-status-filter')?.value || 'all';
+    const searchVal  = (document.getElementById('hist-search')?.value || '').toLowerCase();
+
+    let done = [...auctions]
       .filter(a => a.processed || a.cancelled || a.expiresAt <= Date.now())
       .sort((a, b) => b.expiresAt - a.expiresAt);
 
+    // Apply filters
+    if (teamFilter !== 'all') {
+      done = done.filter(a => {
+        const leading = Auction.computeLeadingBid(a);
+        return String(a.nominatedBy) === teamFilter || String(leading.rosterId) === teamFilter;
+      });
+    }
+    if (posFilter !== 'all') {
+      done = done.filter(a => {
+        const p = state.players[a.playerId] || {};
+        return (p.fantasy_positions || []).includes(posFilter) || p.position === posFilter;
+      });
+    }
+    if (statusFilter === 'claimed')   done = done.filter(a => a.processed);
+    if (statusFilter === 'cancelled') done = done.filter(a => a.cancelled);
+    if (statusFilter === 'expired')   done = done.filter(a => !a.processed && !a.cancelled && a.expiresAt <= Date.now());
+    if (searchVal) {
+      done = done.filter(a => {
+        const p = state.players[a.playerId] || {};
+        return playerName(p).toLowerCase().includes(searchVal);
+      });
+    }
+
     if (!done.length) {
-      el.innerHTML = emptyState('📋', 'No History Yet', 'Completed auctions will appear here.');
+      el.innerHTML = emptyState('📋', 'No History', 'No auctions match those filters.');
       return;
     }
 
@@ -474,12 +553,12 @@ const UI = (() => {
       if (a.cancelled) {
         statusHtml = `<span class="status-pill status-expired">Cancelled</span>`;
       } else if (a.processed) {
-        statusHtml = `<span class="status-pill status-won">Processed ✓</span>
-          <span style="font-size:13px;color:var(--green);font-family:var(--font-mono);margin-left:8px;">$${leading.displayBid}</span>
+        statusHtml = `<span class="status-pill status-won">Claimed ✓</span>
+          <span style="font-size:13px;color:var(--green);font-family:var(--font-mono);margin-left:8px;">${App.fmtFaab(leading.displayBid)}</span>
           <span style="font-size:12px;color:var(--text3);margin-left:6px;">→ ${leading.rosterId ? getTeamName(leading.rosterId, state) : '—'}</span>`;
       } else {
         statusHtml = `<span class="status-pill status-expired">Expired</span>
-          <span style="font-size:13px;color:var(--green);font-family:var(--font-mono);margin-left:8px;">$${leading.displayBid}</span>
+          <span style="font-size:13px;color:var(--green);font-family:var(--font-mono);margin-left:8px;">${App.fmtFaab(leading.displayBid)}</span>
           <span style="font-size:12px;color:var(--text3);margin-left:6px;">→ ${leading.rosterId ? getTeamName(leading.rosterId, state) : '—'}</span>`;
       }
 
@@ -501,12 +580,48 @@ const UI = (() => {
     }).join('');
   }
 
+  // ── Activity Feed ─────────────────────────────────────────
+  function renderActivityFeed(feed) {
+    const el = document.getElementById('activity-feed-list');
+    if (!el) return;
+    const { state } = App;
+
+    if (!feed || !feed.length) {
+      el.innerHTML = emptyState('📡', 'No Activity Yet', 'Nominations, bids, and claims will appear here.');
+      return;
+    }
+
+    const icons = { nomination: '🏷', bid: '💰', claim: '✅', cancel: '❌' };
+    const colors = { nomination: 'var(--accent2)', bid: 'var(--yellow)', claim: 'var(--green)', cancel: 'var(--red)' };
+
+    el.innerHTML = feed.slice(0, 50).map(item => {
+      const icon  = icons[item.type]  || '📋';
+      const color = colors[item.type] || 'var(--text2)';
+      let desc = '';
+      if (item.type === 'nomination')
+        desc = `<strong style="color:var(--text);">${item.teamName}</strong> nominated <strong style="color:var(--accent2);">${item.playerName}</strong> — opening bid ${App.fmtFaab(item.amount)}`;
+      else if (item.type === 'bid')
+        desc = `<strong style="color:var(--text);">${item.teamName}</strong> placed a bid on <strong style="color:var(--accent2);">${item.playerName}</strong>`;
+      else if (item.type === 'claim')
+        desc = `<strong style="color:var(--green);">${item.teamName}</strong> claimed <strong style="color:var(--accent2);">${item.playerName}</strong> for <strong style="color:var(--green);">${App.fmtFaab(item.amount)}</strong>`;
+      else if (item.type === 'cancel')
+        desc = `Auction for <strong style="color:var(--accent2);">${item.playerName}</strong> was cancelled`;
+
+      return `<div class="history-row" style="gap:10px;">
+        <div style="font-size:20px;flex-shrink:0;width:28px;text-align:center;">${icon}</div>
+        <div style="flex:1;">
+          <div style="font-size:13px;">${desc}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">${timeAgo(item.timestamp)}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
   // ── Commissioner ──────────────────────────────────────────
   function renderCommissioner(faabOverrides) {
     const { state } = App;
     const now = Date.now();
 
-    // ── All Auctions management list ──
     const allList = document.getElementById('comm-all-auctions');
     if (allList) {
       const sorted = [...state.auctions].sort((a, b) => (b.startTime || 0) - (a.startTime || 0));
@@ -524,17 +639,17 @@ const UI = (() => {
           if (a.cancelled) {
             statusHtml = `<span class="status-pill status-expired" style="font-size:10px;">Cancelled</span>`;
           } else if (a.processed) {
-            statusHtml = `<span class="status-pill status-won" style="font-size:10px;">Processed</span>
-              <span style="font-size:12px;color:var(--green);font-family:var(--font-mono);">$${leading.displayBid}</span>
+            statusHtml = `<span class="status-pill status-won" style="font-size:10px;">Claimed</span>
+              <span style="font-size:12px;color:var(--green);font-family:var(--font-mono);">${App.fmtFaab(leading.displayBid)}</span>
               <span style="font-size:11px;color:var(--text3);">→ ${leading.rosterId ? getTeamName(leading.rosterId, state) : '—'}</span>`;
           } else if (isExp) {
-            statusHtml = `<span class="status-pill status-expired" style="font-size:10px;">Needs Processing</span>
-              <span style="font-size:12px;color:var(--green);font-family:var(--font-mono);">$${leading.displayBid}</span>
+            statusHtml = `<span class="status-pill status-expired" style="font-size:10px;">Needs Claim</span>
+              <span style="font-size:12px;color:var(--green);font-family:var(--font-mono);">${App.fmtFaab(leading.displayBid)}</span>
               <span style="font-size:11px;color:var(--text3);">→ ${leading.rosterId ? getTeamName(leading.rosterId, state) : '—'}</span>`;
           } else {
             const left = a.expiresAt - now;
             statusHtml = `<span class="status-pill status-winning" style="font-size:10px;">Live</span>
-              <span style="font-size:12px;color:var(--green);font-family:var(--font-mono);">$${leading.displayBid}</span>
+              <span style="font-size:12px;color:var(--green);font-family:var(--font-mono);">${App.fmtFaab(leading.displayBid)}</span>
               <span style="font-size:11px;color:var(--text3);">${formatTime(left)} left</span>`;
           }
 
@@ -542,12 +657,12 @@ const UI = (() => {
             ? `<button class="btn btn-sm" style="background:var(--red-dim);color:var(--red);border:1px solid rgba(255,77,106,0.25);font-size:11px;padding:4px 8px;"
                  onclick="App.cancelAuction('${a.id}')">Cancel</button>` : '';
 
-          const processBtn = isExp
+          const claimBtn = isExp
             ? `<button class="btn btn-green btn-sm" style="font-size:11px;padding:4px 8px;white-space:nowrap;"
-                 onclick="App.markProcessed('${a.id}')">Mark Processed ✓</button>` : '';
+                 onclick="App.pushToClaim('${a.id}')">✅ Claim</button>` : '';
 
           const deleteBtn = `<button class="btn btn-sm" style="background:transparent;color:var(--red);border:1px solid rgba(255,77,106,0.25);font-size:11px;padding:4px 8px;"
-               onclick="App.deleteAuction('${a.id}')" title="Permanently delete">🗑 Delete</button>`;
+               onclick="App.deleteAuction('${a.id}')" title="Delete">🗑</button>`;
 
           return `<div class="comm-auction-row">
             <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:140px;">
@@ -560,7 +675,7 @@ const UI = (() => {
               </div>
             </div>
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex:1;">${statusHtml}</div>
-            <div style="display:flex;gap:4px;flex-shrink:0;">${processBtn}${cancelBtn}${deleteBtn}</div>
+            <div style="display:flex;gap:4px;flex-shrink:0;">${claimBtn}${cancelBtn}${deleteBtn}</div>
           </div>`;
         }).join('');
       }
@@ -575,14 +690,13 @@ const UI = (() => {
         .join('');
     }
 
-    // Roster count bulk editor (commissioner enters current player count; open spots = 25 minus this)
     const rosterBulk = document.getElementById('comm-roster-bulk');
     if (rosterBulk) {
       rosterBulk.innerHTML = state.teams.map(t => {
         const current = (state.rosterSizes || {})[t.roster_id] ?? '';
         return `<div class="roster-bulk-row" data-roster-id="${t.roster_id}" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);">
           <div style="flex:1;font-size:13px;font-weight:500;">${t.display_name || t.username}</div>
-          <div style="font-size:11px;color:var(--text3);margin-right:4px;">players on roster:</div>
+          <div style="font-size:11px;color:var(--text3);margin-right:4px;">players:</div>
           <input type="number" min="0" max="25" value="${current}" placeholder="0"
             style="padding:7px 10px;font-family:var(--font-mono);font-size:15px;width:65px;text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;" />
         </div>`;
@@ -596,13 +710,20 @@ const UI = (() => {
           : Math.max(0, t.faab_budget - (t.faab_used || 0));
         return `<div class="faab-bulk-row" data-roster-id="${t.roster_id}" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);">
           <div style="flex:1;font-size:13px;font-weight:500;">${t.display_name || t.username}</div>
-          <div style="position:relative;width:110px;">
+          <div style="position:relative;width:140px;">
             <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-family:var(--font-mono);">$</span>
             <input type="number" min="0" value="${current}"
-              style="padding:7px 10px 7px 22px;font-family:var(--font-mono);font-size:15px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;" />
+              style="padding:7px 10px 7px 22px;font-family:var(--font-mono);font-size:14px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;" />
           </div>
         </div>`;
       }).join('');
+    }
+
+    // Populate history filters with teams
+    const histTeam = document.getElementById('hist-team-filter');
+    if (histTeam && histTeam.options.length <= 1) {
+      histTeam.innerHTML = `<option value="all">All Teams</option>` +
+        state.teams.map(t => `<option value="${t.roster_id}">${t.display_name || t.username}</option>`).join('');
     }
   }
 
@@ -639,7 +760,8 @@ const UI = (() => {
     playerName, playerPos, playerTeam, playerEmoji, playerAvatarHTML,
     formatTime, timeAgo,
     renderPauseBanner,
-    renderAuctions, renderFreeAgents, renderTeams, renderHistory, renderCommissioner,
+    renderAuctions, renderFreeAgents, renderTeams, renderHistory,
+    renderActivityFeed, renderCommissioner,
     renderStatBreakdown,
     startTimers, openModal, closeModal, toast,
     getMyTeam, getTeamName,

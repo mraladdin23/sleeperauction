@@ -1,39 +1,43 @@
 
-// ── FAAB seed data (pre-loaded from commissioner input) ──────
-// Maps Sleeper username (lowercase) → starting FAAB balance
-// Update these values via Commissioner tab going forward.
+// ── FAAB seed data — TRUE DOLLAR AMOUNTS ─────────────────────
+// All values in full dollars. $1,123 → $1,123,000,000? No —
+// these are FAAB budgets. Converting: old $1 = $100,000.
+// So $1123 legacy → $112,300,000 real dollars.
 const FAAB_SEED = {
-  'schardt312':   1123,
-  'spicytunaroll':1136,
-  'notgreatbob':  1191,
-  'tmill85':      1061,
-  'abomb25':      1138,
-  'kodypetey':    1140,
-  'mkim521':      1303,
-  'stupend0us':   1061,
-  'iowafan30':    1307,
-  'dlon16':       1135,
-  'southy610':    1098,
-  'mraladdin23':  1064,
+  'schardt312':    112_300_000,
+  'spicytunaroll': 113_600_000,
+  'notgreatbob':   119_100_000,
+  'tmill85':       106_100_000,
+  'abomb25':       113_800_000,
+  'kodypetey':     114_000_000,
+  'mkim521':       130_300_000,
+  'stupend0us':    106_100_000,
+  'iowafan30':     130_700_000,
+  'dlon16':        113_500_000,
+  'southy610':     109_800_000,
+  'mraladdin23':   106_400_000,
 };
+
 // ─────────────────────────────────────────────────────────────
 //  APP  — main controller
 // ─────────────────────────────────────────────────────────────
 
 const App = (() => {
 
-  const SKILL_POSITIONS = new Set(['QB', 'RB', 'WR', 'TE']);
+  const SKILL_POSITIONS    = new Set(['QB', 'RB', 'WR', 'TE']);
+  const COMMISSIONER_USERNAME = 'mraladdin23';
+  const MIN_BID            = Auction.MIN_BID; // $100,000
 
   const state = {
     user:            null,
     leagueId:        null,
     leagueName:      '',
-    leagueSettings:  null,   // full league object (for scoring_settings, roster_positions)
-    scoringSettings: {},     // league.scoring_settings
-    rosterPositions: [],     // league.roster_positions (for max roster check)
+    leagueSettings:  null,
+    scoringSettings: {},
+    rosterPositions: [],
     teams:           [],
     players:         {},
-    statsMap:        {},     // playerId → season raw stats
+    statsMap:        {},
     freeAgents:      [],
     auctions:        [],
     faabOverrides:   {},
@@ -41,7 +45,10 @@ const App = (() => {
     isCommissioner:  false,
     activeNomPlayerId:  null,
     activeBidAuctionId: null,
-    rosterSizes:        {},
+    rosterSizes:     {},
+    activityFeed:    [],
+    watchlist:       {},     // { [playerId]: true }
+    bidPending:      false,  // for 1-tap confirm
   };
 
   const session = {
@@ -51,6 +58,15 @@ const App = (() => {
     set leagueId(v) { localStorage.setItem('sb_leagueId', v); },
     clear()         { localStorage.removeItem('sb_username'); localStorage.removeItem('sb_leagueId'); },
   };
+
+  // ── Dollar formatting ────────────────────────────────────
+  // Shared with UI — formats full dollar integers as $1.1M, $500K, $100K etc.
+  function fmtFaab(n) {
+    if (n === undefined || n === null) return '$0';
+    if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1) + 'M';
+    if (n >= 1_000)     return '$' + (n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 0) + 'K';
+    return '$' + n;
+  }
 
   // ── Boot ────────────────────────────────────────────────
   async function boot() {
@@ -127,7 +143,7 @@ const App = (() => {
       user: null, leagueId: null, leagueSettings: null,
       scoringSettings: {}, rosterPositions: [],
       teams: [], players: {}, statsMap: {}, freeAgents: [],
-      auctions: [], faabOverrides: {},
+      auctions: [], faabOverrides: {}, activityFeed: [], watchlist: {},
     });
     UI.showScreen('login');
   }
@@ -166,17 +182,15 @@ const App = (() => {
         faab_budget:  leagueFaabBudget,
         faab_used:    used,
         players:      r.players || [],
-        taxi:         r.taxi   || [],   // taxi squad — excluded from active roster count
+        taxi:         r.taxi   || [],
       };
     });
 
-    // Fetch 2025 stats and compute custom-scored points
     UI.setLoading('Loading 2025 stats…');
     let rawStats = {};
     try { rawStats = await Sleeper.fetchStats(2025); } catch (e) { /* non-fatal */ }
     state.statsMap = rawStats;
 
-    // Build free agents (skill positions only), sorted by custom fantasy points
     const rostered = new Set(rosters.flatMap(r => r.players || []));
     state.freeAgents = Object.keys(players)
       .filter(id => {
@@ -193,11 +207,8 @@ const App = (() => {
         return (players[a].search_rank || 9999) - (players[b].search_rank || 9999);
       });
 
-    // Commissioner identified by hardcoded Sleeper username — most reliable approach.
-    const COMMISSIONER_USERNAME = 'mraladdin23';
     const myUsername = (state.user.username || '').toLowerCase().trim();
     state.isCommissioner = myUsername === COMMISSIONER_USERNAME;
-    console.log('[SleeperBid] logged in as:', JSON.stringify(state.user.username), '| isCommissioner:', state.isCommissioner);
 
     document.getElementById('league-name-badge').textContent = league.name;
     UI.setAvatar(document.getElementById('user-avatar'), state.user);
@@ -206,10 +217,12 @@ const App = (() => {
     UI.showScreen('app');
     UI.renderPauseBanner();
 
+    // ── Firebase subscriptions ───────────────────────────
     Auction.subscribe(state.leagueId, auctions => {
       const prevAuctions = state.auctions;
       state.auctions = auctions;
       checkOutbidNotifications(prevAuctions, auctions);
+      checkWatchlistNotifications(prevAuctions, auctions);
       renderAll();
     });
 
@@ -219,20 +232,32 @@ const App = (() => {
     });
 
     Auction.subscribeFaabOverrides(state.leagueId, async overrides => {
-      // On first load, if no overrides exist yet, seed from FAAB_SEED
       if (!overrides || Object.keys(overrides).length === 0) {
         await seedFaabFromKnownValues();
-        return; // The seed will trigger another overrides callback
+        return;
       }
       state.faabOverrides = overrides;
       renderAll();
     });
 
+    Auction.subscribeActivityFeed(state.leagueId, feed => {
+      state.activityFeed = feed;
+      UI.renderActivityFeed(feed);
+    });
+
+    // Watchlist — keyed by Sleeper user_id
+    const uid = state.user?.user_id;
+    if (uid) {
+      Auction.subscribeWatchlist(state.leagueId, uid, wl => {
+        state.watchlist = wl || {};
+        renderAll();
+      });
+    }
+
     UI.startTimers(() => state.auctions);
     requestNotificationPermission();
   }
 
-  // Auto-seeds FAAB balances from FAAB_SEED map on first run
   async function seedFaabFromKnownValues() {
     for (const team of state.teams) {
       const uname = (team.username || '').toLowerCase();
@@ -242,12 +267,10 @@ const App = (() => {
     }
   }
 
-  // Helper: compute custom-scored points for a player from raw stats
   function computeCustomPts(playerId) {
     const raw = state.statsMap[playerId];
     if (!raw) return null;
-    const pts = Sleeper.calculatePoints(raw, state.scoringSettings);
-    return pts;
+    return Sleeper.calculatePoints(raw, state.scoringSettings);
   }
 
   function updateCommissionerTab() {
@@ -304,7 +327,6 @@ const App = (() => {
     } catch (e) { UI.toast('Refresh failed: ' + e.message, 'error'); }
   }
 
-  // ── Refresh ──────────────────────────────────────────────
   async function refreshAll() {
     UI.toast('Refreshing from Sleeper…', 'info');
     try {
@@ -341,46 +363,40 @@ const App = (() => {
   function requestNotificationPermission() {
     if (!('Notification' in window)) return;
     if (Notification.permission === 'default') {
-      // Show a toast prompting the user rather than immediately requesting
-      UI.toast('Enable notifications to get outbid alerts. Click the 🔔 button in the top bar.', 'info');
+      UI.toast('Enable notifications to get outbid alerts. Click 🔔 in the top bar.', 'info');
     }
   }
 
   async function enableNotifications() {
     if (!('Notification' in window)) { UI.toast('Notifications not supported in this browser.', 'error'); return; }
     const perm = await Notification.requestPermission();
-    if (perm === 'granted') {
-      UI.toast('Outbid notifications enabled! 🔔', 'success');
-    } else {
-      UI.toast('Notification permission denied.', 'error');
-    }
+    if (perm === 'granted') UI.toast('Notifications enabled! 🔔', 'success');
+    else UI.toast('Notification permission denied.', 'error');
   }
 
   function checkOutbidNotifications(prevAuctions, nextAuctions) {
     if (!('Notification' in window) || Notification.permission !== 'granted') return;
     const myTeam = UI.getMyTeam(state);
     if (!myTeam) return;
-    const myRid  = myTeam.roster_id;
-    const now    = Date.now();
+    const myRid = myTeam.roster_id;
+    const now   = Date.now();
 
     nextAuctions.forEach(auction => {
       if (auction.processed || auction.cancelled || auction.expiresAt <= now) return;
-      const leading    = Auction.computeLeadingBid(auction);
-      const myMax      = Auction.getMyMaxBid(auction, myRid);
-      if (myMax === 0) return; // I haven't bid
+      const leading = Auction.computeLeadingBid(auction);
+      const myMax   = Auction.getMyMaxBid(auction, myRid);
+      if (myMax === 0) return;
 
       const prev        = prevAuctions.find(a => a.id === auction.id);
       const prevLeading = prev ? Auction.computeLeadingBid(prev) : null;
-
-      // Was I leading before and now I'm not?
-      const wasWinning = prevLeading?.rosterId === myRid;
-      const nowLosing  = leading.rosterId !== myRid;
+      const wasWinning  = prevLeading?.rosterId === myRid;
+      const nowLosing   = leading.rosterId !== myRid;
 
       if (wasWinning && nowLosing) {
         const p    = state.players[auction.playerId] || {};
         const name = UI.playerName(p);
-        new Notification('SleeperBid — You\'ve been outbid!', {
-          body: `${name} — new leading bid: $${leading.displayBid}`,
+        new Notification('SleeperBid — Outbid!', {
+          body: `${name} — new price: ${fmtFaab(leading.displayBid)}`,
           icon: `https://sleepercdn.com/content/nfl/players/thumb/${auction.playerId}.jpg`,
           tag:  auction.id,
         });
@@ -388,23 +404,52 @@ const App = (() => {
     });
   }
 
+  function checkWatchlistNotifications(prevAuctions, nextAuctions) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    if (!state.watchlist || !Object.keys(state.watchlist).length) return;
+    const now = Date.now();
+
+    nextAuctions.forEach(auction => {
+      if (auction.processed || auction.cancelled || auction.expiresAt <= now) return;
+      const watched = state.watchlist[auction.playerId];
+      if (!watched) return;
+      const p    = state.players[auction.playerId] || {};
+      const name = UI.playerName(p);
+
+      // New nomination?
+      const existed = prevAuctions.find(a => a.id === auction.id);
+      if (!existed) {
+        new Notification('SleeperBid — Watched Player Nominated!', {
+          body: `${name} is now in auction!`,
+          icon: `https://sleepercdn.com/content/nfl/players/thumb/${auction.playerId}.jpg`,
+          tag:  'watch_nom_' + auction.id,
+        });
+      }
+    });
+  }
+
+  // ── Watchlist toggle ─────────────────────────────────────
+  async function toggleWatch(playerId) {
+    const uid = state.user?.user_id;
+    if (!uid) return;
+    if (state.watchlist[playerId]) {
+      await Auction.removeWatch(state.leagueId, uid, playerId);
+      UI.toast('Removed from watchlist', 'info');
+    } else {
+      await Auction.addWatch(state.leagueId, uid, playerId);
+      UI.toast('Added to watchlist ⭐', 'success');
+    }
+  }
+
   // ── Roster size enforcement ──────────────────────────────
-  function getMaxRosterSize() {
-    // Count non-IR roster slots from league.roster_positions
-    const positions = state.rosterPositions || [];
-    return positions.filter(p => p !== 'BN' ? true : true).length || 999;
-    // Sleeper uses BN for bench — count all slots
-  }
-
-  function getMyRosterSize() {
+  function getMyFaab() {
     const myTeam = UI.getMyTeam(state);
-    return myTeam ? (myTeam.players || []).length : 0;
-  }
-
-  function isRosterFull() {
-    const max  = getMaxRosterSize();
-    const curr = getMyRosterSize();
-    return curr >= max;
+    if (!myTeam) return 0;
+    const override = state.faabOverrides[myTeam.roster_id];
+    const base     = override !== undefined
+      ? override
+      : Math.max(0, myTeam.faab_budget - (myTeam.faab_used || 0));
+    return Math.max(0, base - Auction.getCommittedFaab(state.auctions, myTeam.roster_id));
   }
 
   // ── Nominate modal ───────────────────────────────────────
@@ -426,7 +471,6 @@ const App = (() => {
         </div>
       </div>`;
 
-    // Commissioner team selector
     const teamSel = document.getElementById('nom-team-select');
     const teamRow = document.getElementById('nom-team-row');
     if (state.isCommissioner && teamSel && teamRow) {
@@ -438,17 +482,16 @@ const App = (() => {
       teamRow.style.display = 'none';
     }
 
-    // Show FAAB for selected team (or self)
     updateNomFaabDisplay();
     if (teamSel) teamSel.onchange = updateNomFaabDisplay;
 
-    document.getElementById('nom-bid-input').value = 1;
+    document.getElementById('nom-bid-input').value = MIN_BID;
     document.getElementById('nom-error').classList.add('hidden');
+    document.getElementById('nom-hint').textContent = `Minimum ${fmtFaab(MIN_BID)}. Bids in ${fmtFaab(MIN_BID)} increments.`;
     UI.openModal('nom-modal');
   }
 
   function getNomTeam() {
-    // Returns whichever team is selected in the nom modal (comm can pick any)
     const sel = document.getElementById('nom-team-select');
     const rid = sel && state.isCommissioner ? parseInt(sel.value) : null;
     return rid ? state.teams.find(t => t.roster_id === rid) : UI.getMyTeam(state);
@@ -460,7 +503,7 @@ const App = (() => {
     const override  = state.faabOverrides[team.roster_id];
     const base      = override !== undefined ? override : Math.max(0, team.faab_budget - (team.faab_used || 0));
     const committed = Auction.getCommittedFaab(state.auctions, team.roster_id);
-    document.getElementById('nom-faab').textContent = `$${Math.max(0, base - committed)}`;
+    document.getElementById('nom-faab').textContent = fmtFaab(Math.max(0, base - committed));
   }
 
   function closeNomModal()         { UI.closeModal('nom-modal'); }
@@ -478,19 +521,25 @@ const App = (() => {
       showNomError('This team already has an active nomination.'); return;
     }
 
-    const bidVal = parseInt(document.getElementById('nom-bid-input').value) || 1;
+    const bidVal    = parseInt(document.getElementById('nom-bid-input').value) || 0;
     const override  = state.faabOverrides[nomTeam.roster_id];
     const base      = override !== undefined ? override : Math.max(0, nomTeam.faab_budget - (nomTeam.faab_used || 0));
     const committed = Auction.getCommittedFaab(state.auctions, nomTeam.roster_id);
     const faab      = Math.max(0, base - committed);
 
-    if (bidVal < 1)    { showNomError('Minimum bid is $1.'); return; }
-    if (bidVal > faab) { showNomError(`${nomTeam.display_name} only has $${faab} available.`); return; }
+    if (bidVal < MIN_BID) { showNomError(`Minimum bid is ${fmtFaab(MIN_BID)}.`); return; }
+    if (bidVal % MIN_BID !== 0) { showNomError(`Bids must be in ${fmtFaab(MIN_BID)} increments.`); return; }
+    if (bidVal > faab)   { showNomError(`${nomTeam.display_name} only has ${fmtFaab(faab)} available.`); return; }
 
+    const p = state.players[state.activeNomPlayerId] || {};
     try {
-      await Auction.nominate(state.leagueId, state.activeNomPlayerId, nomTeam.roster_id, bidVal);
+      await Auction.nominate(
+        state.leagueId, state.activeNomPlayerId, nomTeam.roster_id, bidVal,
+        nomTeam.display_name || nomTeam.username,
+        UI.playerName(p)
+      );
       closeNomModal();
-      UI.toast(`Auction started for ${UI.playerName(state.players[state.activeNomPlayerId])}!`, 'success');
+      UI.toast(`Auction started for ${UI.playerName(p)}!`, 'success');
     } catch (e) { showNomError('Failed: ' + e.message); }
   }
 
@@ -509,13 +558,14 @@ const App = (() => {
     if (!auction) return;
 
     state.activeBidAuctionId = auctionId;
+    state.bidPending = false; // reset confirm state
+
     const p       = state.players[auction.playerId] || {};
     const pos     = UI.playerPos(p);
     const leading = Auction.computeLeadingBid(auction);
     const myMax   = Auction.getMyMaxBid(auction, myTeam.roster_id);
     const avail   = getMyFaab() + myMax;
 
-    // Player info + custom pts
     const customPts = computeCustomPts(auction.playerId);
     const ptsHtml   = customPts !== null
       ? `<span style="font-size:11px;color:var(--text3);margin-top:4px;display:block;">2025 fantasy pts: <strong style="color:var(--accent2);">${customPts.toFixed(1)}</strong></span>`
@@ -532,49 +582,89 @@ const App = (() => {
         ${ptsHtml}
       </div>`;
 
-    document.getElementById('bid-modal-faab').textContent = `$${avail}`;
+    document.getElementById('bid-modal-faab').textContent = fmtFaab(avail);
 
     const input = document.getElementById('bid-amount-input');
-    input.value = myMax || (leading.displayBid + 1);
+    input.value = myMax || Math.max(MIN_BID, leading.displayBid + MIN_BID);
+    input.step  = MIN_BID;
+    input.min   = MIN_BID;
     input.max   = avail;
 
     document.getElementById('bid-current-info').innerHTML =
-      `Current bid: <strong style="color:var(--text);">$${leading.displayBid}</strong>` +
+      `Current price: <strong style="color:var(--text);">${fmtFaab(leading.displayBid)}</strong>` +
       ` — Leader: <strong style="color:var(--accent2);">${leading.rosterId ? UI.getTeamName(leading.rosterId, state) : '—'}</strong>` +
-      (myMax && !state.isCommissioner ? ` &nbsp;|&nbsp; Your current max: <strong style="color:var(--yellow);">$${myMax}</strong>` : '');
+      (myMax && !state.isCommissioner ? ` &nbsp;|&nbsp; Your max: <strong style="color:var(--yellow);">${fmtFaab(myMax)}</strong>` : '');
 
-    // Stat breakdown panel
+    // Cap impact preview
+    updateCapImpact();
+    input.addEventListener('input', updateCapImpact);
+
     UI.renderStatBreakdown(auction.playerId, state.statsMap[auction.playerId], state.scoringSettings);
 
-    // Bid history — show max only to the person who placed it (blind proxy)
-    const bids   = Array.isArray(auction.bids) ? auction.bids : Object.values(auction.bids || {});
-    const sorted = [...bids].sort((a, b) => b.timestamp - a.timestamp);
-    // Deduplicate: only show the latest bid entry per roster (hide superseded bids)
+    const bids    = Array.isArray(auction.bids) ? auction.bids : Object.values(auction.bids || {});
+    const sorted  = [...bids].sort((a, b) => b.timestamp - a.timestamp);
     const seenRosters = new Set();
-    const dedupedBids = sorted.filter(b => {
+    const deduped = sorted.filter(b => {
       if (seenRosters.has(b.rosterId)) return false;
       seenRosters.add(b.rosterId);
       return true;
     });
-    document.getElementById('bid-history-list').innerHTML = dedupedBids.length
-      ? dedupedBids.map(b => {
-          // Commissioner sees no max bids (fairness). Others see only their own max.
-          const isMe     = b.rosterId === myTeam.roster_id;
-          const showMax  = isMe && !state.isCommissioner;
+    document.getElementById('bid-history-list').innerHTML = deduped.length
+      ? deduped.map(b => {
+          const isMe    = b.rosterId === myTeam.roster_id;
+          const showMax = isMe && !state.isCommissioner;
           return `<div class="bid-row">
             <span class="bid-row-team">${UI.getTeamName(b.rosterId, state)}${isMe ? ' <span style="color:var(--accent2);font-size:10px;">(you)</span>' : ''}</span>
-            <span class="bid-row-amount">${showMax ? `max $${b.maxBid}` : 'bid placed'}</span>
+            <span class="bid-row-amount">${showMax ? fmtFaab(b.maxBid) : 'bid placed'}</span>
             <span class="bid-row-time">${UI.timeAgo(b.timestamp)}</span>
           </div>`;
         }).join('')
       : `<div style="padding:10px 12px;color:var(--text3);font-size:12px;">No bids yet.</div>`;
 
+    // Reset confirm button state
+    resetBidButton();
     updateBidHint();
     UI.openModal('bid-modal');
   }
 
-  function closeBidModal()         { UI.closeModal('bid-modal'); }
+  function updateCapImpact() {
+    const el = document.getElementById('cap-impact-preview');
+    if (!el) return;
+    const auction = state.auctions.find(a => a.id === state.activeBidAuctionId);
+    if (!auction) return;
+    const myTeam  = UI.getMyTeam(state);
+    if (!myTeam) return;
+    const bidVal  = parseInt(document.getElementById('bid-amount-input').value) || 0;
+    const myMax   = Auction.getMyMaxBid(auction, myTeam.roster_id);
+    const avail   = getMyFaab() + myMax;
+    const afterBid = avail - bidVal;
+
+    // Salary cap impact from rosters.html embedded data (if available)
+    el.innerHTML = `
+      <div style="font-size:11px;color:var(--text3);margin-top:10px;padding:8px 12px;background:var(--surface2);border-radius:var(--radius-sm);border:1px solid var(--border);">
+        <span style="font-weight:600;color:var(--text2);">Cap Impact Preview</span>
+        <span style="display:block;margin-top:4px;">If you win at ${fmtFaab(bidVal)}: 
+          <strong style="color:${afterBid < 0 ? 'var(--red)' : 'var(--green)'};">${fmtFaab(Math.max(0, afterBid))}</strong> FAAB remaining
+          ${afterBid < 0 ? '<span style="color:var(--red);"> — exceeds balance!</span>' : ''}
+        </span>
+      </div>`;
+  }
+
+  function closeBidModal()         {
+    UI.closeModal('bid-modal');
+    state.bidPending = false;
+    resetBidButton();
+  }
   function closeBidModalOutside(e) { if (e.target.id === 'bid-modal') closeBidModal(); }
+
+  function resetBidButton() {
+    const btn = document.getElementById('bid-submit-btn');
+    if (!btn) return;
+    btn.textContent = 'Place Max Bid';
+    btn.style.background = '';
+    btn.dataset.confirm = '0';
+    state.bidPending = false;
+  }
 
   function updateBidHint() {
     const auction = state.auctions.find(a => a.id === state.activeBidAuctionId);
@@ -582,18 +672,39 @@ const App = (() => {
     const val     = parseInt(document.getElementById('bid-amount-input').value) || 0;
     const leading = Auction.computeLeadingBid(auction);
     const hint    = document.getElementById('bid-hint');
-    if (val < 1) {
-      hint.style.color = 'var(--red)'; hint.textContent = 'Minimum bid is $1.'; return;
+    if (val < MIN_BID) {
+      hint.style.color = 'var(--red)'; hint.textContent = `Minimum bid is ${fmtFaab(MIN_BID)}.`; return;
+    }
+    if (val % MIN_BID !== 0) {
+      hint.style.color = 'var(--red)'; hint.textContent = `Bids must be in ${fmtFaab(MIN_BID)} increments.`; return;
     }
     if (val <= leading.displayBid) {
       hint.style.color = 'var(--red)';
-      hint.textContent = `Must exceed current bid of $${leading.displayBid}.`; return;
+      hint.textContent = `Must exceed current price of ${fmtFaab(leading.displayBid)}.`; return;
     }
     hint.style.color = '';
-    hint.textContent = `You win unless someone bids more than $${val}. System only pays $1 above next highest.`;
+    hint.textContent = `You win unless someone bids more than ${fmtFaab(val)}. System pays just ${fmtFaab(MIN_BID)} above next highest.`;
   }
 
+  // 1-tap confirm: first tap arms the button, second tap fires
   async function submitBid() {
+    const btn = document.getElementById('bid-submit-btn');
+    if (!btn) return;
+
+    // First tap — arm confirm
+    if (btn.dataset.confirm !== '1') {
+      btn.dataset.confirm  = '1';
+      btn.textContent      = '✓ Confirm Bid';
+      btn.style.background = 'var(--green)';
+      btn.style.color      = '#000';
+      // Auto-reset after 4 seconds if not confirmed
+      setTimeout(() => {
+        if (btn.dataset.confirm === '1') resetBidButton();
+      }, 4000);
+      return;
+    }
+
+    // Second tap — actually submit
     const myTeam = UI.getMyTeam(state);
     if (!myTeam) return;
     const auction = state.auctions.find(a => a.id === state.activeBidAuctionId);
@@ -603,34 +714,41 @@ const App = (() => {
     const leading = Auction.computeLeadingBid(auction);
     const myMax   = Auction.getMyMaxBid(auction, myTeam.roster_id);
     const avail   = getMyFaab() + myMax;
+    const p       = state.players[auction.playerId] || {};
 
-    if (bidVal < 1) { UI.toast('Minimum bid is $1.', 'error'); return; }
+    if (bidVal < MIN_BID) { UI.toast(`Minimum bid is ${fmtFaab(MIN_BID)}.`, 'error'); resetBidButton(); return; }
+    if (bidVal % MIN_BID !== 0) { UI.toast(`Bids must be in ${fmtFaab(MIN_BID)} increments.`, 'error'); resetBidButton(); return; }
     if (bidVal <= leading.displayBid && leading.rosterId !== myTeam.roster_id) {
-      UI.toast(`Bid must exceed current bid of $${leading.displayBid}.`, 'error'); return;
+      UI.toast(`Bid must exceed ${fmtFaab(leading.displayBid)}.`, 'error'); resetBidButton(); return;
     }
-    if (bidVal > avail) { UI.toast(`You only have $${avail} available.`, 'error'); return; }
+    if (bidVal > avail) { UI.toast(`You only have ${fmtFaab(avail)} available.`, 'error'); resetBidButton(); return; }
 
-    const btn = document.getElementById('bid-submit-btn');
     btn.textContent = 'Placing…'; btn.disabled = true;
     try {
-      const updated    = await Auction.placeBid(state.leagueId, auction.id, myTeam.roster_id, bidVal);
+      const updated    = await Auction.placeBid(
+        state.leagueId, auction.id, myTeam.roster_id, bidVal,
+        myTeam.display_name || myTeam.username,
+        UI.playerName(p),
+        auction.playerId
+      );
       const newLeading = Auction.computeLeadingBid(updated);
       closeBidModal();
       UI.toast(
         newLeading.rosterId === myTeam.roster_id
-          ? `You're winning at $${newLeading.displayBid}! Timer reset. 🏆`
+          ? `You're winning at ${fmtFaab(newLeading.displayBid)}! 🏆`
           : `Bid placed but you're currently losing — the leader has a higher max.`,
         newLeading.rosterId === myTeam.roster_id ? 'success' : 'info'
       );
     } catch (e) { UI.toast('Bid failed: ' + e.message, 'error'); }
-    finally    { btn.textContent = 'Place Max Bid'; btn.disabled = false; }
+    finally    { btn.textContent = 'Place Max Bid'; btn.disabled = false; btn.dataset.confirm = '0'; btn.style.background = ''; btn.style.color = ''; }
   }
 
-  // ── Commissioner tools ───────────────────────────────────
-  async function markProcessed(auctionId) {
+  // ── Push to Claim (commissioner) ─────────────────────────
+  async function pushToClaim(auctionId) {
     const auction = state.auctions.find(a => a.id === auctionId);
     if (!auction) return;
     const leading = Auction.computeLeadingBid(auction);
+    const p       = state.players[auction.playerId] || {};
 
     if (leading.rosterId) {
       const team    = state.teams.find(t => t.roster_id === leading.rosterId);
@@ -640,19 +758,46 @@ const App = (() => {
           : Math.max(0, team.faab_budget - (team.faab_used || 0));
         await Auction.setFaabOverride(state.leagueId, leading.rosterId, Math.max(0, current - leading.displayBid));
       }
+      await Auction.claimAuction(
+        state.leagueId, auctionId, leading.rosterId,
+        state.teams.find(t => t.roster_id === leading.rosterId)?.display_name || `Team ${leading.rosterId}`,
+        leading.displayBid,
+        UI.playerName(p),
+        auction.playerId
+      );
+
+      // Push notification to winner
+      if ('Notification' in window && Notification.permission === 'granted') {
+        const myTeam = UI.getMyTeam(state);
+        if (myTeam?.roster_id === leading.rosterId) {
+          new Notification('SleeperBid — Player Claimed! 🎉', {
+            body: `${UI.playerName(p)} added to your roster for ${fmtFaab(leading.displayBid)}`,
+            icon: `https://sleepercdn.com/content/nfl/players/thumb/${auction.playerId}.jpg`,
+            tag:  'claim_' + auctionId,
+          });
+        }
+      }
+    } else {
+      await Auction.markProcessed(state.leagueId, auctionId);
     }
-    await Auction.markProcessed(state.leagueId, auctionId);
-    UI.toast('Auction marked as processed!', 'success');
+    UI.toast(`${UI.playerName(p)} claimed! FAAB deducted. ✅`, 'success');
   }
 
   async function cancelAuction(auctionId) {
-    if (!confirm('Cancel this auction? All bids will be voided and FAAB returned. Cannot be undone.')) return;
-    await Auction.cancelAuction(state.leagueId, auctionId);
+    if (!confirm('Cancel this auction? All bids will be voided. Cannot be undone.')) return;
+    const auction = state.auctions.find(a => a.id === auctionId);
+    const p       = auction ? (state.players[auction.playerId] || {}) : {};
+    const myTeam  = UI.getMyTeam(state);
+    await Auction.cancelAuction(
+      state.leagueId, auctionId,
+      UI.playerName(p),
+      myTeam?.display_name || COMMISSIONER_USERNAME
+    );
     UI.toast('Auction cancelled.', 'info');
   }
 
   async function deleteAuction(auctionId) {
-    if (!confirm('PERMANENTLY DELETE this auction? It will be removed from history entirely. Cannot be undone.')) return;
+    if (!confirm('PERMANENTLY DELETE this auction? Cannot be undone.')) return;
     await Auction.deleteAuction(state.leagueId, auctionId);
     UI.toast('Auction deleted.', 'info');
   }
@@ -666,7 +811,6 @@ const App = (() => {
     UI.toast(`FAAB updated for ${team?.display_name || 'team'}.`, 'success');
   }
 
-  // Set ALL teams' starting FAAB at once from the bulk input grid
   async function commSetAllFaab() {
     const rows = document.querySelectorAll('.faab-bulk-row');
     const updates = [];
@@ -704,20 +848,14 @@ const App = (() => {
     }
   }
 
-  // ── FAAB helpers ─────────────────────────────────────────
-  function getMyFaab() {
-    const myTeam = UI.getMyTeam(state);
-    if (!myTeam) return 0;
-    const override = state.faabOverrides[myTeam.roster_id];
-    const base     = override !== undefined
-      ? override
-      : Math.max(0, myTeam.faab_budget - (myTeam.faab_used || 0));
-    return Math.max(0, base - Auction.getCommittedFaab(state.auctions, myTeam.roster_id));
+  // ── History filters ──────────────────────────────────────
+  function filterHistory() {
+    UI.renderHistory(state.auctions);
   }
 
   // ── Public API ───────────────────────────────────────────
   return {
-    state,
+    state, fmtFaab,
     boot,
     doLogin, logout,
     doSetup,
@@ -726,12 +864,14 @@ const App = (() => {
     refreshAll, renderAll,
     enableNotifications,
     computeCustomPts,
+    toggleWatch,
     openNomModal, closeNomModal, closeNomModalOutside, submitNomination,
     commSetAllRosterSizes,
-    openBidModal,  closeBidModal,  closeBidModalOutside, submitBid, updateBidHint,
-    markProcessed, cancelAuction, deleteAuction, commOverrideFaab, commSetAllFaab, confirmReset,
+    openBidModal, closeBidModal, closeBidModalOutside, submitBid, updateBidHint,
+    pushToClaim, cancelAuction, deleteAuction,
+    commOverrideFaab, commSetAllFaab, confirmReset,
+    filterHistory,
   };
 })();
 
 document.addEventListener('DOMContentLoaded', () => App.boot());
-
