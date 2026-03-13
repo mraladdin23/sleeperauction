@@ -414,23 +414,26 @@ const UI = (() => {
       </tr>`;
     }).join('');
 
-    const pg = document.getElementById('fa-pagination');
-    if (!pg) return;
-    if (totalPages <= 1) { pg.innerHTML = ''; return; }
     const base   = 'padding:7px 18px;border-radius:var(--radius-sm);font-size:13px;font-weight:500;font-family:var(--font-body);cursor:pointer;transition:all .15s;';
     const btnOn  = base + 'border:1px solid var(--accent);background:var(--accent);color:#fff;';
     const btnOff = base + 'border:1px solid var(--border);background:var(--surface2);color:var(--text3);cursor:not-allowed;opacity:.45;';
     const cur    = window.faPage;
     const start  = cur * FA_PAGE_SIZE + 1;
     const end    = Math.min((cur + 1) * FA_PAGE_SIZE, allFiltered.length);
-    pg.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:12px;padding:14px 0 6px;border-top:1px solid var(--border);margin-top:6px;';
-    pg.innerHTML = `
-      <button style="${cur===0?btnOff:btnOn}" ${cur===0?'disabled':''} onclick="faPagePrev()">← Prev</button>
-      <span style="font-size:12px;color:var(--text2);font-family:var(--font-mono);">
-        ${start}–${end} <span style="color:var(--text3);">of ${allFiltered.length}</span>
-        &nbsp;·&nbsp; Page ${cur+1} / ${totalPages}
-      </span>
-      <button style="${cur>=totalPages-1?btnOff:btnOn}" ${cur>=totalPages-1?'disabled':''} onclick="faPageNext()">Next →</button>`;
+
+    const pgHTML = totalPages <= 1 ? '' : `
+      <div style="display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 0;border-top:1px solid var(--border);margin-top:6px;">
+        <button style="${cur===0?btnOff:btnOn}" ${cur===0?'disabled':''} onclick="faPagePrev()">← Prev</button>
+        <span style="font-size:12px;color:var(--text2);font-family:var(--font-mono);">
+          ${start}–${end} <span style="color:var(--text3);">of ${allFiltered.length}</span>
+          &nbsp;·&nbsp; Page ${cur+1} / ${totalPages}
+        </span>
+        <button style="${cur>=totalPages-1?btnOff:btnOn}" ${cur>=totalPages-1?'disabled':''} onclick="faPageNext()">Next →</button>
+      </div>`;
+    const pgTop = document.getElementById('fa-pagination-top');
+    if (pgTop) pgTop.innerHTML = pgHTML;
+    const pg = document.getElementById('fa-pagination');
+    if (pg) pg.innerHTML = pgHTML;
   }
 
 
