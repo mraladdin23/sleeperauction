@@ -38,7 +38,7 @@ function subscribeRosters() {
     if (cfg.offseason) offseasonMode = cfg.offseason;
   }).catch(()=>{});
 
-  // Build player name lookup from cached Sleeper DB for age badges
+  // Build player name lookup from cached Sleeper DB for age badges + photos
   try {
     const cached = localStorage.getItem('sb_players');
     if (cached) {
@@ -51,6 +51,32 @@ function subscribeRosters() {
       });
     }
   } catch(e) {}
+
+  // Overlay confirmed playerIdMap from Firebase (player_matcher.html writes this)
+  // Firebase keys have . # $ / [ ] encoded — decode them back to real names
+  function _unsafeKey(k) {
+    return k.replace(/__dot__/g,'.').replace(/__hash__/g,'#').replace(/__dlr__/g,'$')
+            .replace(/__sl__/g,'/').replace(/__lb__/g,'[').replace(/__rb__/g,']');
+  }
+  if (leagueId()) {
+    db.ref(`leagues/${leagueId()}/playerIdMap`).once('value').then(snap => {
+      const map = snap.val();
+      if (!map) return;
+      Object.entries(map).forEach(([safeKey, val]) => {
+        // val has {player_id, nfl_team, age, years_exp, name}
+        const realName = (val.name || _unsafeKey(safeKey)).toLowerCase();
+        PLAYER_LOOKUP[realName] = {
+          ...PLAYER_LOOKUP[realName],
+          player_id: val.player_id,
+          nfl_team:  val.nfl_team  || PLAYER_LOOKUP[realName]?.nfl_team  || null,
+          age:       val.age       ?? PLAYER_LOOKUP[realName]?.age       ?? null,
+          years_exp: val.years_exp ?? PLAYER_LOOKUP[realName]?.years_exp ?? null,
+        };
+      });
+      // Re-render current tab so photos appear without reload
+      if (DATA) renderTab(tab);
+    }).catch(() => {});
+  }
 
   rosterRef().on('value', snap => {
     const fbData = snap.val();
