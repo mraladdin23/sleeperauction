@@ -15,8 +15,8 @@
 <style>
 :root{--bg:#0d0f14;--surface:#161820;--surface2:#1e2029;--surface3:#252733;--border:#2e3040;--border2:#3a3d52;--accent:#7c5cfc;--accent2:#9d7ffe;--green:#18e07a;--red:#ff4d6a;--yellow:#ffc94d;--cyan:#00d4ff;--text:#e8eaf0;--text2:#9296a8;--text3:#5a5e72;--font-display:'Bebas Neue',sans-serif;--font-body:'DM Sans',sans-serif;--font-mono:'JetBrains Mono',monospace;--radius:10px;--radius-sm:6px;}
 *{box-sizing:border-box;margin:0;padding:0;}
-html{overflow-x:hidden;overscroll-behavior:none;}
-body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;min-height:100vh;overflow-x:hidden;overscroll-behavior:none;}
+html{overflow-x:hidden;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;min-height:100vh;overflow-x:hidden;}
 ::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-track{background:var(--bg);}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
 
 /* ── APP SWITCHER (top nav across all pages) ── */
@@ -54,6 +54,7 @@ body.light-mode .nav-tabs{background:var(--surface);}
 body.light-mode .sec-row td{background:rgba(200,205,225,.4);}
 
 @media(max-width:600px){
+  html,body{overscroll-behavior:none;}
   .app-bar{padding:0 10px;height:46px;}
   .app-btn span:not(.app-btn-icon){display:none;}
   .app-btn{padding:5px 8px;}
@@ -209,6 +210,8 @@ body.light-mode .sec-row td{background:rgba(200,205,225,.4);}
     <span class="last-upd" id="last-upd"></span>
     <button class="tibtn" onclick="window.print()" title="Print">🖨</button>
     <button class="tibtn" id="theme-btn" onclick="toggleTheme()" title="Toggle theme">☀️</button>
+    <div class="avatar" id="cap-avatar" title="Logged in user" style="width:30px;height:30px;font-size:12px;cursor:default;"></div>
+    <button class="tibtn" onclick="capLogout()" title="Log out">↩</button>
   </div>
 </div>
 
@@ -293,6 +296,35 @@ body.light-mode .sec-row td{background:rgba(200,205,225,.4);}
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <script src="js/firebase-config.js"></script>
+<script>
+// Populate avatar from cached Sleeper user in localStorage
+(function() {
+  const el = document.getElementById('cap-avatar');
+  if (!el) return;
+  try {
+    const u = JSON.parse(localStorage.getItem('sb_user') || 'null');
+    const name = u?.display_name || u?.username || localStorage.getItem('sb_username') || '?';
+    const initial = name[0].toUpperCase();
+    if (u?.avatar) {
+      el.innerHTML = `<img src="https://sleepercdn.com/avatars/thumbs/${u.avatar}"
+        style="width:100%;height:100%;object-fit:cover;border-radius:50%;"
+        onerror="this.parentElement.textContent='${initial}'" />`;
+    } else {
+      el.textContent = initial;
+    }
+    el.title = name;
+  } catch(e) {
+    el.textContent = '?';
+  }
+})();
+
+function capLogout() {
+  localStorage.removeItem('sb_username');
+  localStorage.removeItem('sb_leagueId');
+  localStorage.removeItem('sb_user');
+  window.location = 'index.html';
+}
+</script>
 <script src="js/cap.js"></script>
 
 <!-- Service Worker -->
