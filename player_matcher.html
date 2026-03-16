@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SleeperBid — Player ID Matcher</title>
+<style>
+:root{--bg:#0d0f14;--surface:#161820;--surface2:#1e2029;--border:#2e3040;--accent:#7c5cfc;--accent2:#9d7ffe;--green:#18e07a;--yellow:#ffc94d;--red:#ff4d6a;--text:#e8eaf0;--text2:#9296a8;--text3:#5a5e72;--font-body:'DM Sans',sans-serif;--font-mono:'JetBrains Mono',monospace;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;padding:20px;}
+h1{font-size:22px;margin-bottom:6px;}
+.sub{color:var(--text3);font-size:13px;margin-bottom:20px;}
+.controls{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;align-items:center;}
+button{padding:8px 16px;border:none;border-radius:6px;cursor:pointer;font-size:13px;font-family:var(--font-body);}
+.btn-primary{background:var(--accent);color:#fff;}
+.btn-secondary{background:var(--surface2);color:var(--text2);border:1px solid var(--border);}
+.btn-green{background:rgba(24,224,122,.15);color:var(--green);border:1px solid rgba(24,224,122,.3);}
+.stats{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:16px;}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px 16px;}
+.stat-val{font-size:20px;font-weight:600;font-family:var(--font-mono);}
+.stat-lbl{font-size:11px;color:var(--text3);text-transform:uppercase;margin-top:2px;}
+table{width:100%;border-collapse:collapse;}
+thead th{background:var(--surface2);font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:8px 12px;text-align:left;position:sticky;top:0;z-index:10;}
+tbody tr{border-bottom:1px solid rgba(46,48,64,.5);}
+tbody tr:hover{background:rgba(255,255,255,.02);}
+td{padding:7px 12px;vertical-align:middle;}
+.conf-high{background:rgba(24,224,122,.12);color:var(--green);border-radius:4px;padding:2px 7px;font-size:11px;}
+.conf-med{background:rgba(255,201,77,.12);color:var(--yellow);border-radius:4px;padding:2px 7px;font-size:11px;}
+.conf-low{background:rgba(255,77,106,.12);color:var(--red);border-radius:4px;padding:2px 7px;font-size:11px;}
+.conf-none{background:rgba(90,94,114,.2);color:var(--text3);border-radius:4px;padding:2px 7px;font-size:11px;}
+.player-photo{width:32px;height:32px;border-radius:50%;object-fit:cover;background:var(--surface2);}
+.pos-badge{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;}
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;}
+.filter-chip{padding:4px 12px;border-radius:20px;font-size:12px;border:1px solid var(--border);background:var(--surface2);color:var(--text3);cursor:pointer;}
+.filter-chip.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.search-box{padding:7px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:13px;font-family:var(--font-body);outline:none;width:240px;}
+.match-select{background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-body);font-size:12px;padding:4px 6px;max-width:220px;outline:none;}
+.output-box{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:16px;margin-top:20px;}
+.output-code{font-family:var(--font-mono);font-size:11px;color:var(--text2);white-space:pre;overflow-x:auto;max-height:200px;overflow-y:auto;}
+.tab{overflow-x:auto;}
+.no-players{padding:40px;text-align:center;color:var(--text3);}
+</style>
+</head>
+<body>
+<h1>🔗 SleeperBid Player ID Matcher</h1>
+<p class="sub">Auto-matches your rostered players to Sleeper player IDs using the cached player database. Confirm matches, fix mismatches, then save to Firebase.</p>
+
+<div class="controls">
+  <button class="btn-primary" onclick="loadAndMatch()">🔄 Load & Auto-Match</button>
+  <button class="btn-secondary" onclick="filterConf('low')">⚠️ Show Low Confidence</button>
+  <button class="btn-secondary" onclick="filterConf('all')">Show All</button>
+  <button class="btn-green" onclick="saveToFirebase()">💾 Save to Firebase</button>
+  <button class="btn-secondary" onclick="copyJson()">📋 Copy JSON</button>
+</div>
+
+<div class="stats" id="stats-row"></div>
+
+<div class="filter-bar">
+  <input class="search-box" id="search" placeholder="🔍 Search player…" oninput="renderTable()"/>
+  <span class="filter-chip active" data-f="all" onclick="setFilter('all',this)">All</span>
+  <span class="filter-chip" data-f="high" onclick="setFilter('high',this)">✅ High</span>
+  <span class="filter-chip" data-f="med" onclick="setFilter('med',this)">🟡 Medium</span>
+  <span class="filter-chip" data-f="low" onclick="setFilter('low',this)">🔴 Low</span>
+  <span class="filter-chip" data-f="none" onclick="setFilter('none',this)">❌ No Match</span>
+</div>
+
+<div class="tab">
+<table>
+  <thead>
+    <tr>
+      <th style="width:36px"></th>
+      <th>Your Roster Name</th>
+      <th>Pos</th>
+      <th>Team</th>
+      <th>Salary/Slot</th>
+      <th>Best Sleeper Match</th>
+      <th>NFL Team</th>
+      <th>Confidence</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody id="table-body"></tbody>
+</table>
+</div>
+
+<div id="no-players" class="no-players" style="display:none">
+  Click "Load & Auto-Match" to begin. Requires the Sleeper player cache to be loaded in your browser (visit the auction page first).
+</div>
+
+<div class="output-box">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+    <span style="font-weight:600;">Player ID Map — paste into Firebase or use Save button</span>
+    <span id="map-count" style="font-size:12px;color:var(--text3);"></span>
+  </div>
+  <div class="output-code" id="output-json">{}</div>
+</div>
+
+<script>
+const ROSTER_PLAYERS = [{"name": "Aaron Jones", "pos": "RB", "salary": "$13.00M", "slot": "starters", "team": "iowafan30"}, {"name": "Aaron Rodgers", "pos": "QB", "salary": "$5.50M", "slot": "starters", "team": "SpicyTunaRoll"}, {"name": "Adonai Mitchell", "pos": "\u2014", "salary": "$5.00M", "slot": "taxi", "team": "iowafan30"}, {"name": "AJ Barner", "pos": "TE", "salary": "$5.50M", "slot": "starters", "team": "kissin TDs"}, {"name": "Alec Pierce", "pos": "WR", "salary": "$2.00M", "slot": "starters", "team": "SpicyTunaRoll"}, {"name": "Amon-Ra St. Brown", "pos": "WR", "salary": "$28.00M", "slot": "starters", "team": "Achilles Healed?"}, {"name": "Andy Dalton", "pos": "QB", "salary": "$0.10M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Anthony Richardson", "pos": "QB", "salary": "$31.00M", "slot": "starters", "team": "mkim521"}, {"name": "Arian Smith", "pos": "\u2014", "salary": "$0.10M", "slot": "taxi", "team": "Achilles Healed?"}, {"name": "Ashton Jeanty", "pos": "RB", "salary": "$15.00M", "slot": "starters", "team": "schardt312"}, {"name": "Audric Estime", "pos": "\u2014", "salary": "$2.00M", "slot": "taxi", "team": "iowafan30"}, {"name": "Baker Mayfield", "pos": "QB", "salary": "$43.50M", "slot": "starters", "team": "kissin TDs"}, {"name": "Beaux Collins", "pos": "\u2014", "salary": "$0.10M", "slot": "taxi", "team": "Achilles Healed?"}, {"name": "Bhayshul Tuten", "pos": "\u2014", "salary": "$7.50M", "slot": "taxi", "team": "Not Great Bob"}, {"name": "Bijan Robinson", "pos": "RB", "salary": "$28.00M", "slot": "starters", "team": "dlon16"}, {"name": "Blake Corum", "pos": "\u2014", "salary": "$5.00M", "slot": "taxi", "team": "SpicyTunaRoll"}, {"name": "Bo Nix", "pos": "QB", "salary": "$40.00M", "slot": "starters", "team": "Tmill85"}, {"name": "Braelon Allen", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "Not Great Bob"}, {"name": "Breece Hall", "pos": "RB", "salary": "$21.00M", "slot": "starters", "team": "SpicyTunaRoll"}, {"name": "Brenton Strange", "pos": "TE", "salary": "$1.00M", "slot": "starters", "team": "Tmill85"}, {"name": "Breshard Smith", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "kissin TDs"}, {"name": "Brian Robinson", "pos": "RB", "salary": "$16.00M", "slot": "starters", "team": "schardt312"}, {"name": "Brian Thomas", "pos": "WR", "salary": "$21.50M", "slot": "starters", "team": "Achilles Healed?"}, {"name": "Brock Bowers", "pos": "TE", "salary": "$15.00M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Brock Purdy", "pos": "QB", "salary": "$36.50M", "slot": "starters", "team": "schardt312"}, {"name": "Bryce Young", "pos": "QB", "salary": "$20.00M", "slot": "starters", "team": "Southy610"}, {"name": "Bucky Irving", "pos": "RB", "salary": "$3.00M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Cade Otton", "pos": "TE", "salary": "$1.00M", "slot": "starters", "team": "Show Me The Money!!!"}, {"name": "Cade Stover", "pos": "\u2014", "salary": "$0.80M", "slot": "taxi", "team": "kissin TDs"}, {"name": "Caleb Williams", "pos": "QB", "salary": "$37.00M", "slot": "starters", "team": "Southy610"}, {"name": "Cam Miller", "pos": "\u2014", "salary": "$0.10M", "slot": "taxi", "team": "Achilles Healed?"}, {"name": "Cam Skattebo", "pos": "RB", "salary": "$7.50M", "slot": "starters", "team": "Achilles Healed?"}, {"name": "Cameron Ward", "pos": "QB", "salary": "$15.00M", "slot": "starters", "team": "Achilles Healed?"}, {"name": "CeeDee Lamb", "pos": "WR", "salary": "$32.00M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Chase Brown", "pos": "RB", "salary": "$12.00M", "slot": "starters", "team": "Tmill85"}, {"name": "Chimere Dike", "pos": "\u2014", "salary": "$1.40M", "slot": "taxi", "team": "Southy610"}, {"name": "Chris Brooks", "pos": "RB", "salary": "$0.10M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Chris Olave", "pos": "WR", "salary": "$26.00M", "slot": "starters", "team": "schardt312"}, {"name": "Chris Rodriguez", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "Not Great Bob"}, {"name": "Christian McCaffrey", "pos": "RB", "salary": "$26.00M", "slot": "starters", "team": "Achilles Healed?"}, {"name": "Christian Watson", "pos": "WR", "salary": "$14.00M", "slot": "starters", "team": "schardt312"}, {"name": "CJ Stroud", "pos": "QB", "salary": "$20.00M", "slot": "starters", "team": "Southy610"}, {"name": "Colby Parkinson", "pos": "TE", "salary": "$0.10M", "slot": "starters", "team": "Show Me The Money!!!"}, {"name": "Colston Loveland", "pos": "TE", "salary": "$7.50M", "slot": "starters", "team": "schardt312"}, {"name": "Cooper Rush", "pos": "QB", "salary": "$0.30M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Courtland Sutton", "pos": "WR", "salary": "$17.10M", "slot": "starters", "team": "Show Me The Money!!!"}, {"name": "Curtis Samuel", "pos": "WR", "salary": "$1.00M", "slot": "starters", "team": "SpicyTunaRoll"}, {"name": "Dak Prescott", "pos": "QB", "salary": "$44.50M", "slot": "starters", "team": "Show Me The Money!!!"}, {"name": "Dallin Holker", "pos": "\u2014", "salary": "$0.10M", "slot": "taxi", "team": "Southy610"}, {"name": "Dalton Schultz", "pos": "TE", "salary": "$6.00M", "slot": "starters", "team": "iowafan30"}, {"name": "Damien Martinez", "pos": "\u2014", "salary": "$1.70M", "slot": "taxi", "team": "Southy610"}, {"name": "Darius Cooper", "pos": "\u2014", "salary": "$0.10M", "slot": "taxi", "team": "Achilles Healed?"}, {"name": "Darnell Washington", "pos": "\u2014", "salary": "$2.00M", "slot": "taxi", "team": "Show Me The Money!!!"}, {"name": "David Njoku", "pos": "TE", "salary": "$10.50M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Davis Mills", "pos": "QB", "salary": "$0.10M", "slot": "starters", "team": "dlon16"}, {"name": "Dawson Knox", "pos": "TE", "salary": "$2.00M", "slot": "starters", "team": "schardt312"}, {"name": "Demario Douglas", "pos": "WR", "salary": "$1.00M", "slot": "starters", "team": "kissin TDs"}, {"name": "Deshaun Watson", "pos": "QB", "salary": "$0.40M", "slot": "starters", "team": "iowafan30"}, {"name": "Devin Neal", "pos": "RB", "salary": "$1.00M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Devon Achane", "pos": "RB", "salary": "$16.20M", "slot": "starters", "team": "Southy610"}, {"name": "Devonta Smith", "pos": "WR", "salary": "$20.00M", "slot": "starters", "team": "dlon16"}, {"name": "Devontez Walker", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "dlon16"}, {"name": "DeWayne McBride", "pos": "\u2014", "salary": "$5.00M", "slot": "taxi", "team": "schardt312"}, {"name": "Dillon Gabriel", "pos": "QB", "salary": "$1.00M", "slot": "starters", "team": "Achilles Healed?"}, {"name": "DJ Giddens", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "abomb25"}, {"name": "DJ Moore", "pos": "WR", "salary": "$14.50M", "slot": "starters", "team": "SpicyTunaRoll"}, {"name": "DK Metcalf", "pos": "WR", "salary": "$17.00M", "slot": "starters", "team": "Show Me The Money!!!"}, {"name": "Dont'e Thornton", "pos": "WR", "salary": "$1.00M", "slot": "starters", "team": "kissin TDs"}, {"name": "Dontayvion Wicks", "pos": "WR", "salary": "$1.00M", "slot": "starters", "team": "mkim521"}, {"name": "Drake London", "pos": "WR", "salary": "$18.50M", "slot": "starters", "team": "dlon16"}, {"name": "Drake Maye", "pos": "QB", "salary": "$35.50M", "slot": "starters", "team": "iowafan30"}, {"name": "Dyami Brown", "pos": "WR", "salary": "$0.50M", "slot": "starters", "team": "mkim521"}, {"name": "Dylan Sampson", "pos": "RB", "salary": "$3.00M", "slot": "starters", "team": "schardt312"}, {"name": "Efton Chism", "pos": "\u2014", "salary": "$0.20M", "slot": "taxi", "team": "mkim521"}, {"name": "Elic Ayomanor", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "schardt312"}, {"name": "Elijah Arroyo", "pos": "\u2014", "salary": "$5.00M", "slot": "taxi", "team": "Show Me The Money!!!"}, {"name": "Elijah Mitchell", "pos": "RB", "salary": "$2.10M", "slot": "starters", "team": "schardt312"}, {"name": "Emanuel Wilson", "pos": "RB", "salary": "$0.10M", "slot": "starters", "team": "mkim521"}, {"name": "Emeka Egbuka", "pos": "WR", "salary": "$10.00M", "slot": "starters", "team": "kissin TDs"}, {"name": "Erick All", "pos": "TE", "salary": "$3.00M", "slot": "starters", "team": "schardt312"}, {"name": "Evan Engram", "pos": "TE", "salary": "$12.00M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Gardner Minshew", "pos": "QB", "salary": "$1.00M", "slot": "starters", "team": "schardt312"}, {"name": "Garrett Wilson", "pos": "WR", "salary": "$34.00M", "slot": "starters", "team": "kissin TDs"}, {"name": "George Pickens", "pos": "WR", "salary": "$23.00M", "slot": "starters", "team": "dlon16"}, {"name": "Gunnar Helm", "pos": "TE", "salary": "$3.00M", "slot": "starters", "team": "mkim521"}, {"name": "Harold Fannin", "pos": "TE", "salary": "$3.00M", "slot": "starters", "team": "Achilles Healed?"}, {"name": "Hunter Henry", "pos": "TE", "salary": "$12.10M", "slot": "starters", "team": "Achilles Healed?"}, {"name": "Isaac Guerendo", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "Tmill85"}, {"name": "Isaac TeSlaa", "pos": "WR", "salary": "$2.50M", "slot": "starters", "team": "Tmill85"}, {"name": "Isaiah Bond", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "Southy610"}, {"name": "Isaiah Davis", "pos": "RB", "salary": "$0.30M", "slot": "starters", "team": "kissin TDs"}, {"name": "Isaiah Likely", "pos": "TE", "salary": "$14.00M", "slot": "starters", "team": "iowafan30"}, {"name": "Ja'Corey Brooks", "pos": "\u2014", "salary": "$0.10M", "slot": "taxi", "team": "Southy610"}, {"name": "Ja'Marr Chase", "pos": "WR", "salary": "$38.00M", "slot": "starters", "team": "abomb25"}, {"name": "Ja'Tavion Sanders", "pos": "\u2014", "salary": "$2.00M", "slot": "taxi", "team": "Show Me The Money!!!"}, {"name": "Jack Bech", "pos": "\u2014", "salary": "$5.00M", "slot": "taxi", "team": "dlon16"}, {"name": "Jackson Hawes", "pos": "\u2014", "salary": "$1.60M", "slot": "taxi", "team": "dlon16"}, {"name": "Jacob Cowing", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "Tmill85"}, {"name": "Jacoby Brissett", "pos": "QB", "salary": "$0.10M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Jacory Croskey-Merritt", "pos": "RB", "salary": "$1.50M", "slot": "starters", "team": "Southy610"}, {"name": "Jahdae Walker", "pos": "WR", "salary": "$0.10M", "slot": "starters", "team": "kissin TDs"}, {"name": "Jaheim Bell", "pos": "\u2014", "salary": "$0.10M", "slot": "taxi", "team": "Southy610"}, {"name": "Jahmyr Gibbs", "pos": "RB", "salary": "$19.00M", "slot": "starters", "team": "kissin TDs"}, {"name": "Jake Browning", "pos": "QB", "salary": "$9.10M", "slot": "starters", "team": "mkim521"}, {"name": "Jake Ferguson", "pos": "TE", "salary": "$9.00M", "slot": "starters", "team": "abomb25"}, {"name": "Jakobi Meyers", "pos": "WR", "salary": "$4.00M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Jaleel McLaughlin", "pos": "RB", "salary": "$0.40M", "slot": "starters", "team": "mkim521"}, {"name": "Jalen Coker", "pos": "WR", "salary": "$0.10M", "slot": "starters", "team": "Southy610"}, {"name": "Jalen Hurts", "pos": "QB", "salary": "$61.00M", "slot": "starters", "team": "Show Me The Money!!!"}, {"name": "Jalen McMillan", "pos": "WR", "salary": "$2.00M", "slot": "starters", "team": "kissin TDs"}, {"name": "Jalen Milroe", "pos": "\u2014", "salary": "$5.00M", "slot": "taxi", "team": "mkim521"}, {"name": "Jalen Nailor", "pos": "WR", "salary": "$0.10M", "slot": "starters", "team": "schardt312"}, {"name": "Jalen Royals", "pos": "\u2014", "salary": "$2.00M", "slot": "taxi", "team": "SpicyTunaRoll"}, {"name": "Jalin Hyatt", "pos": "WR", "salary": "$0.10M", "slot": "starters", "team": "iowafan30"}, {"name": "James Conner", "pos": "RB", "salary": "$10.50M", "slot": "starters", "team": "iowafan30"}, {"name": "James Cook", "pos": "RB", "salary": "$17.70M", "slot": "starters", "team": "abomb25"}, {"name": "Jared Goff", "pos": "QB", "salary": "$41.50M", "slot": "starters", "team": "SpicyTunaRoll"}, {"name": "Jared Wiley", "pos": "\u2014", "salary": "$0.70M", "slot": "taxi", "team": "SpicyTunaRoll"}, {"name": "Jarquez Hunter", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "mkim521"}, {"name": "Jarrett Stidham", "pos": "QB", "salary": "$2.00M", "slot": "starters", "team": "schardt312"}, {"name": "Javon Baker", "pos": "\u2014", "salary": "$3.00M", "slot": "taxi", "team": "Southy610"}, {"name": "Javonte Williams", "pos": "RB", "salary": "$7.50M", "slot": "starters", "team": "abomb25"}, {"name": "Jaxon Smith-Njigba", "pos": "WR", "salary": "$21.00M", "slot": "starters", "team": "mkim521"}, {"name": "Jaxson Dart", "pos": "QB", "salary": "$10.00M", "slot": "starters", "team": "abomb25"}, {"name": "Jayden Daniels", "pos": "QB", "salary": "$37.50M", "slot": "starters", "team": "dlon16"}, {"name": "Jayden Higgins", "pos": "\u2014", "salary": "$5.00M", "slot": "taxi", "team": "iowafan30"}, {"name": "Jayden Reed", "pos": "WR", "salary": "$10.00M", "slot": "starters", "team": "SpicyTunaRoll"}, {"name": "Jaylen Waddle", "pos": "WR", "salary": "$28.00M", "slot": "starters", "team": "abomb25"}, {"name": "Jaylen Warren", "pos": "RB", "salary": "$2.00M", "slot": "starters", "team": "kissin TDs"}, {"name": "Jaylen Wright", "pos": "RB", "salary": "$0.90M", "slot": "starters", "team": "Southy610"}, {"name": "Jaylin Lane", "pos": "\u2014", "salary": "$0.60M", "slot": "taxi", "team": "dlon16"}, {"name": "Jaylin Noel", "pos": "\u2014", "salary": "$5.00M", "slot": "taxi", "team": "kissin TDs"}, {"name": "Jerry Jeudy", "pos": "WR", "salary": "$17.50M", "slot": "starters", "team": "mkim521"}, {"name": "Jimmy Garoppolo", "pos": "QB", "salary": "$0.10M", "slot": "starters", "team": "kissin TDs"}, {"name": "Jimmy Horn Jr.", "pos": "\u2014", "salary": "$0.10M", "slot": "taxi", "team": "Southy610"}, {"name": "JJ McCarthy", "pos": "QB", "salary": "$15.00M", "slot": "starters", "team": "mkim521"}, {"name": "Joe Burrow", "pos": "QB", "salary": "$59.00M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Joe Milton", "pos": "QB", "salary": "$0.10M", "slot": "starters", "team": "Southy610"}, {"name": "John Metchie", "pos": "WR", "salary": "$5.00M", "slot": "starters", "team": "schardt312"}, {"name": "Johnny Wilson", "pos": "\u2014", "salary": "$0.30M", "slot": "taxi", "team": "Southy610"}, {"name": "Jonathan Taylor", "pos": "RB", "salary": "$20.00M", "slot": "starters", "team": "Show Me The Money!!!"}, {"name": "Jordan Addison", "pos": "WR", "salary": "$21.00M", "slot": "starters", "team": "mkim521"}, {"name": "Jordan James", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "SpicyTunaRoll"}, {"name": "Jordan Love", "pos": "QB", "salary": "$37.50M", "slot": "starters", "team": "iowafan30"}, {"name": "Jordan Mason", "pos": "RB", "salary": "$14.00M", "slot": "starters", "team": "SpicyTunaRoll"}, {"name": "Jordan Whittington", "pos": "WR", "salary": "$0.10M", "slot": "starters", "team": "Southy610"}, {"name": "Josh Allen", "pos": "QB", "salary": "$61.00M", "slot": "starters", "team": "Achilles Healed?"}, {"name": "Josh Dobbs", "pos": "QB", "salary": "$0.10M", "slot": "starters", "team": "iowafan30"}, {"name": "Josh Downs", "pos": "WR", "salary": "$11.00M", "slot": "starters", "team": "mkim521"}, {"name": "Justin Herbert", "pos": "QB", "salary": "$61.00M", "slot": "starters", "team": "Tmill85"}, {"name": "Justin Jefferson", "pos": "WR", "salary": "$39.00M", "slot": "starters", "team": "abomb25"}, {"name": "Juwan Johnson", "pos": "TE", "salary": "$2.00M", "slot": "starters", "team": "SpicyTunaRoll"}, {"name": "Kaleb Johnson", "pos": "\u2014", "salary": "$10.00M", "slot": "taxi", "team": "Show Me The Money!!!"}, {"name": "Kayshon Boutte", "pos": "WR", "salary": "$3.00M", "slot": "starters", "team": "mkim521"}, {"name": "KeAndre Lambert-Smith", "pos": "\u2014", "salary": "$0.10M", "slot": "taxi", "team": "mkim521"}, {"name": "Keaton Mitchell", "pos": "RB", "salary": "$1.00M", "slot": "starters", "team": "Show Me The Money!!!"}, {"name": "Kendrick Bourne", "pos": "WR", "salary": "$0.10M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Kenneth Gainwell", "pos": "RB", "salary": "$0.10M", "slot": "starters", "team": "abomb25"}, {"name": "Kenneth Walker", "pos": "RB", "salary": "$18.00M", "slot": "starters", "team": "Achilles Healed?"}, {"name": "Khalil Shakir", "pos": "WR", "salary": "$1.00M", "slot": "starters", "team": "SpicyTunaRoll"}, {"name": "Konata Mumpfield", "pos": "\u2014", "salary": "$0.10M", "slot": "taxi", "team": "kissin TDs"}, {"name": "Kurtis Rourke", "pos": "\u2014", "salary": "$0.10M", "slot": "taxi", "team": "Southy610"}, {"name": "Kyle McCord", "pos": "\u2014", "salary": "$0.10M", "slot": "taxi", "team": "Achilles Healed?"}, {"name": "Kyle Monangai", "pos": "RB", "salary": "$2.10M", "slot": "starters", "team": "Tmill85"}, {"name": "Kyle Pitts", "pos": "TE", "salary": "$19.00M", "slot": "starters", "team": "Tmill85"}, {"name": "Kyle Williams", "pos": "\u2014", "salary": "$2.00M", "slot": "taxi", "team": "Show Me The Money!!!"}, {"name": "Kyler Murray", "pos": "QB", "salary": "$27.00M", "slot": "starters", "team": "dlon16"}, {"name": "Kyren Williams", "pos": "RB", "salary": "$16.10M", "slot": "starters", "team": "Show Me The Money!!!"}, {"name": "Ladd McConkey", "pos": "WR", "salary": "$15.00M", "slot": "starters", "team": "kissin TDs"}, {"name": "LaJohntay Wester", "pos": "\u2014", "salary": "$0.10M", "slot": "taxi", "team": "Achilles Healed?"}, {"name": "Lamar Jackson", "pos": "QB", "salary": "$53.00M", "slot": "starters", "team": "kissin TDs"}, {"name": "LeQuint Allen", "pos": "RB", "salary": "$0.10M", "slot": "starters", "team": "Achilles Healed?"}, {"name": "Luke Lachey", "pos": "\u2014", "salary": "$0.10M", "slot": "taxi", "team": "iowafan30"}, {"name": "Luke McCaffrey", "pos": "WR", "salary": "$1.00M", "slot": "starters", "team": "schardt312"}, {"name": "Luke Musgrave", "pos": "\u2014", "salary": "$4.00M", "slot": "taxi", "team": "schardt312"}, {"name": "Luther Burden", "pos": "WR", "salary": "$7.50M", "slot": "starters", "team": "Southy610"}, {"name": "Mac Jones", "pos": "QB", "salary": "$7.00M", "slot": "starters", "team": "mkim521"}, {"name": "Mack Hollins", "pos": "WR", "salary": "$0.10M", "slot": "starters", "team": "abomb25"}, {"name": "Malik Davis", "pos": "RB", "salary": "$0.30M", "slot": "starters", "team": "Achilles Healed?"}, {"name": "Malik Nabers", "pos": "WR", "salary": "$23.00M", "slot": "starters", "team": "Tmill85"}, {"name": "Malik Washington", "pos": "WR", "salary": "$4.00M", "slot": "starters", "team": "mkim521"}, {"name": "Malik Willis", "pos": "QB", "salary": "$0.90M", "slot": "starters", "team": "iowafan30"}, {"name": "Marcus Mariota", "pos": "QB", "salary": "$0.10M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Mark Andrews", "pos": "TE", "salary": "$18.00M", "slot": "starters", "team": "iowafan30"}, {"name": "MarShawn Lloyd", "pos": "\u2014", "salary": "$5.00M", "slot": "taxi", "team": "abomb25"}, {"name": "Marvin Harrison", "pos": "WR", "salary": "$15.00M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Mason Rudolph", "pos": "QB", "salary": "$0.10M", "slot": "starters", "team": "kissin TDs"}, {"name": "Mason Taylor", "pos": "TE", "salary": "$3.00M", "slot": "starters", "team": "Southy610"}, {"name": "Matthew Golden", "pos": "WR", "salary": "$7.50M", "slot": "starters", "team": "mkim521"}, {"name": "Matthew Stafford", "pos": "QB", "salary": "$34.00M", "slot": "starters", "team": "abomb25"}, {"name": "Michael Carter", "pos": "RB", "salary": "$0.10M", "slot": "starters", "team": "iowafan30"}, {"name": "Michael Mayer", "pos": "TE", "salary": "$0.10M", "slot": "starters", "team": "mkim521"}, {"name": "Michael Penix", "pos": "\u2014", "salary": "$7.50M", "slot": "taxi", "team": "Not Great Bob"}, {"name": "Mitchell Evans", "pos": "\u2014", "salary": "$0.10M", "slot": "taxi", "team": "mkim521"}, {"name": "Najee Harris", "pos": "RB", "salary": "$0.50M", "slot": "starters", "team": "kissin TDs"}, {"name": "Noah Brown", "pos": "WR", "salary": "$0.10M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Noah Gray", "pos": "TE", "salary": "$1.00M", "slot": "starters", "team": "SpicyTunaRoll"}, {"name": "Olamide Zaccheaus", "pos": "WR", "salary": "$0.10M", "slot": "starters", "team": "mkim521"}, {"name": "Omarion Hampton", "pos": "RB", "salary": "$15.00M", "slot": "starters", "team": "Southy610"}, {"name": "Oronde Gadsden", "pos": "\u2014", "salary": "$1.60M", "slot": "taxi", "team": "dlon16"}, {"name": "Parker Washington", "pos": "WR", "salary": "$1.00M", "slot": "starters", "team": "Achilles Healed?"}, {"name": "Pat Bryant", "pos": "\u2014", "salary": "$2.00M", "slot": "taxi", "team": "kissin TDs"}, {"name": "Patrick Mahomes", "pos": "QB", "salary": "$60.00M", "slot": "starters", "team": "SpicyTunaRoll"}, {"name": "Phil Mafah", "pos": "RB", "salary": "$0.10M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Puka Nacua", "pos": "WR", "salary": "$55.00M", "slot": "starters", "team": "Southy610"}, {"name": "Quinn Ewers", "pos": "\u2014", "salary": "$2.00M", "slot": "taxi", "team": "abomb25"}, {"name": "Quinshon Judkins", "pos": "RB", "salary": "$15.00M", "slot": "starters", "team": "Tmill85"}, {"name": "Rachaad White", "pos": "RB", "salary": "$1.10M", "slot": "starters", "team": "mkim521"}, {"name": "Raheim Sanders", "pos": "RB", "salary": "$0.10M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Rashee Rice", "pos": "WR", "salary": "$5.00M", "slot": "starters", "team": "dlon16"}, {"name": "Rasheen Ali", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "Tmill85"}, {"name": "Ray Davis", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "Not Great Bob"}, {"name": "Ricky Pearsall", "pos": "WR", "salary": "$7.50M", "slot": "starters", "team": "schardt312"}, {"name": "Ricky White", "pos": "\u2014", "salary": "$0.10M", "slot": "taxi", "team": "kissin TDs"}, {"name": "Rico Dowdle", "pos": "RB", "salary": "$6.00M", "slot": "starters", "team": "iowafan30"}, {"name": "Riley Leonard", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "kissin TDs"}, {"name": "RJ Harvey", "pos": "RB", "salary": "$10.00M", "slot": "starters", "team": "SpicyTunaRoll"}, {"name": "Rome Odunze", "pos": "WR", "salary": "$15.00M", "slot": "starters", "team": "Southy610"}, {"name": "Roschon Johnson", "pos": "RB", "salary": "$0.10M", "slot": "starters", "team": "iowafan30"}, {"name": "Ryan Flournoy", "pos": "WR", "salary": "$1.10M", "slot": "starters", "team": "mkim521"}, {"name": "Sam Darnold", "pos": "QB", "salary": "$26.20M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Sam Howell", "pos": "QB", "salary": "$0.10M", "slot": "starters", "team": "iowafan30"}, {"name": "Samaje Perine", "pos": "RB", "salary": "$0.10M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Saquon Barkley", "pos": "RB", "salary": "$17.00M", "slot": "starters", "team": "Show Me The Money!!!"}, {"name": "Savion Williams", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "kissin TDs"}, {"name": "Sean Tucker", "pos": "RB", "salary": "$4.00M", "slot": "starters", "team": "abomb25"}, {"name": "Stefon Diggs", "pos": "WR", "salary": "$7.00M", "slot": "starters", "team": "iowafan30"}, {"name": "Tahj Brooks", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "Show Me The Money!!!"}, {"name": "Tai Felton", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "kissin TDs"}, {"name": "Tank Bigsby", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "Not Great Bob"}, {"name": "Tank Dell", "pos": "WR", "salary": "$3.00M", "slot": "starters", "team": "SpicyTunaRoll"}, {"name": "Tanner McKee", "pos": "QB", "salary": "$0.10M", "slot": "starters", "team": "kissin TDs"}, {"name": "Taysom Hill", "pos": "TE", "salary": "$0.60M", "slot": "starters", "team": "mkim521"}, {"name": "Teddy Bridgewater", "pos": "QB", "salary": "$0.10M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Tee Higgins", "pos": "WR", "salary": "$19.50M", "slot": "starters", "team": "Tmill85"}, {"name": "Terrance Ferguson", "pos": "\u2014", "salary": "$5.00M", "slot": "taxi", "team": "abomb25"}, {"name": "Tetairoa McMillan", "pos": "WR", "salary": "$10.00M", "slot": "starters", "team": "iowafan30"}, {"name": "Theo Johnson", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "iowafan30"}, {"name": "Thomas Fidone", "pos": "\u2014", "salary": "$0.10M", "slot": "taxi", "team": "Achilles Healed?"}, {"name": "Tory Horton", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "iowafan30"}, {"name": "Travis Etienne", "pos": "RB", "salary": "$17.00M", "slot": "starters", "team": "schardt312"}, {"name": "Travis Hunter", "pos": "\u2014", "salary": "$15.00M", "slot": "taxi", "team": "Not Great Bob"}, {"name": "Tre Harris", "pos": "\u2014", "salary": "$7.50M", "slot": "taxi", "team": "Tmill85"}, {"name": "Tre Tucker", "pos": "WR", "salary": "$0.10M", "slot": "starters", "team": "dlon16"}, {"name": "TreVeon Henderson", "pos": "RB", "salary": "$15.00M", "slot": "starters", "team": "mkim521"}, {"name": "Trey Lance", "pos": "QB", "salary": "$0.10M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Trey McBride", "pos": "TE", "salary": "$15.70M", "slot": "starters", "team": "dlon16"}, {"name": "Troy Franklin", "pos": "\u2014", "salary": "$5.00M", "slot": "taxi", "team": "Show Me The Money!!!"}, {"name": "Tucker Kraft", "pos": "TE", "salary": "$4.00M", "slot": "starters", "team": "schardt312"}, {"name": "Ty Johnson", "pos": "RB", "salary": "$0.50M", "slot": "starters", "team": "Achilles Healed?"}, {"name": "Tyjae Spears", "pos": "RB", "salary": "$11.00M", "slot": "starters", "team": "iowafan30"}, {"name": "Tyler Allgeier", "pos": "RB", "salary": "$4.00M", "slot": "starters", "team": "schardt312"}, {"name": "Tyler Higbee", "pos": "TE", "salary": "$0.10M", "slot": "starters", "team": "mkim521"}, {"name": "Tyler Lockett", "pos": "WR", "salary": "$0.70M", "slot": "starters", "team": "mkim521"}, {"name": "Tyler Shough", "pos": "\u2014", "salary": "$2.00M", "slot": "taxi", "team": "iowafan30"}, {"name": "Tyler Warren", "pos": "TE", "salary": "$12.70M", "slot": "starters", "team": "dlon16"}, {"name": "Tyrod Taylor", "pos": "QB", "salary": "$0.10M", "slot": "starters", "team": "dlon16"}, {"name": "Tyrone Tracy", "pos": "RB", "salary": "$1.00M", "slot": "starters", "team": "SpicyTunaRoll"}, {"name": "Tyson Bagent", "pos": "QB", "salary": "$0.10M", "slot": "starters", "team": "Achilles Healed?"}, {"name": "Wan'Dale Robinson", "pos": "WR", "salary": "$12.20M", "slot": "starters", "team": "schardt312"}, {"name": "Will Howard", "pos": "\u2014", "salary": "$1.00M", "slot": "taxi", "team": "Tmill85"}, {"name": "Will Levis", "pos": "QB", "salary": "$0.10M", "slot": "starters", "team": "iowafan30"}, {"name": "Will Shipley", "pos": "\u2014", "salary": "$2.00M", "slot": "taxi", "team": "Not Great Bob"}, {"name": "Woody Marks", "pos": "RB", "salary": "$3.00M", "slot": "starters", "team": "Not Great Bob"}, {"name": "Xavier Hutchinson", "pos": "WR", "salary": "$0.10M", "slot": "starters", "team": "SpicyTunaRoll"}, {"name": "Xavier Legette", "pos": "\u2014", "salary": "$5.00M", "slot": "taxi", "team": "kissin TDs"}, {"name": "Xavier Restrepo", "pos": "\u2014", "salary": "$0.10M", "slot": "taxi", "team": "iowafan30"}, {"name": "Zach Charbonnet", "pos": "RB", "salary": "$10.00M", "slot": "starters", "team": "schardt312"}, {"name": "Zach Wilson", "pos": "QB", "salary": "$0.10M", "slot": "starters", "team": "iowafan30"}];
+
+// POS colors
+const POS_COLORS = {QB:'#b89ffe',RB:'#18e07a',WR:'#00d4ff',TE:'#ffc94d'};
+
+let sleeperPlayers = {}; // player_id -> player object
+let matches = {};        // your_name -> { player_id, first, last, team, conf, confirmed }
+let confFilter = 'all';
+
+// ── Name normalization ────────────────────────────────────────
+function norm(s) {
+  return (s||'').toLowerCase()
+    .replace(/['.]/g,'')
+    .replace(/jr|sr|ii|iii|iv/g,'')
+    .replace(/\s+/g,' ').trim();
+}
+
+function similarity(a, b) {
+  a = norm(a); b = norm(b);
+  if (a === b) return 1.0;
+  if (a.includes(b) || b.includes(a)) return 0.9;
+  // Token overlap
+  const ta = new Set(a.split(' ')), tb = new Set(b.split(' '));
+  const inter = [...ta].filter(t => tb.has(t)).length;
+  const union = new Set([...ta,...tb]).size;
+  return inter / union;
+}
+
+// ── Load & match ─────────────────────────────────────────────
+async function loadAndMatch() {
+  const raw = localStorage.getItem('sb_players');
+  if (!raw) {
+    alert('No Sleeper player cache found!\n\nPlease visit the auction page (index.html) first so it downloads the player database, then come back here.');
+    return;
+  }
+  sleeperPlayers = JSON.parse(raw);
+  const btn = document.querySelector('.btn-primary');
+  btn.textContent = 'Matching…';
+
+  // Build name→id index for fast lookup
+  const nameIndex = {};
+  Object.entries(sleeperPlayers).forEach(([pid, p]) => {
+    if (!p.first_name || !p.last_name) return;
+    const fullName = norm(p.first_name + ' ' + p.last_name);
+    if (!nameIndex[fullName]) nameIndex[fullName] = [];
+    nameIndex[fullName].push({ pid, p });
+  });
+
+  // Match each rostered player
+  ROSTER_PLAYERS.forEach(rp => {
+    const target = norm(rp.name);
+    let bestPid = null, bestScore = 0, bestP = null;
+
+    // Exact match first
+    if (nameIndex[target]?.length) {
+      const candidates = nameIndex[target];
+      // If multiple exact matches, prefer one matching position
+      const posMatch = candidates.find(c => {
+        const cpos = c.p.fantasy_positions?.[0];
+        return rp.pos === cpos || rp.pos === '—';
+      });
+      const chosen = posMatch || candidates[0];
+      bestPid = chosen.pid;
+      bestP = chosen.p;
+      bestScore = 1.0;
+    } else {
+      // Fuzzy: check all players
+      Object.entries(sleeperPlayers).forEach(([pid, p]) => {
+        if (!p.first_name || !p.last_name) return;
+        const s = similarity(rp.name, p.first_name + ' ' + p.last_name);
+        if (s > bestScore) {
+          bestScore = s;
+          bestPid = pid;
+          bestP = p;
+        }
+      });
+    }
+
+    // Position filter: if score is medium and pos doesn't match, lower it
+    if (bestScore >= 0.7 && bestScore < 1.0 && rp.pos !== '—' && bestP) {
+      const sleepPos = bestP.fantasy_positions?.[0];
+      if (sleepPos && sleepPos !== rp.pos) bestScore *= 0.7;
+    }
+
+    const conf = bestScore >= 0.95 ? 'high' : bestScore >= 0.7 ? 'med' : bestScore >= 0.5 ? 'low' : 'none';
+
+    matches[rp.name] = {
+      player_id: bestScore >= 0.5 ? bestPid : null,
+      first: bestP?.first_name || '',
+      last:  bestP?.last_name  || '',
+      nfl_team: bestP?.team || '',
+      age: bestP?.age || '',
+      years_exp: bestP?.years_exp ?? '',
+      pos: bestP?.fantasy_positions?.[0] || '',
+      conf,
+      score: bestScore,
+      confirmed: bestScore >= 0.95, // auto-confirm high confidence
+    };
+  });
+
+  btn.textContent = '🔄 Re-Match';
+  updateStats();
+  renderTable();
+  renderOutput();
+}
+
+// ── Render ────────────────────────────────────────────────────
+function updateStats() {
+  const all = ROSTER_PLAYERS.length;
+  const high = Object.values(matches).filter(m=>m.conf==='high').length;
+  const med  = Object.values(matches).filter(m=>m.conf==='med').length;
+  const low  = Object.values(matches).filter(m=>m.conf==='low').length;
+  const none = Object.values(matches).filter(m=>m.conf==='none').length;
+  document.getElementById('stats-row').innerHTML = [
+    ['Total', all, 'var(--text)'],
+    ['✅ High', high, 'var(--green)'],
+    ['🟡 Medium', med, 'var(--yellow)'],
+    ['🔴 Low', low, 'var(--red)'],
+    ['❌ No Match', none, 'var(--text3)'],
+  ].map(([l,v,c])=>`<div class="stat"><div class="stat-val" style="color:${c}">${v}</div><div class="stat-lbl">${l}</div></div>`).join('');
+}
+
+function setFilter(f, el) {
+  confFilter = f;
+  document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
+  el.classList.add('active');
+  renderTable();
+}
+
+function filterConf(f) {
+  confFilter = f;
+  document.querySelectorAll('.filter-chip').forEach(c=>{
+    c.classList.toggle('active', c.dataset.f===f);
+  });
+  renderTable();
+}
+
+function renderTable() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const tbody = document.getElementById('table-body');
+  const noP = document.getElementById('no-players');
+
+  if (!Object.keys(matches).length) {
+    tbody.innerHTML = '';
+    noP.style.display = '';
+    return;
+  }
+  noP.style.display = 'none';
+
+  const filtered = ROSTER_PLAYERS.filter(rp => {
+    const m = matches[rp.name] || {};
+    if (confFilter !== 'all' && m.conf !== confFilter) return false;
+    if (q && !rp.name.toLowerCase().includes(q) && !rp.team.toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  const posClr = p => POS_COLORS[p] || '#888';
+
+  tbody.innerHTML = filtered.map(rp => {
+    const m = matches[rp.name] || { conf:'none' };
+    const confBadge = {
+      high: '<span class="conf-high">✅ High</span>',
+      med:  '<span class="conf-med">🟡 Medium</span>',
+      low:  '<span class="conf-low">🔴 Low</span>',
+      none: '<span class="conf-none">❌ None</span>',
+    }[m.conf] || '';
+
+    const photo = m.player_id
+      ? `<img class="player-photo" src="https://sleepercdn.com/content/nfl/players/thumb/${m.player_id}.jpg" onerror="this.src=''" />`
+      : `<div class="player-photo" style="background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--text3);">?</div>`;
+
+    const matchName = m.player_id ? `${m.first} ${m.last}` : '—';
+    const matchScore = m.score ? `(${(m.score*100).toFixed(0)}%)` : '';
+
+    // Build alternatives dropdown for low/none confidence
+    let altSelect = '';
+    if (m.conf !== 'high' && Object.keys(sleeperPlayers).length) {
+      // Find top 10 fuzzy matches
+      const name = norm(rp.name);
+      let alts = Object.entries(sleeperPlayers)
+        .map(([pid,p]) => {
+          if (!p.first_name||!p.last_name) return null;
+          const s = similarity(rp.name, p.first_name+' '+p.last_name);
+          return {pid, name:`${p.first_name} ${p.last_name}`, team:p.team||'', pos:p.fantasy_positions?.[0]||'', s};
+        })
+        .filter(Boolean)
+        .sort((a,b)=>b.s-a.s)
+        .slice(0, 12);
+
+      const opts = `<option value="">— select correct match —</option>` +
+        alts.map(a => `<option value="${a.pid}" ${a.pid===m.player_id?'selected':''}>${a.name} (${a.pos}/${a.team}) ${(a.s*100).toFixed(0)}%</option>`).join('');
+      altSelect = `<select class="match-select" onchange="updateMatch('${rp.name.replace(/'/g,"\'")}',this.value)">${opts}</select>`;
+    }
+
+    return `<tr>
+      <td>${photo}</td>
+      <td style="font-weight:500;">${rp.name}</td>
+      <td><span class="pos-badge" style="background:${posClr(rp.pos)}22;color:${posClr(rp.pos)};">${rp.pos}</span></td>
+      <td style="font-size:12px;color:var(--text3);">${rp.team}</td>
+      <td style="font-size:11px;color:var(--text3);">${rp.salary}<br/>${rp.slot}</td>
+      <td style="font-size:12px;">${matchName} <span style="color:var(--text3);font-size:10px;">${matchScore}</span>${altSelect}</td>
+      <td style="font-size:12px;">${m.nfl_team||'—'}</td>
+      <td>${confBadge}</td>
+      <td>
+        ${m.player_id && m.conf !== 'high'
+          ? `<button style="font-size:11px;padding:3px 8px;background:rgba(24,224,122,.1);border:1px solid rgba(24,224,122,.3);border-radius:4px;color:var(--green);cursor:pointer;" onclick="confirmMatch('${rp.name.replace(/'/g,"\'")}')">✓ Confirm</button>`
+          : m.conf === 'high' ? '<span style="font-size:11px;color:var(--green);">Auto ✓</span>' : ''}
+        <button style="font-size:11px;padding:3px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text3);cursor:pointer;margin-left:4px;" onclick="skipPlayer('${rp.name.replace(/'/g,"\'")}')">Skip</button>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function updateMatch(playerName, newPid) {
+  if (!newPid) return;
+  const p = sleeperPlayers[newPid];
+  if (!p) return;
+  matches[playerName] = {
+    player_id: newPid,
+    first: p.first_name,
+    last: p.last_name,
+    nfl_team: p.team||'',
+    age: p.age||'',
+    years_exp: p.years_exp??'',
+    pos: p.fantasy_positions?.[0]||'',
+    conf: 'med',
+    score: 0.85,
+    confirmed: false,
+  };
+  renderTable();
+  renderOutput();
+}
+
+function confirmMatch(playerName) {
+  if (matches[playerName]) {
+    matches[playerName].confirmed = true;
+    matches[playerName].conf = 'high';
+  }
+  renderTable();
+  renderOutput();
+}
+
+function skipPlayer(playerName) {
+  if (matches[playerName]) matches[playerName].player_id = null;
+  renderTable();
+  renderOutput();
+}
+
+function renderOutput() {
+  const out = {};
+  ROSTER_PLAYERS.forEach(rp => {
+    const m = matches[rp.name];
+    if (m?.player_id) {
+      out[rp.name] = {
+        player_id: m.player_id,
+        nfl_team: m.nfl_team,
+        age: m.age,
+        years_exp: m.years_exp,
+      };
+    }
+  });
+  document.getElementById('output-json').textContent = JSON.stringify(out, null, 2);
+  document.getElementById('map-count').textContent = `${Object.keys(out).length} / ${ROSTER_PLAYERS.length} players matched`;
+}
+
+async function saveToFirebase() {
+  const lid = localStorage.getItem('sb_leagueId');
+  if (!lid) { alert('Not logged in — visit the main app first'); return; }
+  const jsonText = document.getElementById('output-json').textContent;
+  const data = JSON.parse(jsonText);
+  // Import Firebase
+  if (typeof firebase === 'undefined') {
+    alert('Firebase not available. Copy the JSON and paste it into Firebase console at:\nleagues/' + lid + '/playerIdMap');
+    return;
+  }
+  await firebase.database().ref(`leagues/${lid}/playerIdMap`).set(data);
+  alert(`Saved ${Object.keys(data).length} player ID mappings to Firebase!`);
+}
+
+function copyJson() {
+  const txt = document.getElementById('output-json').textContent;
+  navigator.clipboard.writeText(txt).then(() => {
+    const btn = event.target;
+    btn.textContent = '✓ Copied!';
+    setTimeout(() => btn.textContent = '📋 Copy JSON', 2000);
+  });
+}
+</script>
+<!-- Firebase SDK (same version as the app) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+</body>
+</html>
