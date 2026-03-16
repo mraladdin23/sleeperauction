@@ -405,16 +405,18 @@ function renderTable() {
         .slice(0,15);
       const opts = `<option value="">— change match —</option>` +
         alts.map(a=>`<option value="${a.pid}" ${a.pid===m.player_id?'selected':''}>${a.name} (${a.pos}/${a.team||'FA'}) ${Math.round(a.s*100)}%</option>`).join('');
-      altSel = `<select class="alt-sel" onchange="setMatch(${JSON.stringify(rp.name)},this.value)">${opts}</select>`;
+      const safeName = rp.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+      altSel = `<select class="alt-sel" data-pname="${safeName}" onchange="handleAltChange(this)">${opts}</select>`;
     }
 
+    const safePname = rp.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     const actions =
       m.conf === 'high'
       ? `<span style="font-size:11px;color:var(--green);">${m.fromFirebase?'From Firebase':'Auto ✓'}</span> `
-        + `<button class="skip-btn" onclick="clearMatch(${JSON.stringify(rp.name)})">✗ Clear</button>`
+        + `<button class="skip-btn" data-pname="${safePname}" onclick="clearMatch(this)">✗ Clear</button>`
       : m.player_id
-      ? `<button class="confirm-btn" onclick="confirmMatch(${JSON.stringify(rp.name)})">✓ Confirm</button> `
-        + `<button class="skip-btn" onclick="clearMatch(${JSON.stringify(rp.name)})">✗ Clear</button>`
+      ? `<button class="confirm-btn" data-pname="${safePname}" onclick="confirmMatch(this)">✓ Confirm</button> `
+        + `<button class="skip-btn" data-pname="${safePname}" onclick="clearMatch(this)">✗ Clear</button>`
       : `<span style="font-size:11px;color:var(--text3);">No match</span>`;
 
     return `<tr>
@@ -431,6 +433,18 @@ function renderTable() {
   }).join('');
 }
 
+function handleAltChange(sel) {
+  const name = sel.getAttribute('data-pname');
+  const pid  = sel.value;
+  if (name && pid) setMatch(name, pid);
+}
+
+function handleAltChange(sel) {
+  const name = sel.dataset.pname;
+  const pid  = sel.value;
+  if (name && pid) setMatch(name, pid);
+}
+
 function setMatch(name, pid) {
   if (!pid) return;
   const p = sleeperDb[pid];
@@ -445,12 +459,16 @@ function setMatch(name, pid) {
   updateStats(); renderTable(); renderOutput();
 }
 
-function confirmMatch(name) {
+function confirmMatch(nameOrBtn) {
+  const name = typeof nameOrBtn === 'string' ? nameOrBtn : nameOrBtn.getAttribute('data-pname');
+  if (!name) return;
   if (matches[name]) { matches[name].conf='high'; matches[name].score=1.0; }
   updateStats(); renderTable(); renderOutput();
 }
 
-function clearMatch(name) {
+function clearMatch(nameOrBtn) {
+  const name = typeof nameOrBtn === 'string' ? nameOrBtn : nameOrBtn.getAttribute('data-pname');
+  if (!name) return;
   if (matches[name]) {
     matches[name].player_id = null;
     matches[name].conf = 'none';
