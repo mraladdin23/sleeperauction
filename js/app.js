@@ -38,6 +38,7 @@ const App = (() => {
     teams:           [],
     players:         {},
     statsMap:        {},
+    statYear:        2025,
     freeAgents:      [],
     auctions:        [],
     faabOverrides:   {},
@@ -199,9 +200,9 @@ const App = (() => {
       await db.ref(`leagues/${state.leagueId}/usernameToRosterId`).set(usernameMap);
     } catch(e) { /* non-fatal */ }
 
-    UI.setLoading('Loading 2025 stats…');
+    UI.setLoading('Loading ' + state.statYear + ' stats…');
     let rawStats = {};
-    try { rawStats = await Sleeper.fetchStats(2025); } catch (e) { /* non-fatal */ }
+    try { rawStats = await Sleeper.fetchStats(state.statYear); } catch (e) { /* non-fatal */ }
     state.statsMap = rawStats;
 
     const rostered = new Set(rosters.flatMap(r => r.players || []));
@@ -317,6 +318,35 @@ const App = (() => {
   }
 
   function faSort(col) { UI.faSort(col); }
+
+  async function setStatYear(year) {
+    state.statYear = year;
+    // Update button highlights
+    [2023,2024,2025].forEach(y => {
+      const btn = document.getElementById('fa-yr-' + y);
+      if (!btn) return;
+      btn.style.background  = y === year ? 'var(--accent)' : '';
+      btn.style.color       = y === year ? '#fff' : '';
+      btn.style.borderColor = y === year ? 'var(--accent)' : '';
+    });
+    // Update column header
+    const th = document.getElementById('fa-th-pts');
+    if (th) th.innerHTML = 'Pts (' + year + ') <span id="fa-sort-pts">' + (window._faSort?.col === 'pts' ? '▼' : '') + '</span>';
+    // Load stats for selected year (cached in localStorage)
+    const key = 'sb_stats_' + year;
+    let data = {};
+    try {
+      const cached = localStorage.getItem(key);
+      if (cached) { data = JSON.parse(cached); }
+      else {
+        UI.toast('Loading ' + year + ' stats…', 'info');
+        data = await Sleeper.fetchStats(year);
+        try { localStorage.setItem(key, JSON.stringify(data)); } catch(e) {}
+      }
+    } catch(e) {}
+    state.statsMap = data;
+    UI.renderFreeAgents(state.posFilter || 'ALL', true);
+  }
 
   // ── Free agents ──────────────────────────────────────────
   function setFilter(pos, el) {
@@ -920,7 +950,7 @@ const App = (() => {
     doSetup,
     switchTab,
     setFilter, renderFreeAgents, loadFreeAgents,
-    refreshAll, renderAll, faSort,
+    refreshAll, renderAll, faSort, setStatYear,
     enableNotifications,
     computeCustomPts,
     toggleWatch,

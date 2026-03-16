@@ -1,4 +1,3 @@
-// CAP v2026-03-16-v4 (All Players = fa-table layout)
 
 let CAP = 301_200_000; // loaded from Firebase leagues/{id}/settings/cap
 const COMM        = 'mraladdin23';
@@ -459,28 +458,37 @@ let apSearch = '';
 // ── ALL PLAYERS TAB ───────────────────────────────────────────
 // Keep search state + stats cache at module level so search input 
 // doesn't get destroyed on each keystroke
-let apStatsMap = null;  // player_id -> stats, lazy-loaded
+let apStatsMap  = null;   // player_id -> stats for current year
+let apSort      = { col: 'salary', dir: -1 };  // col: 'salary'|'pts', dir: 1=asc -1=desc
+let apStatYear  = 2025;   // 2023 | 2024 | 2025
 
-async function loadApStats() {
-  if (apStatsMap) return apStatsMap;
-  // Try localStorage cache first (same key used by auction page)
+async function loadApStats(year) {
+  year = year || apStatYear;
+  const key = 'sb_stats_' + year;
   try {
-    const cached = localStorage.getItem('sb_stats_2025');
-    if (cached) { apStatsMap = JSON.parse(cached); return apStatsMap; }
+    const cached = localStorage.getItem(key);
+    if (cached) return JSON.parse(cached);
   } catch(e) {}
-  // Fetch from Sleeper
   try {
-    const r = await fetch('https://api.sleeper.app/v1/stats/nfl/regular/2025?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE');
-    apStatsMap = await r.json();
-    try { localStorage.setItem('sb_stats_2025', JSON.stringify(apStatsMap)); } catch(e) {}
-  } catch(e) { apStatsMap = {}; }
-  return apStatsMap;
+    const r = await fetch('https://api.sleeper.app/v1/stats/nfl/regular/' + year + '?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE');
+    const data = await r.json();
+    try { localStorage.setItem(key, JSON.stringify(data)); } catch(e) {}
+    return data;
+  } catch(e) { return {}; }
+}
+
+async function setApStatYear(year) {
+  apStatYear = year;
+  apStatsMap = await loadApStats(year);
+  apRenderRows();
 }
 
 const AP_NFL_TEAMS = ['ARI','ATL','BAL','BUF','CAR','CHI','CIN','CLE','DAL','DEN','DET','GB','HOU','IND','JAX','KC','LAC','LAR','LV','MIA','MIN','NE','NO','NYG','NYJ','PHI','PIT','SEA','SF','TB','TEN','WAS'];
 
 function apBuildShell(el) {
-  const teamOpts = AP_NFL_TEAMS.map(t => `<option value="${t}">${t}</option>`).join('');
+  const teamOpts  = AP_NFL_TEAMS.map(t => '<option value="' + t + '">' + t + '</option>').join('');
+  const ownerOpts = Object.entries(DATA||{}).map(([k,t]) => '<option value="' + k + '">' + t.team_name + '</option>').join('');
+  const selStyle  = 'padding:5px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:12px;font-family:var(--font-body);outline:none;cursor:pointer;';
   el.innerHTML =
     '<div style="padding:16px 0 8px;">' +
       '<div class="fa-search">' +
@@ -489,24 +497,27 @@ function apBuildShell(el) {
       '</div>' +
       '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">' +
         '<div class="fa-filters" style="margin-bottom:0;" id="ap-chips"></div>' +
-        '<select id="ap-nfl-filter" onchange="apRenderRows()" style="padding:5px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:12px;font-family:var(--font-body);outline:none;cursor:pointer;">' +
-          '<option value="">All NFL Teams</option>' + teamOpts +
-        '</select>' +
+        '<select id="ap-nfl-filter"   onchange="apRenderRows()" style="' + selStyle + '"><option value="">All NFL Teams</option>' + teamOpts + '</select>' +
+        '<select id="ap-owner-filter" onchange="apRenderRows()" style="' + selStyle + '"><option value="">All Owners</option>' + ownerOpts + '</select>' +
+        '<div style="display:flex;gap:0;margin-left:auto;">' +
+          '<button id="ap-yr-2023" onclick="setApStatYear(2023)" style="' + selStyle + 'border-radius:var(--radius-sm) 0 0 var(--radius-sm);border-right:none;">2023</button>' +
+          '<button id="ap-yr-2024" onclick="setApStatYear(2024)" style="' + selStyle + 'border-radius:0;border-right:none;">2024</button>' +
+          '<button id="ap-yr-2025" onclick="setApStatYear(2025)" style="' + selStyle + 'border-radius:0 var(--radius-sm) var(--radius-sm) 0;">2025</button>' +
+        '</div>' +
       '</div>' +
       '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">' +
         '<div style="padding:9px 14px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">' +
           '<span id="ap-title" style="font-size:14px;font-weight:600;"></span>' +
-          '<span id="ap-count" style="font-size:12px;color:var(--text3);"></span> <span style="font-size:10px;color:var(--text3);">[v4]</span>' +
-        '<span id="ap-version" style="font-size:10px;color:var(--text3);margin-left:8px;"></span>' +
+          '<span id="ap-count" style="font-size:12px;color:var(--text3);"></span>' +
         '</div>' +
         '<div style="overflow-x:auto;">' +
           '<table class="fa-table">' +
             '<thead><tr>' +
               '<th>Player</th>' +
               '<th>NFL Team</th>' +
-              '<th>Pts (2025)</th>' +
+              '<th id="ap-th-pts" onclick="apSortBy(&quot;pts&quot;)"    style="cursor:pointer;user-select:none;">Pts <span id="ap-sort-pts"></span></th>' +
               '<th>Owner</th>' +
-              '<th style="text-align:right;">Salary</th>' +
+              '<th id="ap-th-sal" onclick="apSortBy(&quot;salary&quot;)" style="cursor:pointer;user-select:none;text-align:right;">Salary <span id="ap-sort-sal">▼</span></th>' +
               '<th style="text-align:right;"></th>' +
             '</tr></thead>' +
             '<tbody id="ap-rows"></tbody>' +
@@ -516,6 +527,7 @@ function apBuildShell(el) {
       '</div>' +
     '</div>';
 }
+
 
 function renderAllPlayers() {
   const el = document.getElementById('tab-allplayers');
@@ -529,14 +541,26 @@ function renderAllPlayers() {
   });
 
   // Filter
-  const apNflFilter = (document.getElementById('ap-nfl-filter')?.value || '').toUpperCase();
+  const apNflFilter   = (document.getElementById('ap-nfl-filter')?.value   || '').toUpperCase();
+  const apOwnerFilter = (document.getElementById('ap-owner-filter')?.value || '');
   let filtered = apPosFilter === 'ALL' ? players : players.filter(p => p.pos === apPosFilter);
-  if (apSearch)    filtered = filtered.filter(p => p.name.toLowerCase().includes(apSearch));
-  if (apNflFilter) filtered = filtered.filter(p => (PLAYER_LOOKUP[p.name.toLowerCase()]?.nfl_team||'').toUpperCase() === apNflFilter);
-  filtered.sort((a, b) => b.salary - a.salary);
+  if (apSearch)      filtered = filtered.filter(p => p.name.toLowerCase().includes(apSearch));
+  if (apNflFilter)   filtered = filtered.filter(p => (PLAYER_LOOKUP[p.name.toLowerCase()]?.nfl_team||'').toUpperCase() === apNflFilter);
+  if (apOwnerFilter) filtered = filtered.filter(p => p.teamKey === apOwnerFilter);
+  // Sort
+  const dir = apSort.dir;
+  if (apSort.col === 'pts') {
+    filtered.sort((a, b) => {
+      const pa = (stats[PLAYER_LOOKUP[a.name.toLowerCase()]?.player_id||'']?.pts_ppr ?? -1);
+      const pb = (stats[PLAYER_LOOKUP[b.name.toLowerCase()]?.player_id||'']?.pts_ppr ?? -1);
+      return dir * (pb - pa);
+    });
+  } else {
+    filtered.sort((a, b) => dir * (b.salary - a.salary));
+  }
 
-  const totalSal = filtered.filter(p => p.slot === 'Active').reduce((s, p) => s + p.salary, 0);
   const stats    = apStatsMap || {};
+  const totalSal = filtered.filter(p => p.slot === 'Active').reduce((s, p) => s + p.salary, 0);
   const wl       = JSON.parse(localStorage.getItem('sb_cap_watchlist') || '{}');
 
   // Build rows — identical structure to FA tab, with owner/salary/badges added
@@ -608,7 +632,20 @@ function renderAllPlayers() {
     '<div class="filter-chip' + (apPosFilter===pos?' active':'') + '" onclick="apSetPos(\'' + pos + '\')">' + (pos==='ALL'?'All':pos) + '</div>'
   ).join('');
 
-  document.getElementById('ap-version').textContent = 'v4';
+  // Update pts column header with active year
+  const ptsHeader = document.getElementById('ap-th-pts');
+  if (ptsHeader) ptsHeader.innerHTML = apStatYear + ' Pts <span id="ap-sort-pts"></span>';
+  // Update sort arrow indicators
+  const sortSal = document.getElementById('ap-sort-sal');
+  const sortPts = document.getElementById('ap-sort-pts');
+  if (sortSal) sortSal.textContent = apSort.col === 'salary' ? (apSort.dir < 0 ? '▼' : '▲') : '';
+  if (sortPts) sortPts.textContent = apSort.col === 'pts'    ? (apSort.dir < 0 ? '▼' : '▲') : '';
+  // Highlight active year button
+  [2023,2024,2025].forEach(y => {
+    const btn = document.getElementById('ap-yr-' + y);
+    if (btn) btn.style.background = y === apStatYear ? 'var(--accent)' : 'var(--surface2)';
+    if (btn) btn.style.color      = y === apStatYear ? '#fff' : 'var(--text2)';
+  });
   document.getElementById('ap-title').textContent =
     (apPosFilter==='ALL' ? 'All Rostered Players' : apPosFilter + ' Players') + (apSearch ? ' · "' + apSearch + '"' : '');
   document.getElementById('ap-count').textContent =
@@ -616,9 +653,19 @@ function renderAllPlayers() {
   document.getElementById('ap-rows').innerHTML = rows;
   document.getElementById('ap-empty').style.display = filtered.length ? 'none' : '';
 
-  if (!apStatsMap) loadApStats().then(() => { if (tab === 'allplayers') apRenderRows(); });
+  if (!apStatsMap) {
+    loadApStats(apStatYear).then(data => {
+      apStatsMap = data;
+      if (tab === 'allplayers') apRenderRows();
+    });
+  }
 }
 
+function apSortBy(col) {
+  if (apSort.col === col) apSort.dir *= -1;
+  else { apSort.col = col; apSort.dir = col === 'salary' ? -1 : -1; }
+  apRenderRows();
+}
 function apRenderRows() { renderAllPlayers(); }
 function apSetPos(pos)  { apPosFilter = pos; renderAllPlayers(); }
 function apSetPos(pos) { apPosFilter = pos; renderAllPlayers(); }
