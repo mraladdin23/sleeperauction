@@ -468,10 +468,39 @@ function renderOutput() {
     Object.keys(out).length + ' / ' + rosterPlayers.length + ' players mapped';
 }
 
+// Firebase keys can't contain . # $ / [ ]
+// Encode by replacing each illegal char with a safe placeholder
+function safeKey(name) {
+  return name
+    .replace(/\./g, '__dot__')
+    .replace(/#/g,   '__hash__')
+    .replace(/\$/g,  '__dlr__')
+    .replace(/\//g,  '__sl__')
+    .replace(/\[/g,  '__lb__')
+    .replace(/\]/g,  '__rb__');
+}
+
+function unsafeKey(key) {
+  return key
+    .replace(/__dot__/g,  '.')
+    .replace(/__hash__/g, '#')
+    .replace(/__dlr__/g,  '$')
+    .replace(/__sl__/g,   '/')
+    .replace(/__lb__/g,   '[')
+    .replace(/__rb__/g,   ']');
+}
+
 async function saveToFirebase() {
   const lid = leagueId();
   if (!lid) { alert('Not logged in — visit index.html first to log in.'); return; }
-  const data = JSON.parse(document.getElementById('out-json').textContent);
+
+  const raw = JSON.parse(document.getElementById('out-json').textContent);
+  // Re-key with safe Firebase keys, keep original name inside value
+  const data = {};
+  Object.entries(raw).forEach(([name, val]) => {
+    data[safeKey(name)] = { ...val, name };
+  });
+
   const btn = document.getElementById('save-btn');
   btn.disabled = true;
   btn.textContent = 'Saving…';
