@@ -176,17 +176,19 @@ window.addEventListener('DOMContentLoaded',function(){
   <div class="nav-tabs" id="nav-tabs-bar">
     <div class="nav-tab active" onclick="App.switchTab('auctions')"     data-tab="auctions">🏷 Active</div>
     <div class="nav-tab"        onclick="App.switchTab('free-agents')"  data-tab="free-agents">🔍 Free Agents</div>
+    <div class="nav-tab"        onclick="App.switchTab('watchlist')"    data-tab="watchlist">⭐ Watchlist</div>
     <div class="nav-tab"        onclick="App.switchTab('teams')"        data-tab="teams">🏆 Teams</div>
     <div class="nav-tab"        onclick="App.switchTab('history')"      data-tab="history">📋 History</div>
     <div class="nav-tab"        onclick="App.switchTab('activity')"     data-tab="activity">📡 Activity</div>
     <div class="nav-tab" id="commissioner-tab" onclick="App.switchTab('commissioner')" data-tab="commissioner" style="display:none">⚙️ Comm</div>
   </div>
 
-  <!-- Mobile tab dropdown (shown on small screens instead of tab bar) -->
+  <!-- Mobile tab dropdown -->
   <div class="nav-dropdown-wrap" id="nav-dropdown-wrap">
     <select class="nav-dropdown" id="nav-dropdown" onchange="App.switchTab(this.value)">
       <option value="auctions">🏷 Active Auctions</option>
       <option value="free-agents">🔍 Free Agents</option>
+      <option value="watchlist">⭐ Watchlist</option>
       <option value="teams">🏆 Teams</option>
       <option value="history">📋 History</option>
       <option value="activity">📡 Activity</option>
@@ -228,22 +230,28 @@ window.addEventListener('DOMContentLoaded',function(){
         <span class="search-icon">🔍</span>
         <input type="text" id="fa-search" placeholder="Search players…" oninput="App.renderFreeAgents(true)" />
       </div>
-      <div class="fa-filters" id="pos-filters">
-        <div class="filter-chip active" onclick="App.setFilter('ALL',this)">All</div>
-        <div class="filter-chip" onclick="App.setFilter('QB',this)">QB</div>
-        <div class="filter-chip" onclick="App.setFilter('RB',this)">RB</div>
-        <div class="filter-chip" onclick="App.setFilter('WR',this)">WR</div>
-        <div class="filter-chip" onclick="App.setFilter('TE',this)">TE</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;">
+        <div class="fa-filters" id="pos-filters" style="margin-bottom:0;">
+          <div class="filter-chip active" onclick="App.setFilter('ALL',this)">All</div>
+          <div class="filter-chip" onclick="App.setFilter('QB',this)">QB</div>
+          <div class="filter-chip" onclick="App.setFilter('RB',this)">RB</div>
+          <div class="filter-chip" onclick="App.setFilter('WR',this)">WR</div>
+          <div class="filter-chip" onclick="App.setFilter('TE',this)">TE</div>
+        </div>
+        <select id="fa-nfl-team-filter" onchange="App.renderFreeAgents(true)"
+          style="padding:5px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:12px;font-family:var(--font-body);outline:none;cursor:pointer;">
+          <option value="">All NFL Teams</option>
+        </select>
       </div>
       <div id="fa-pagination-top"></div>
       <div style="overflow-x:auto;">
         <table class="fa-table">
           <thead>
             <tr>
-              <th>Player</th>
-              <th>Team</th>
-              <th>Bye</th>
-              <th>Pts (2025)</th>
+              <th onclick="App.faSort('name')" style="cursor:pointer;" id="fa-th-name">Player <span id="fa-sort-name"></span></th>
+              <th onclick="App.faSort('team')" style="cursor:pointer;" id="fa-th-team">Team <span id="fa-sort-team"></span></th>
+              <th onclick="App.faSort('bye')"  style="cursor:pointer;" id="fa-th-bye">Bye <span id="fa-sort-bye"></span></th>
+              <th onclick="App.faSort('pts')"  style="cursor:pointer;" id="fa-th-pts">Pts (2025) <span id="fa-sort-pts">▼</span></th>
               <th style="text-align:right">Action</th>
             </tr>
           </thead>
@@ -251,6 +259,15 @@ window.addEventListener('DOMContentLoaded',function(){
         </table>
       </div>
       <div id="fa-pagination"></div>
+    </div>
+
+    <!-- WATCHLIST TAB -->
+    <div id="tab-watchlist" class="tab-content">
+      <div class="section-header">
+        <div class="section-title">⭐ Watchlist</div>
+        <span class="section-count" id="wl-count">0 players</span>
+      </div>
+      <div id="watchlist-grid" class="auction-grid"></div>
     </div>
 
     <!-- TEAMS TAB -->
