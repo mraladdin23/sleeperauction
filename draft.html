@@ -190,7 +190,7 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
           </div>
         </div>
 
-        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-top:12px;overflow:hidden;">
+        <div id="draft-action-panel" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-top:12px;overflow:hidden;">
           <!-- Tab bar -->
           <div style="display:flex;border-bottom:1px solid var(--border);">
             <button id="tab-assign" onclick="switchDraftTab('assign')"
@@ -229,7 +229,7 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
               Set who owns each pick slot. Overrides Sleeper's draft order and is saved to Firebase.
             </div>
             <div id="order-rows" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;"></div>
-            <button onclick="savePickOrder()" class="pick-btn" style="width:100%;padding:8px;">💾 Save Pick Order</button>
+            <button onclick="savePickOrder(this)" class="pick-btn" style="width:100%;padding:8px;">💾 Save Pick Order</button>
             <button onclick="showSlotData()" style="width:100%;margin-top:6px;padding:6px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text3);font-size:11px;cursor:pointer;font-family:var(--font-body);">🔍 Show Raw Data</button>
           </div>
         </div>
@@ -507,6 +507,10 @@ async function refreshDraft() {
   renderBoard();
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = '';
+
+  // Only show assign/order panels to commissioner
+  const draftPanelEl = document.getElementById('draft-action-panel');
+  if (draftPanelEl) draftPanelEl.style.display = isComm() ? '' : 'none';
 }
 
 async function loadRookiePlayers() {
@@ -952,64 +956,53 @@ function switchDraftTab(tab) {
 
 // ── Pick order editor ─────────────────────────────────────────
 function renderOrderPanel() {
-  const ROUNDS = 4, TEAMS = draftInfo?.settings?.teams || 12;
+  const TEAMS = draftInfo?.settings?.teams || 12;
   const container = document.getElementById('order-rows');
   if (!container) return;
 
-  // Build team options once
-  const teamOpts = '<option value="">— owner —</option>' +
-    Object.entries(DATA||{}).map(([k,t]) =>
-      `<option value="${k}">${t.team_name}</option>`
-    ).join('');
+  const selStyle = 'padding:4px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-body);font-size:11px;outline:none;flex:1;';
 
-  // One row per round × slot
-  const sel = 'padding:4px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-body);font-size:11px;outline:none;flex:1;';
-  let rows = '';
-  for (let r = 1; r <= ROUNDS; r++) {
-    rows += `<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);letter-spacing:.4px;margin:6px 0 3px;">Round ${r}</div>`;
-    for (let p = 1; p <= TEAMS; p++) {
-      const current = slotOwners[String(p)] || '';
-      // For snake drafts even rounds reverse
-      const isDraftSnake = draftInfo?.settings?.reversal_round > 0 || draftInfo?.type === 'snake';
-      const effectiveSlot = (isDraftSnake && r % 2 === 0) ? String(TEAMS + 1 - p) : String(p);
-      const owner = slotOwners[effectiveSlot] || '';
-      const opts = teamOpts.replace(`value="${owner}"`, `value="${owner}" selected`);
-      rows += `<div style="display:flex;align-items:center;gap:6px;">
-        <span style="font-size:11px;font-family:var(--font-mono);color:var(--text3);min-width:32px;">${r}.${String(p).padStart(2,'0')}</span>
-        <select data-round="${r}" data-pick="${p}" style="${sel}">${opts}</select>
-      </div>`;
-    }
+  // One row per slot (1–12). slotOwners["1"].."12" = who owns that slot.
+  // Snake reversal is handled at render time; here we just edit the base slot order.
+  let rows = '<div style="font-size:10px;color:var(--text3);margin-bottom:8px;">Each slot maps to the same pick position in every round (snake reversal applied automatically).</div>';
+  for (let p = 1; p <= TEAMS; p++) {
+    const owner = slotOwners[String(p)] || '';
+    const teamOpts = '<option value="">— owner —</option>' +
+      Object.entries(DATA||{}).map(([k,t]) =>
+        `<option value="${k}"${k===owner?' selected':''}>${t.team_name}</option>`
+      ).join('');
+    rows += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
+      <span style="font-size:11px;font-family:var(--font-mono);color:var(--text3);min-width:44px;">Slot ${p}</span>
+      <select data-slot="${p}" style="${selStyle}">${teamOpts}</select>
+    </div>`;
   }
   container.innerHTML = rows;
 }
 
-async function savePickOrder() {
-  const TEAMS = draftInfo?.settings?.teams || 12;
-  const isDraftSnake = draftInfo?.settings?.reversal_round > 0 || draftInfo?.type === 'snake';
+async function savePickOrder(btn) {
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
 
-  // Read all selects and update slotOwners
-  document.querySelectorAll('#order-rows select').forEach(sel => {
-    const r = Number(sel.dataset.round);
-    const p = Number(sel.dataset.pick);
+  // Read each slot select and update slotOwners
+  document.querySelectorAll('#order-rows select[data-slot]').forEach(sel => {
+    const slot = sel.dataset.slot;
     const teamKey = sel.value;
-    if (!teamKey) return;
-    // For snake even rounds, the slot number is reversed
-    const slot = (isDraftSnake && r % 2 === 0) ? String(TEAMS + 1 - p) : String(p);
-    slotOwners[slot] = teamKey;
+    if (slot && teamKey) slotOwners[slot] = teamKey;
   });
 
-  // Save to Firebase so it persists
-  if (leagueId()) {
-    await db.ref(`leagues/${leagueId()}/draftSlotOwners`).set(slotOwners);
+  // Save to Firebase
+  try {
+    if (leagueId()) {
+      await db.ref(`leagues/${leagueId()}/draftSlotOwners`).set(slotOwners);
+    }
+    renderBoard();
+    onAssignRoundOrSlotChange();
+    btn.textContent = '✅ Saved!';
+  } catch(e) {
+    console.error('savePickOrder failed:', e);
+    btn.textContent = '❌ Save failed';
   }
-
-  renderBoard();
-  // Also refresh the assign panel's team dropdown if a pick is selected
-  onAssignRoundOrSlotChange();
-
-  const btn = event.target;
-  btn.textContent = '✅ Saved!';
-  setTimeout(() => { btn.textContent = '💾 Save Pick Order'; }, 2000);
+  setTimeout(() => { btn.textContent = '💾 Save Pick Order'; btn.disabled = false; }, 2000);
 }
 
 
