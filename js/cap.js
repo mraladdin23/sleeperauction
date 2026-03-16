@@ -432,7 +432,7 @@ function renderAllPlayers() {
       <td style="padding:8px 6px 8px 12px;width:28px;">
         <button onclick="capToggleWatch(${JSON.stringify(p.name)})" style="background:none;border:none;cursor:pointer;font-size:13px;padding:0;line-height:1;color:${starred?'var(--yellow)':'var(--text3)'};">${starred?'⭐':'☆'}</button>
       </td>
-      <td style="font-size:13px;padding:8px 8px 8px 0;">
+      <td style="font-size:13px;padding:8px 8px 8px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0;">
         <span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);margin-right:5px;">${i+1}</span>${p.name}${ageBadge(p.name)}${hoBadge}${slotBadge}
       </td>
       <td style="padding:8px 6px;white-space:nowrap;">${p.pos&&p.pos!=='—'?`<span class="pos-badge" style="background:${posClr}22;color:${posClr};">${p.pos}</span>`:'<span style="color:var(--text3);font-size:11px;">—</span>'}</td>
@@ -456,7 +456,7 @@ function renderAllPlayers() {
         <span style="font-size:12px;color:var(--text3);">${filtered.length} players${apPosFilter!=='ALL'&&!apSearch?' · '+fmtM(totalSal)+' total cap':''}</span>
       </div>
       ${filtered.length?`<table style="width:100%;border-collapse:collapse;table-layout:fixed;">
-        <colgroup><col style="width:32px"/><col/><col style="width:44px"/><col style="width:140px"/><col style="width:100px"/></colgroup>
+        <colgroup><col style="width:32px"/><col style="width:auto"/><col style="width:44px"/><col style="width:130px"/><col style="width:95px"/></colgroup>
         <thead><tr style="border-bottom:1px solid var(--border);">
         <th style="font-size:10px;color:var(--text3);padding:7px 6px;text-align:left;font-weight:500;">⭐</th>
         <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 8px 7px 0;text-align:left;font-weight:500;">Player</th>
@@ -794,14 +794,14 @@ async function fetchRookiePlayers() {
     _rookiePlayers = Object.entries(players)
       .filter(([,p]) => {
         if (!p.fantasy_positions?.some(pos => SKILL.has(pos))) return false;
-        // years_exp 0 = rookie in-season; null/undefined = pre-draft / offseason entrant
         const ye = p.years_exp;
+        // Accept confirmed rookies (ye===0) OR pre-draft entrants (ye===null/undefined)
         if (ye !== 0 && ye !== null && ye !== undefined) return false;
-        // Must have ADP ≤ 800 or be on an NFL roster (offseason rookies may lack rank)
-        const hasRank = p.search_rank && p.search_rank <= 800;
-        const hasTeam = p.team && p.team !== 'FA';
-        if (!hasRank && !hasTeam) return false;
-        return true;
+        // Use Sleeper's age field directly — rookies are under 24
+        // Also accept anyone with a search_rank (ADP) under 700 regardless of age
+        const youngEnough = p.age != null ? p.age <= 24 : true;
+        const hasRank = p.search_rank && p.search_rank <= 700;
+        return youngEnough || hasRank;
       })
       .map(([id, p]) => ({
         id,
@@ -1155,7 +1155,7 @@ function renderCommish() {
           <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:500;">Cap Username / Team</th>
           <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:500;" colspan="2">Sleeper Team (pick from dropdown)</th>
         </tr></thead>
-        <tbody>${mapRows}</tbody>
+        <tbody id="roster-map-tbody">${mapRows}</tbody>
       </table>
       <div id="map-status" style="padding:8px 16px;font-size:12px;color:var(--green);min-height:28px;"></div>
     </div>
@@ -1232,6 +1232,184 @@ function renderCommish() {
       document.getElementById(`trade-players-${side}`)?.addEventListener('change', tradeUpdatePreview);
     });
   }, 0);
+}
+
+
+// ── CAP & OFFSEASON SETTINGS ──────────────────────────────────
+async function commSaveCap() {
+  const inp = document.getElementById('comm-cap-input');
+  const val = parseFloat(inp?.value);
+  if (!val || val <= 0) { showToast('Enter a valid cap value','error'); return; }
+  CAP = Math.round(val * 1_000_000);
+  if (leagueId()) await db.ref(`leagues/${leagueId()}/settings/cap`).set(CAP);
+  showToast(`Cap set to ${fmtM(CAP)}`,'success');
+  renderTab('commish');
+  renderTab('overview');
+}
+
+async function commToggleOffseason() {
+  offseasonMode = !offseasonMode;
+  if (leagueId()) await db.ref(`leagues/${leagueId()}/settings/offseason`).set(offseasonMode);
+  showToast(offseasonMode ? '☀️ Offseason mode ON' : '🏈 Regular season mode','info');
+  renderTab('commish');
+  renderTab('overview');
+}
+
+// ── ROSTER ID MAPPING ─────────────────────────────────────────
+async function loadRosterIdMap() {
+  if (!leagueId()) return;
+  const statusEl = document.getElementById('map-status');
+  const tbody = document.getElementById('roster-map-tbody');
+  if (!tbody) return;
+  if (statusEl) statusEl.textContent = 'Loading Sleeper rosters…';
+  try {
+    const [rosters, users] = await Promise.all([
+      fetch(`https://api.sleeper.app/v1/league/${leagueId()}/rosters`).then(r=>r.json()),
+      fetch(`https://api.sleeper.app/v1/league/${leagueId()}/users`).then(r=>r.json()),
+    ]);
+    // user_id → display_name
+    const userMap = {};
+    (users||[]).forEach(u => { userMap[u.user_id] = u.display_name || u.username || u.user_id; });
+    // Load existing saved mapping: teamKey → roster_id
+    const snap = await db.ref(`leagues/${leagueId()}/usernameToRosterId`).once('value');
+    const existing = snap.val() || {};
+    window._rosterIdMap = existing;
+    // Invert: roster_id → teamKey
+    const ridToTeam = {};
+    Object.entries(existing).forEach(([k,v]) => ridToTeam[String(v)] = k);
+
+    // Rebuild tbody rows - one row per Sleeper roster
+    tbody.innerHTML = '';
+    rosters.sort((a,b) => a.roster_id - b.roster_id).forEach(r => {
+      const sleeperName = userMap[r.owner_id] || `Roster ${r.roster_id}`;
+      const currentTeam = ridToTeam[String(r.roster_id)] || '';
+      const opts = `<option value="">— not mapped —</option>` +
+        Object.keys(DATA||{}).map(key =>
+          `<option value="${key}"${currentTeam===key?' selected':''}>${DATA[key]?.team_name||key} (${key})</option>`
+        ).join('');
+      const tr = document.createElement('tr');
+      tr.style.borderBottom = '1px solid var(--border)';
+      tr.innerHTML = `
+        <td style="padding:9px 14px;font-size:13px;">
+          <div style="font-weight:500;">${sleeperName}</div>
+          <div style="font-size:11px;color:var(--text3);">Sleeper roster #${r.roster_id}</div>
+        </td>
+        <td style="padding:9px 14px;" colspan="2">
+          <select data-roster-id="${r.roster_id}"
+            style="width:100%;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:13px;outline:none;">
+            ${opts}
+          </select>
+        </td>`;
+      tbody.appendChild(tr);
+    });
+    if (statusEl) statusEl.textContent = `Loaded ${rosters.length} Sleeper rosters`;
+  } catch(e) {
+    console.warn('loadRosterIdMap:', e);
+    if (statusEl) statusEl.textContent = 'Failed to load Sleeper rosters';
+  }
+}
+
+async function commSaveRosterMap() {
+  const tbody = document.querySelector('#roster-map-tbody');
+  if (!tbody) return;
+  const mapping = {}; // teamKey → roster_id
+  tbody.querySelectorAll('select[data-roster-id]').forEach(sel => {
+    const rid = parseInt(sel.dataset.rosterId);
+    const teamKey = sel.value;
+    if (teamKey && rid) mapping[teamKey] = rid;
+  });
+  window._rosterIdMap = mapping;
+  if (leagueId()) {
+    await db.ref(`leagues/${leagueId()}/usernameToRosterId`).set(mapping);
+    showToast('Roster ID mapping saved ✅','success');
+    document.getElementById('map-status').textContent = 'Saved ' + Object.keys(mapping).length + ' mappings';
+  }
+}
+
+// ── TRADE PROCESSOR ───────────────────────────────────────────
+function tradePopulatePlayers(side) {
+  const teamSel = document.getElementById(`trade-team-${side}`);
+  const listSel = document.getElementById(`trade-players-${side}`);
+  if (!teamSel || !listSel) return;
+  const teamKey = teamSel.value;
+  listSel.innerHTML = '';
+  if (!teamKey || !DATA[teamKey]) {
+    listSel.innerHTML = '<option disabled>Select team first</option>';
+    tradeUpdatePreview();
+    return;
+  }
+  const t = DATA[teamKey];
+  const po = ['QB','RB','WR','TE'];
+  const all = [
+    ...(t.starters||[]).map(p => ({...p, slot:'Active'})),
+    ...(t.ir||[]).map(p => ({...p, slot:'IR'})),
+    ...(t.taxi||[]).filter(p=>p.name).map(p => ({...p, slot:'Taxi'})),
+  ].filter(p => p.name);
+  all.sort((a,b) => {
+    const pi = po.indexOf(a.pos), qi = po.indexOf(b.pos);
+    return pi !== qi ? (pi < 0 ? 1 : qi < 0 ? -1 : pi - qi) : b.salary - a.salary;
+  });
+  all.forEach(p => {
+    const opt = document.createElement('option');
+    opt.value = `${p.name}|||${p.slot}`;
+    opt.textContent = `${p.name} (${p.pos||p.slot}) — ${fmtM(p.salary)} [${p.slot}]`;
+    listSel.appendChild(opt);
+  });
+  tradeUpdatePreview();
+}
+
+function tradeUpdatePreview() {
+  const preview = document.getElementById('trade-preview');
+  if (!preview) return;
+  const ta = document.getElementById('trade-team-a')?.value;
+  const tb = document.getElementById('trade-team-b')?.value;
+  const selA = [...(document.getElementById('trade-players-a')?.selectedOptions||[])].map(o=>o.value.split('|||')[0]);
+  const selB = [...(document.getElementById('trade-players-b')?.selectedOptions||[])].map(o=>o.value.split('|||')[0]);
+  if (!ta || !tb || (!selA.length && !selB.length)) { preview.textContent = ''; return; }
+  const nameA = DATA[ta]?.team_name||ta, nameB = DATA[tb]?.team_name||tb;
+  const parts = [];
+  if (selA.length) parts.push(`${nameA} sends: ${selA.join(', ')}`);
+  if (selB.length) parts.push(`${nameB} sends: ${selB.join(', ')}`);
+  preview.textContent = parts.join(' ↔ ');
+}
+
+async function processTrade() {
+  const ta = document.getElementById('trade-team-a')?.value;
+  const tb = document.getElementById('trade-team-b')?.value;
+  if (!ta || !tb)   { showToast('Select both teams','error'); return; }
+  if (ta === tb)    { showToast('Teams must be different','error'); return; }
+  const selA = [...(document.getElementById('trade-players-a')?.selectedOptions||[])].map(o=>o.value.split('|||'));
+  const selB = [...(document.getElementById('trade-players-b')?.selectedOptions||[])].map(o=>o.value.split('|||'));
+  if (!selA.length && !selB.length) { showToast('Select at least one player','error'); return; }
+
+  function movePlayer(fromKey, toKey, playerName, slot) {
+    const from = DATA[fromKey], to = DATA[toKey];
+    const arr = slot==='IR' ? 'ir' : slot==='Taxi' ? 'taxi' : 'starters';
+    const idx = (from[arr]||[]).findIndex(p => p.name === playerName);
+    if (idx === -1) return false;
+    const [player] = from[arr].splice(idx, 1);
+    if (!to[arr]) to[arr] = [];
+    to[arr].push(player);
+    return true;
+  }
+
+  selA.forEach(([name, slot]) => movePlayer(ta, tb, name, slot));
+  selB.forEach(([name, slot]) => movePlayer(tb, ta, name, slot));
+
+  [ta, tb].forEach(key => {
+    DATA[key].cap_spent = (DATA[key].starters||[]).reduce((s,p)=>s+p.salary,0)
+                        + (DATA[key].ir||[]).reduce((s,p)=>s+Math.round(p.salary*.75),0);
+  });
+
+  await saveToFirebase();
+
+  const warnings = [ta,tb].filter(k => DATA[k].cap_spent > CAP)
+    .map(k => `${DATA[k].team_name} over cap by ${fmtM(DATA[k].cap_spent-CAP)}`);
+  if (warnings.length) showToast('Trade done ⚠️ ' + warnings.join(', '),'warn');
+  else showToast(`Trade: ${DATA[ta].team_name} ↔ ${DATA[tb].team_name}`,'success');
+
+  renderCommish();
+  renderTab('overview');
 }
 
 
