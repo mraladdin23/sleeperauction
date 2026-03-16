@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="SleeperBid"/>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="apple-touch-icon" href="/icons/icon-192.png"/>
+<title>SleeperBid — Rookie Draft</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<style>
+:root{--bg:#0d0f14;--surface:#161820;--surface2:#1e2029;--surface3:#252733;--border:#2e3040;--border2:#3a3d52;--accent:#7c5cfc;--accent2:#9d7ffe;--green:#18e07a;--red:#ff4d6a;--yellow:#ffc94d;--cyan:#00d4ff;--text:#e8eaf0;--text2:#9296a8;--text3:#5a5e72;--font-display:'Bebas Neue',sans-serif;--font-body:'DM Sans',sans-serif;--font-mono:'JetBrains Mono',monospace;--radius:10px;--radius-sm:6px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{overflow-x:hidden;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;min-height:100vh;overflow-x:hidden;}
+::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-track{background:var(--bg);}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
+
+/* APP BAR */
+.app-bar{display:flex;align-items:center;justify-content:space-between;padding:0 16px;height:48px;background:rgba(13,15,20,.97);border-bottom:2px solid var(--accent);position:sticky;top:0;z-index:200;backdrop-filter:blur(12px);}
+.app-bar-logo{font-family:var(--font-display);font-size:20px;letter-spacing:1px;color:var(--text);}
+.app-bar-logo span{color:var(--accent);}
+.app-bar-nav{display:flex;align-items:center;gap:4px;}
+.app-btn{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:var(--radius-sm);border:none;background:none;color:var(--text3);font-size:12px;font-weight:500;font-family:var(--font-body);cursor:pointer;text-decoration:none;white-space:nowrap;transition:all .15s;}
+.app-btn:hover{background:var(--surface2);color:var(--text);}
+.app-btn.current{background:rgba(124,92,252,.15);color:var(--accent2);}
+.app-btn-icon{font-size:15px;}
+.app-bar-right{display:flex;align-items:center;gap:4px;}
+.tibtn{background:none;border:none;cursor:pointer;font-size:17px;padding:6px;border-radius:var(--radius-sm);color:var(--text2);display:flex;align-items:center;justify-content:center;transition:background .15s;line-height:1;}
+.tibtn:hover{background:var(--surface2);}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--text2);overflow:hidden;flex-shrink:0;}
+
+/* LAYOUT */
+.main{padding:20px;max-width:1600px;margin:0 auto;}
+.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:12px;color:var(--text3);}
+.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* LIGHT MODE */
+body.light-mode{--bg:#f4f5f8;--surface:#fff;--surface2:#eef0f5;--surface3:#e4e7ef;--border:#d4d8e8;--border2:#bbbfcf;--text:#18192a;--text2:#4a4e6a;--text3:#8a8eaa;}
+body.light-mode .app-bar{background:rgba(255,255,255,.97);}
+
+@media(max-width:600px){
+  html,body{overscroll-behavior:none;}
+  .app-bar{padding:0 10px;height:46px;}
+  .app-btn span:not(.app-btn-icon){display:none;}
+  .app-btn{padding:5px 8px;}
+  .main{padding:14px 10px 80px;}
+}
+
+/* DRAFT BOARD */
+.draft-header{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;}
+.draft-title{font-size:22px;font-weight:600;}
+.draft-subtitle{font-size:13px;color:var(--text3);margin-top:3px;}
+.draft-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.salary-legend{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;font-size:12px;color:var(--text3);margin-bottom:16px;display:flex;flex-wrap:wrap;gap:12px;}
+.legend-item{display:flex;align-items:center;gap:6px;}
+
+/* Draft round sections */
+.round-section{margin-bottom:28px;}
+.round-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--border);}
+.round-label{font-size:15px;font-weight:600;color:var(--text2);}
+.round-salary{font-size:12px;color:var(--text3);font-family:var(--font-mono);}
+.picks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;}
+
+/* Pick card */
+.pick-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 12px;transition:border-color .15s;min-height:90px;}
+.pick-card.assigned{border-color:rgba(124,92,252,.5);background:rgba(124,92,252,.04);}
+.pick-card.sleeper-pick{border-color:rgba(24,224,122,.3);}
+.pick-num{font-size:11px;font-weight:600;color:var(--accent2);margin-bottom:5px;display:flex;align-items:center;justify-content:space-between;}
+.pick-sal{font-family:var(--font-mono);font-size:11px;color:var(--text3);}
+.pick-player{font-size:13px;font-weight:500;line-height:1.3;margin-bottom:3px;}
+.pick-team{font-size:11px;color:var(--accent2);}
+.pick-source{font-size:10px;color:var(--text3);margin-top:3px;}
+.pick-inputs{display:flex;flex-direction:column;gap:5px;margin-top:4px;}
+.pick-input{padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;font-family:var(--font-body);outline:none;width:100%;cursor:pointer;}
+.pick-input:focus{border-color:var(--accent);}
+.pick-btn{padding:5px 8px;background:var(--accent);border:none;border-radius:4px;color:#fff;font-size:12px;cursor:pointer;font-family:var(--font-body);width:100%;}
+.pick-btn:hover{opacity:.9;}
+.pick-clear{padding:3px 8px;background:none;border:1px solid var(--border);border-radius:4px;color:var(--text3);font-size:10px;cursor:pointer;font-family:var(--font-body);margin-top:4px;}
+
+/* Available players panel */
+.available-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;position:sticky;top:56px;max-height:calc(100vh - 80px);display:flex;flex-direction:column;}
+.avail-header{padding:12px 14px;background:var(--surface2);border-bottom:1px solid var(--border);flex-shrink:0;}
+.avail-title{font-size:14px;font-weight:600;margin-bottom:6px;}
+.avail-pos-chips{display:flex;gap:5px;flex-wrap:wrap;}
+.avail-chip{padding:4px 10px;border-radius:99px;border:1px solid var(--border);background:var(--surface);color:var(--text3);font-size:11px;cursor:pointer;transition:all .15s;}
+.avail-chip.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.avail-list{overflow-y:auto;flex:1;}
+.avail-player{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-bottom:1px solid rgba(46,48,64,.4);transition:background .1s;}
+.avail-player:hover{background:var(--surface2);}
+.avail-player.taken{opacity:.3;pointer-events:none;}
+.avail-player-name{font-size:13px;}
+.avail-player-sub{font-size:11px;color:var(--text3);}
+.avail-adp{font-size:11px;color:var(--text3);font-family:var(--font-mono);}
+
+/* pos badges */
+.pb{display:inline-block;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:600;}
+.pb-QB{background:rgba(184,159,254,.15);color:#b89ffe;}
+.pb-RB{background:rgba(24,224,122,.12);color:#18e07a;}
+.pb-WR{background:rgba(0,212,255,.12);color:#00d4ff;}
+.pb-TE{background:rgba(255,201,77,.12);color:#ffc94d;}
+
+/* two-column layout */
+.draft-layout{display:grid;grid-template-columns:1fr 280px;gap:20px;align-items:start;}
+@media(max-width:1000px){.draft-layout{grid-template-columns:1fr;}.available-panel{position:static;max-height:400px;}}
+</style>
+</head>
+<body>
+
+<!-- APP BAR -->
+<div class="app-bar">
+  <div class="app-bar-logo">Sleeper<span>Bid</span></div>
+  <div class="app-bar-nav">
+    <button class="app-btn" onclick="window.location='rosters.html'">
+      <span class="app-btn-icon">💰</span><span>Salary Cap</span>
+    </button>
+    <button class="app-btn" onclick="window.location='index.html'">
+      <span class="app-btn-icon">🏷</span><span>Auctions</span>
+    </button>
+    <div class="app-btn current">
+      <span class="app-btn-icon">🎓</span><span>Rookie Draft</span>
+    </div>
+  </div>
+  <div class="app-bar-right">
+    <div class="avatar" id="cap-avatar" title="Logged in user"></div>
+    <button class="tibtn" id="theme-btn" onclick="toggleTheme()" title="Toggle theme">☀️</button>
+    <button class="tibtn" onclick="capLogout()" title="Log out">↩</button>
+  </div>
+</div>
+
+<div class="main">
+  <div id="loading" class="loading"><div class="spinner"></div><div style="margin-top:12px;">Loading draft board…</div></div>
+  <div id="app" style="display:none;">
+
+    <div class="draft-header">
+      <div>
+        <div class="draft-title">🎓 Rookie Draft Board</div>
+        <div class="draft-subtitle" id="draft-subtitle">Loading from Sleeper…</div>
+      </div>
+      <div class="draft-controls">
+        <button onclick="refreshDraft()" style="padding:7px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);font-size:12px;cursor:pointer;font-family:var(--font-body);">↻ Refresh</button>
+      </div>
+    </div>
+
+    <div class="salary-legend">
+      <div class="legend-item"><span style="font-family:var(--font-mono);color:var(--accent2);">R1</span> picks 1–6 = $15M &nbsp;·&nbsp; 7–12 = $10M</div>
+      <div class="legend-item"><span style="font-family:var(--font-mono);color:var(--accent2);">R2</span> picks 1–6 = $7.5M &nbsp;·&nbsp; 7–12 = $5M</div>
+      <div class="legend-item"><span style="font-family:var(--font-mono);color:var(--accent2);">R3</span> picks 1–6 = $3M &nbsp;·&nbsp; 7–12 = $2M</div>
+      <div class="legend-item"><span style="font-family:var(--font-mono);color:var(--accent2);">R4</span> all picks = $1M</div>
+      <div class="legend-item" style="margin-left:auto;color:var(--green);">■ via Sleeper &nbsp; <span style="color:var(--accent2);">■</span> manual</div>
+    </div>
+
+    <div class="draft-layout">
+      <div id="board-container"></div>
+      <div>
+        <div class="available-panel" id="avail-panel">
+          <div class="avail-header">
+            <div class="avail-title">Available Rookies</div>
+            <div class="avail-pos-chips">
+              <div class="avail-chip active" onclick="setAvailPos('ALL',this)">All</div>
+              <div class="avail-chip" onclick="setAvailPos('QB',this)">QB</div>
+              <div class="avail-chip" onclick="setAvailPos('RB',this)">RB</div>
+              <div class="avail-chip" onclick="setAvailPos('WR',this)">WR</div>
+              <div class="avail-chip" onclick="setAvailPos('TE',this)">TE</div>
+            </div>
+          </div>
+          <div class="avail-list" id="avail-list">
+            <div style="padding:20px;text-align:center;color:var(--text3);">Loading…</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script>
+// ── Auth helpers ─────────────────────────────────────────────
+function leagueId()  { return localStorage.getItem('sb_leagueId') || ''; }
+function username()  { return localStorage.getItem('sb_username') || ''; }
+const COMM = 'mraladdin23';
+function isComm()    { return username().toLowerCase() === COMM; }
+
+function capLogout() {
+  localStorage.removeItem('sb_username');
+  localStorage.removeItem('sb_leagueId');
+  localStorage.removeItem('sb_user');
+  window.location = 'index.html';
+}
+
+// Avatar
+(function() {
+  const el = document.getElementById('cap-avatar');
+  if (!el) return;
+  try {
+    const u = JSON.parse(localStorage.getItem('sb_user') || 'null');
+    const name = u?.display_name || u?.username || localStorage.getItem('sb_username') || '?';
+    const initial = name[0]?.toUpperCase() || '?';
+    if (u?.avatar) {
+      el.innerHTML = `<img src="https://sleepercdn.com/avatars/thumbs/${u.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.parentElement.textContent='${initial}'" />`;
+    } else { el.textContent = initial; }
+    el.title = name;
+  } catch(e) { el.textContent = '?'; }
+})();
+
+// Theme
+function toggleTheme() {
+  const lm = document.body.classList.toggle('light-mode');
+  localStorage.setItem('sb_theme', lm ? 'light' : 'dark');
+  document.getElementById('theme-btn').textContent = lm ? '🌙' : '☀️';
+}
+if (localStorage.getItem('sb_theme') === 'light') {
+  document.body.classList.add('light-mode');
+  document.getElementById('theme-btn').textContent = '🌙';
+}
+
+// ── Salary scale ─────────────────────────────────────────────
+const ROOKIE_SALARY = {
+  '1-1':15e6,'1-2':15e6,'1-3':15e6,'1-4':15e6,'1-5':15e6,'1-6':15e6,
+  '1-7':10e6,'1-8':10e6,'1-9':10e6,'1-10':10e6,'1-11':10e6,'1-12':10e6,
+  '2-1':7.5e6,'2-2':7.5e6,'2-3':7.5e6,'2-4':7.5e6,'2-5':7.5e6,'2-6':7.5e6,
+  '2-7':5e6,'2-8':5e6,'2-9':5e6,'2-10':5e6,'2-11':5e6,'2-12':5e6,
+  '3-1':3e6,'3-2':3e6,'3-3':3e6,'3-4':3e6,'3-5':3e6,'3-6':3e6,
+  '3-7':2e6,'3-8':2e6,'3-9':2e6,'3-10':2e6,'3-11':2e6,'3-12':2e6,
+};
+function rookieSal(r, p) { return r >= 4 ? 1_000_000 : (ROOKIE_SALARY[`${r}-${p}`] || 1_000_000); }
+const fmtM = n => n >= 1e6 ? '$' + (n/1e6).toFixed(1) + 'M' : n >= 1e3 ? '$' + (n/1e3).toFixed(0) + 'K' : '$' + n;
+
+// ── State ─────────────────────────────────────────────────────
+let DATA = null;            // roster data
+let board = {};             // { 'r-p': { player, team, salary, sleeperPick } }
+let rookiePlayers = [];     // available rookie list
+let availPosFilter = 'ALL';
+let draftInfo = null;
+
+// ── Load everything ───────────────────────────────────────────
+async function init() {
+  if (!leagueId()) { window.location = 'index.html'; return; }
+
+  // Load roster data from Firebase (needed for team dropdowns)
+  try {
+    const snap = await db.ref(`leagues/${leagueId()}/rosterData`).once('value');
+    DATA = snap.val() || {};
+  } catch(e) {}
+
+  await refreshDraft();
+}
+
+async function refreshDraft() {
+  document.getElementById('board-container').innerHTML =
+    '<div class="loading"><div class="spinner"></div><div style="margin-top:10px;">Loading board…</div></div>';
+
+  // 1. Load Sleeper draft
+  let sleeperPicks = {};
+  try {
+    const drafts = await fetch(`https://api.sleeper.app/v1/league/${leagueId()}/drafts`).then(r=>r.json());
+    if (drafts?.length) {
+      const d = drafts.find(d => d.type === 'rookie' || d.type === 'linear')
+             || drafts.find(d => d.type !== 'startup')
+             || drafts[drafts.length - 1];
+      if (d) {
+        draftInfo = d;
+        const picks = await fetch(`https://api.sleeper.app/v1/draft/${d.draft_id}/picks`).then(r=>r.json());
+        if (Array.isArray(picks)) {
+          picks.forEach(pk => {
+            const key = `${pk.round}-${pk.draft_slot || pk.pick_no}`;
+            const fn = pk.metadata?.first_name || '';
+            const ln = pk.metadata?.last_name  || '';
+            const name = (fn || ln) ? `${fn} ${ln}`.trim() : null;
+            if (name) sleeperPicks[key] = { player: name, sleeperPick: true };
+          });
+        }
+        document.getElementById('draft-subtitle').textContent =
+          `Sleeper draft loaded · status: ${d.status} · ${d.season || ''} · ${d.type}`;
+      }
+    } else {
+      document.getElementById('draft-subtitle').textContent = 'No Sleeper draft found — using manual entry mode';
+    }
+  } catch(e) {
+    document.getElementById('draft-subtitle').textContent = 'Could not load Sleeper draft — manual entry mode';
+  }
+
+  // 2. Load manual board from Firebase
+  let savedBoard = {};
+  try {
+    const snap = await db.ref(`leagues/${leagueId()}/rookieDraft`).once('value');
+    savedBoard = snap.val() || {};
+  } catch(e) {}
+
+  // Firebase manual picks override Sleeper auto-picks
+  board = { ...sleeperPicks, ...savedBoard };
+
+  // 3. Load available rookies
+  await loadRookiePlayers();
+
+  // 4. Render
+  renderBoard();
+  document.getElementById('loading').style.display = 'none';
+  document.getElementById('app').style.display = '';
+}
+
+async function loadRookiePlayers() {
+  try {
+    const cached = localStorage.getItem('sb_players');
+    if (!cached) { rookiePlayers = []; return; }
+    const players = JSON.parse(cached);
+    const SKILL = new Set(['QB','RB','WR','TE']);
+    const draftedNames = new Set(Object.values(board).map(p => (p.player||'').toLowerCase()));
+    const rostered = new Set();
+    Object.values(DATA || {}).forEach(t => {
+      [...(t.starters||[]),...(t.ir||[]),...(t.taxi||[])].forEach(p => {
+        if (p.name) rostered.add(p.name.toLowerCase());
+      });
+    });
+    rookiePlayers = Object.entries(players)
+      .filter(([,p]) => {
+        if (!p.fantasy_positions?.some(pos => SKILL.has(pos))) return false;
+        const ye = p.years_exp;
+        if (ye !== 0 && ye !== null && ye !== undefined) return false;
+        const hasRank = p.search_rank && p.search_rank <= 800;
+        const hasTeam = p.team && p.team !== 'FA';
+        return hasRank || hasTeam;
+      })
+      .map(([id, p]) => ({
+        id,
+        name: `${p.first_name} ${p.last_name}`.trim(),
+        pos:  p.fantasy_positions?.find(pos => SKILL.has(pos)) || '',
+        nflTeam: p.team || 'FA',
+        adp: p.search_rank || 999,
+        taken: draftedNames.has(`${p.first_name} ${p.last_name}`.trim().toLowerCase())
+            || rostered.has(`${p.first_name} ${p.last_name}`.trim().toLowerCase()),
+      }))
+      .sort((a, b) => a.adp - b.adp);
+  } catch(e) { rookiePlayers = []; }
+  renderAvailList();
+}
+
+// ── Render board ──────────────────────────────────────────────
+function renderBoard() {
+  const ROUNDS = 4, PICKS = 12;
+  const comm = isComm();
+  let html = '';
+
+  for (let r = 1; r <= ROUNDS; r++) {
+    const salLabel = r===1 ? '$15M / $10M' : r===2 ? '$7.5M / $5M' : r===3 ? '$3M / $2M' : '$1M';
+    html += `<div class="round-section">
+      <div class="round-header">
+        <span class="round-label">Round ${r}</span>
+        <span class="round-salary">${salLabel}</span>
+      </div>
+      <div class="picks-grid">`;
+
+    for (let p = 1; p <= PICKS; p++) {
+      const key = `${r}-${p}`;
+      const sal = rookieSal(r, p);
+      const pick = board[key] || {};
+      const assigned = !!pick.player;
+      const teamName = pick.team ? (DATA[pick.team]?.team_name || pick.team) : '';
+      const isSleeper = pick.sleeperPick && !pick.team; // auto from Sleeper only
+
+      html += `<div class="pick-card ${assigned ? (isSleeper ? 'sleeper-pick' : 'assigned') : ''}">
+        <div class="pick-num">
+          <span>Pick ${r}.${p < 10 ? '0'+p : p}</span>
+          <span class="pick-sal">${fmtM(sal)}</span>
+        </div>`;
+
+      if (assigned) {
+        html += `<div class="pick-player">${pick.player}</div>
+          ${teamName ? `<div class="pick-team">${teamName}</div>` : ''}
+          ${isSleeper ? `<div class="pick-source">via Sleeper</div>` : ''}
+          ${comm ? `<button class="pick-clear" onclick="clearPick('${key}')">✕ Clear</button>` : ''}`;
+      } else if (comm) {
+        // Team dropdown options
+        const teamOpts = Object.entries(DATA || {}).map(([k,t]) =>
+          `<option value="${k}">${t.team_name}</option>`).join('');
+        // Player dropdown - top available by ADP
+        const available = rookiePlayers.filter(rk => !rk.taken).slice(0, 60);
+        const playerOpts = available.map(rk =>
+          `<option value="${rk.name}">${rk.name} · ${rk.pos} · ${rk.nflTeam}${rk.adp < 999 ? ' ('+rk.adp+')' : ''}</option>`
+        ).join('');
+        html += `<div class="pick-inputs">
+          <select id="psel-${key}" class="pick-input" onchange="onPlayerSelect('${key}',this)">
+            <option value="">— select player —</option>
+            ${playerOpts}
+            <option value="__manual__">✏️ Type name…</option>
+          </select>
+          <input id="pman-${key}" class="pick-input" placeholder="Player name" style="display:none;" />
+          <select id="tsel-${key}" class="pick-input">
+            <option value="">— owner —</option>
+            ${teamOpts}
+          </select>
+          <button class="pick-btn" onclick="assignPick('${key}',${sal})">Assign to Taxi</button>
+        </div>`;
+      } else {
+        html += `<div style="font-size:12px;color:var(--text3);margin-top:4px;">Open pick</div>`;
+      }
+
+      html += '</div>'; // pick-card
+    }
+    html += '</div></div>'; // picks-grid + round-section
+  }
+
+  document.getElementById('board-container').innerHTML = html;
+}
+
+// ── Render available list ─────────────────────────────────────
+function renderAvailList() {
+  const draftedNames = new Set(Object.values(board).map(p => (p.player||'').toLowerCase()));
+  const list = document.getElementById('avail-list');
+  const filtered = rookiePlayers.filter(rk => {
+    if (availPosFilter !== 'ALL' && rk.pos !== availPosFilter) return false;
+    return true;
+  });
+  if (!filtered.length) {
+    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);">No rookies found.<br><small>Player cache may need refresh.</small></div>';
+    return;
+  }
+  list.innerHTML = filtered.map(rk => {
+    const taken = rk.taken || draftedNames.has(rk.name.toLowerCase());
+    return `<div class="avail-player ${taken ? 'taken' : ''}">
+      <div>
+        <div class="avail-player-name">
+          <span class="pb pb-${rk.pos}">${rk.pos}</span>
+          <span style="margin-left:5px;">${rk.name}</span>
+        </div>
+        <div class="avail-player-sub">${rk.nflTeam}${taken ? ' · drafted' : ''}</div>
+      </div>
+      <div class="avail-adp">${rk.adp < 999 ? '#'+rk.adp : '—'}</div>
+    </div>`;
+  }).join('');
+}
+
+function setAvailPos(pos, el) {
+  availPosFilter = pos;
+  document.querySelectorAll('.avail-chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  renderAvailList();
+}
+
+// ── Assign / clear picks ──────────────────────────────────────
+function onPlayerSelect(key, sel) {
+  const manual = document.getElementById(`pman-${key}`);
+  if (manual) manual.style.display = sel.value === '__manual__' ? '' : 'none';
+}
+
+async function assignPick(key, salary) {
+  const pSel = document.getElementById(`psel-${key}`);
+  const pMan = document.getElementById(`pman-${key}`);
+  const tSel = document.getElementById(`tsel-${key}`);
+  if (!pSel || !tSel) return;
+
+  const pName  = pSel.value === '__manual__' ? (pMan?.value || '').trim() : pSel.value;
+  const teamKey = tSel.value;
+
+  if (!pName)   { alert('Select or enter a player name'); return; }
+  if (!teamKey) { alert('Select an owner'); return; }
+
+  // Add to Firebase rookieDraft board
+  const entry = { player: pName, team: teamKey, salary, assignedAt: Date.now() };
+  await db.ref(`leagues/${leagueId()}/rookieDraft/${key}`).set(entry);
+  board[key] = entry;
+
+  // Add to team taxi in rosterData
+  if (DATA && DATA[teamKey]) {
+    if (!DATA[teamKey].taxi) DATA[teamKey].taxi = [];
+    DATA[teamKey].taxi.push({ name: pName, salary, years_exp: 0 });
+    // Recalculate cap_spent
+    DATA[teamKey].cap_spent = (DATA[teamKey].starters||[]).reduce((s,p)=>s+p.salary,0)
+      + (DATA[teamKey].ir||[]).reduce((s,p)=>s+Math.round(p.salary*.75),0);
+    await db.ref(`leagues/${leagueId()}/rosterData`).set(DATA);
+  }
+
+  await loadRookiePlayers();
+  renderBoard();
+}
+
+async function clearPick(key) {
+  const pick = board[key];
+  if (!pick) return;
+
+  // Remove from taxi if it was manually assigned (has a team key)
+  if (pick.team && DATA && DATA[pick.team]) {
+    const taxi = DATA[pick.team].taxi || [];
+    const idx = taxi.findIndex(p => p.name === pick.player);
+    if (idx > -1) {
+      taxi.splice(idx, 1);
+      DATA[pick.team].taxi = taxi;
+      DATA[pick.team].cap_spent = (DATA[pick.team].starters||[]).reduce((s,p)=>s+p.salary,0)
+        + (DATA[pick.team].ir||[]).reduce((s,p)=>s+Math.round(p.salary*.75),0);
+      await db.ref(`leagues/${leagueId()}/rosterData`).set(DATA);
+    }
+  }
+
+  await db.ref(`leagues/${leagueId()}/rookieDraft/${key}`).remove();
+  delete board[key];
+  await loadRookiePlayers();
+  renderBoard();
+}
+
+// ── Boot ──────────────────────────────────────────────────────
+init();
+</script>
+
+<!-- Service Worker -->
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('/sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
