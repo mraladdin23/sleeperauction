@@ -457,19 +457,13 @@ function renderCommish() {
   const savedMap = window._rosterIdMap || {};
   let mapRows = Object.keys(DATA).map(key => {
     const t = DATA[key];
-    const savedId = savedMap[key] || '';
     return `<tr>
       <td style="padding:8px 14px;">
         <div style="font-size:13px;font-weight:500;">${t.team_name}</div>
         <div style="font-size:11px;color:var(--text3);">${key}</div>
       </td>
-      <td style="padding:8px 14px;" id="maprow-dispname-${key}">
-        <span style="font-size:12px;color:var(--text3);">—</span>
-      </td>
-      <td style="padding:8px 14px;">
-        <input id="maprow-input-${key}" type="number" value="${savedId}"
-          placeholder="e.g. 3"
-          style="width:80px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:13px;outline:none;"/>
+      <td style="padding:8px 14px;" id="maprow-dispname-${key}" colspan="2">
+        <span style="font-size:12px;color:var(--text3);">Loading Sleeper teams…</span>
       </td>
     </tr>`;
   }).join('');
@@ -527,10 +521,7 @@ function renderCommish() {
           <span style="font-size:14px;font-weight:600;">\ud83d\udd17 Roster ID Mapping</span>
           <div style="font-size:11px;color:var(--text3);margin-top:2px;">Link each username to their Sleeper roster ID so open spots stay in sync on the auction page</div>
         </div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;">
-          <button onclick="commFetchRosterIds()" style="padding:7px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);font-size:12px;cursor:pointer;font-family:var(--font-body);">\ud83d\udd04 Auto-fetch from Sleeper</button>
-          <button onclick="commSaveRosterMap()" style="padding:7px 14px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-size:12px;cursor:pointer;font-family:var(--font-body);">\ud83d\udcbe Save Mapping</button>
-        </div>
+        <button onclick="commSaveRosterMap()" style="padding:7px 14px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-size:12px;cursor:pointer;font-family:var(--font-body);">💾 Save Mapping</button>
       </div>
       <div style="font-size:11px;color:var(--text3);padding:8px 16px;background:rgba(124,92,252,.06);border-bottom:1px solid var(--border);">
         Or find IDs manually at: <a href="https://api.sleeper.app/v1/league/${leagueId()}/rosters" target="_blank" style="color:var(--accent2);font-family:var(--font-mono);">api.sleeper.app/v1/league/${leagueId()}/rosters</a>
@@ -538,8 +529,7 @@ function renderCommish() {
       <table style="width:100%;border-collapse:collapse;">
         <thead><tr style="border-bottom:1px solid var(--border);">
           <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:500;">Cap Username / Team</th>
-          <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:500;">Sleeper Display Name</th>
-          <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:500;">Roster ID</th>
+          <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:500;" colspan="2">Sleeper Team (pick from dropdown)</th>
         </tr></thead>
         <tbody>${mapRows}</tbody>
       </table>
@@ -579,72 +569,68 @@ function renderCommish() {
   loadRosterIdMap();
 }
 
+// ── Roster ID Mapping ─────────────────────────────────────────
+// Fetches Sleeper teams and lets commissioner pick who maps to who
+// via dropdowns — no typing usernames required.
+
+let _sleeperRosterOptions = []; // cached [{rosterId, displayName, username}]
+
 async function loadRosterIdMap() {
   if (!leagueId()) return;
   try {
+    // Load saved map
     const snap = await db.ref(`leagues/${leagueId()}/usernameToRosterId`).once('value');
-    const map  = snap.val() || {};
-    window._rosterIdMap = {};
-    // map is stored as { username: roster_id }
-    Object.entries(map).forEach(([uname, rid]) => {
-      window._rosterIdMap[uname] = rid;
-      const inp = document.getElementById(`maprow-input-${uname}`);
-      if (inp) inp.value = rid;
-    });
-    // Also try to show display names from the reverse lookup
-    await commRefreshDisplayNames(map);
-  } catch(e) { /* non-fatal */ }
+    window._rosterIdMap = snap.val() || {};
+    // Load Sleeper teams for dropdowns
+    await commBuildDropdowns();
+  } catch(e) { console.warn('loadRosterIdMap:', e); }
 }
 
-async function commRefreshDisplayNames(map) {
+async function commBuildDropdowns() {
   if (!leagueId()) return;
-  try {
-    const [rosters, users] = await Promise.all([
-      fetch(`https://api.sleeper.app/v1/league/${leagueId()}/rosters`).then(r=>r.json()),
-      fetch(`https://api.sleeper.app/v1/league/${leagueId()}/users`).then(r=>r.json()),
-    ]);
-    const userMap = {};
-    users.forEach(u => { userMap[u.user_id] = u; });
-    const rosterUserMap = {};
-    rosters.forEach(r => { rosterUserMap[r.roster_id] = userMap[r.owner_id] || {}; });
-    // Match DATA keys to roster IDs via the saved map
-    Object.entries(map).forEach(([uname, rid]) => {
-      const u = rosterUserMap[rid];
-      const dispName = u?.display_name || u?.username || '';
-      const el = document.getElementById(`maprow-dispname-${uname}`);
-      if (el && dispName) el.innerHTML = `<span style="font-size:12px;color:var(--text2);">${dispName}</span>`;
-    });
-  } catch(e) { /* non-fatal */ }
-}
-
-async function commFetchRosterIds() {
-  if (!leagueId()) { showToast('No league ID found', 'error'); return; }
   const status = document.getElementById('map-status');
-  if (status) status.textContent = 'Fetching from Sleeper...';
   try {
+    if (status) status.textContent = 'Loading Sleeper teams…';
     const [rosters, users] = await Promise.all([
       fetch(`https://api.sleeper.app/v1/league/${leagueId()}/rosters`).then(r=>r.json()),
       fetch(`https://api.sleeper.app/v1/league/${leagueId()}/users`).then(r=>r.json()),
     ]);
     const userMap = {};
     users.forEach(u => { userMap[u.user_id] = u; });
-    let matched = 0;
-    rosters.forEach(r => {
+    _sleeperRosterOptions = rosters.map(r => {
       const u = userMap[r.owner_id] || {};
-      const sleeperUsername = (u.username || '').toLowerCase();
-      // Try to match against DATA keys (also lowercased)
-      const dataKey = Object.keys(DATA).find(k => k.toLowerCase() === sleeperUsername);
-      if (dataKey) {
-        const inp = document.getElementById(`maprow-input-${dataKey}`);
-        if (inp) inp.value = r.roster_id;
-        const dispEl = document.getElementById(`maprow-dispname-${dataKey}`);
-        if (dispEl) dispEl.innerHTML = `<span style="font-size:12px;color:var(--text2);">${u.display_name || u.username}</span>`;
-        matched++;
-      }
+      return {
+        rosterId:    r.roster_id,
+        displayName: u.display_name || u.username || `Team ${r.roster_id}`,
+        username:    u.username || '',
+      };
+    }).sort((a,b) => a.displayName.localeCompare(b.displayName));
+
+    // Build dropdown options string
+    const blankOpt = `<option value="">— pick —</option>`;
+    const opts = _sleeperRosterOptions.map(o =>
+      `<option value="${o.rosterId}">${o.displayName}${o.username && o.username !== o.displayName ? ' ('+o.username+')' : ''} — #${o.rosterId}</option>`
+    ).join('');
+
+    // Populate each row's dropdown
+    Object.keys(DATA).forEach(key => {
+      const saved = window._rosterIdMap[key];
+      const cell = document.getElementById(`maprow-dispname-${key}`);
+      if (!cell) return;
+      cell.innerHTML = `<select id="mapdrop-${key}"
+        style="padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;font-family:var(--font-body);max-width:220px;cursor:pointer;outline:none;">
+        ${blankOpt}${opts}
+      </select>`;
+      const sel = document.getElementById(`mapdrop-${key}`);
+      if (sel && saved) sel.value = saved;
+      // Hide the old number input
+      const inp = document.getElementById(`maprow-input-${key}`);
+      if (inp) inp.style.display = 'none';
     });
-    if (status) status.textContent = `Matched ${matched} of ${Object.keys(DATA).length} teams. Review and click Save.`;
+
+    if (status) status.textContent = `Loaded ${_sleeperRosterOptions.length} Sleeper teams. Match each cap username to their Sleeper team, then click Save.`;
   } catch(e) {
-    if (status) status.textContent = 'Fetch failed: ' + e.message;
+    if (status) status.textContent = 'Could not load Sleeper teams: ' + (e.message || e);
   }
 }
 
@@ -652,18 +638,25 @@ async function commSaveRosterMap() {
   if (!leagueId()) return;
   const map = {};
   Object.keys(DATA).forEach(key => {
-    const inp = document.getElementById(`maprow-input-${key}`);
-    const val = inp ? parseInt(inp.value) : NaN;
+    const sel = document.getElementById(`mapdrop-${key}`);
+    const val = sel ? parseInt(sel.value) : NaN;
     if (!isNaN(val) && val > 0) map[key] = val;
   });
+  if (Object.keys(map).length === 0) {
+    showToast('No mappings selected — use the dropdowns to match teams first.', 'error');
+    return;
+  }
   await db.ref(`leagues/${leagueId()}/usernameToRosterId`).set(map);
   window._rosterIdMap = map;
-  // Immediately sync roster sizes with the new map
   await syncRosterSizes();
   const status = document.getElementById('map-status');
-  if (status) status.textContent = `✅ Saved ${Object.keys(map).length} mappings and synced roster sizes.`;
-  showToast('Roster mapping saved & synced!', 'success');
+  if (status) status.textContent = `✅ Saved ${Object.keys(map).length} mappings and synced roster sizes to auction page.`;
+  showToast('Mapping saved & roster sizes synced!', 'success');
 }
+
+// Auto-fetch button just re-runs the dropdown build
+async function commFetchRosterIds() { await commBuildDropdowns(); }
+
 
 async function commSetTaxiPos(teamKey,idx,pos){
   if(!DATA[teamKey]?.taxi?.[idx])return;
