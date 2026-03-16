@@ -280,6 +280,14 @@ const App = (() => {
   function updateCommissionerTab() {
     const tab = document.getElementById('commissioner-tab');
     if (tab) tab.style.display = state.isCommissioner ? '' : 'none';
+    // Keep mobile dropdown in sync
+    const dd = document.getElementById('nav-dropdown');
+    if (dd && state.isCommissioner && !dd.querySelector('option[value="commissioner"]')) {
+      const opt = document.createElement('option');
+      opt.value = 'commissioner';
+      opt.textContent = '⚙️ Commissioner';
+      dd.appendChild(opt);
+    }
   }
 
   function renderAll() {

@@ -17,6 +17,8 @@ const UI = (() => {
   function switchTab(name) {
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
     document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name));
+    const dd = document.getElementById('nav-dropdown');
+    if (dd) dd.value = name;
   }
 
   // ── Avatar ───────────────────────────────────────────────
