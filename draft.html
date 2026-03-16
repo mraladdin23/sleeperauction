@@ -401,16 +401,12 @@ async function refreshDraft() {
 
     // Build slot owner debug string
     const slotDebug = Object.entries(slotOwners).sort((a,b)=>Number(a[0])-Number(b[0]))
-      .map(([slot, key]) => `#${slot}→${DATA[key]?.team_name||key}`)
-      .join('  ');
-    const slotDebug = Object.entries(slotOwners).sort((a,b)=>Number(a[0])-Number(b[0]))
       .map(([slot, key]) => `${slot}:${DATA[key]?.team_name || key}`).join(' · ');
     document.getElementById('draft-subtitle').textContent =
       `${statusLabel} · ${draftInfo.season || ''} · type: ${draftInfo.type} · ID: ${draftInfo.draft_id}`;
-    document.getElementById('draft-subtitle').title = `Slot owners: ${slotDebug}`;
-    console.log('Slot owners:', slotDebug);
     document.getElementById('draft-subtitle').title =
-      `Slot owners: ${slotDebug || '(none — slot_to_roster_id may be empty)'}\nrosterIdToTeam: ${JSON.stringify(rosterIdToTeam)}`;
+      `Slot owners: ${slotDebug || '(none)'}  |  rosterIdToTeam: ${JSON.stringify(rosterIdToTeam)}`;
+    console.log('Slot owners:', slotDebug);
 
     // Show "Assign All" button when draft is complete and user is commissioner
     const assignBtn = document.getElementById('assign-all-btn');
