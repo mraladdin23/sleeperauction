@@ -185,10 +185,16 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
               <div class="avail-chip" onclick="setAvailPos('TE',this)">TE</div>
             </div>
           </div>
-          <div class="avail-list" id="avail-list">
+          <div class="avail-list" id="avail-list" style="min-height:200px;">
             <div style="padding:20px;text-align:center;color:var(--text3);">Loading…</div>
           </div>
-          <div id="assign-panel" style="border-top:1px solid var(--border);padding:12px;background:var(--surface2);">
+        </div>
+
+        <div id="assign-panel" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-top:12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">Assign Pick</div>
+            <button onclick="showSlotData()" style="font-size:10px;padding:2px 8px;background:none;border:1px solid var(--border);border-radius:4px;color:var(--text3);cursor:pointer;font-family:var(--font-body);">🔍 Show Data</button>
+          </div>
             <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin-bottom:10px;">Assign Pick</div>
             <div style="display:flex;gap:6px;margin-bottom:6px;">
               <select id="assign-round-sel" onchange="onAssignRoundOrSlotChange()" style="flex:1;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;">
@@ -628,8 +634,8 @@ function renderBoard() {
           <span class="pick-sal">${fmtM(sal)}</span>
         </div>`;
 
-      // Always show who owns this slot (from draft order / trades)
-      if (ownerName && !assigned) {
+      // Always show slot owner on every card
+      if (ownerName) {
         html += `<div class="pick-owner">${ownerName}</div>`;
       }
 
@@ -850,16 +856,19 @@ async function clearPick(key) {
   const pick = board[key];
   if (!pick) return;
 
-  // Remove from taxi if it was manually assigned (has a team key)
+  // Remove from starters (where assignPick places them)
   if (pick.team && DATA && DATA[pick.team]) {
-    const taxi = DATA[pick.team].taxi || [];
-    const idx = taxi.findIndex(p => p.name === pick.player);
-    if (idx > -1) {
-      taxi.splice(idx, 1);
-      DATA[pick.team].taxi = taxi;
-      DATA[pick.team].cap_spent = (DATA[pick.team].starters||[]).reduce((s,p)=>s+p.salary,0)
-        + (DATA[pick.team].ir||[]).reduce((s,p)=>s+Math.round(p.salary*.75),0);
-      await db.ref(`leagues/${leagueId()}/rosterData`).set(DATA);
+    const t = DATA[pick.team];
+    for (const slot of ['starters', 'taxi']) {
+      const arr = t[slot] || [];
+      const idx = arr.findIndex(p => p.name === pick.player);
+      if (idx > -1) {
+        arr.splice(idx, 1);
+        t.cap_spent = (t.starters||[]).reduce((s,p)=>s+p.salary,0)
+          + (t.ir||[]).reduce((s,p)=>s+Math.round(p.salary*.75),0);
+        await db.ref(`leagues/${leagueId()}/rosterData`).set(DATA);
+        break;
+      }
     }
   }
 
@@ -867,6 +876,23 @@ async function clearPick(key) {
   delete board[key];
   await loadRookiePlayers();
   renderBoard();
+}
+
+function showSlotData() {
+  const rows = Object.entries(slotOwners)
+    .sort((a,b) => Number(a[0]) - Number(b[0]))
+    .map(([slot, key]) => {
+      const teamName = DATA[key]?.team_name || key;
+      const rid = Object.entries(rosterIdToTeam).find(([,k])=>k===key)?.[0] || '?';
+      return `Slot ${slot}: ${teamName} (key="${key}", roster_id=${rid})`;
+    });
+  const rMap = Object.entries(rosterIdToTeam)
+    .map(([rid, key]) => `  roster_id ${rid} → "${key}" (${DATA[key]?.team_name||'NOT IN DATA'})`).join('\n');
+  alert(
+    `=== Slot Owners (${rows.length}) ===\n${rows.join('\n')}\n\n` +
+    `=== rosterIdToTeam ===\n${rMap}\n\n` +
+    `Draft type: ${draftInfo?.type || '?'} · teams: ${draftInfo?.settings?.teams || '?'}`
+  );
 }
 
 // ── Boot ──────────────────────────────────────────────────────
