@@ -289,7 +289,8 @@ async function init() {
 // slotOwners: { "1": teamKey, "2": teamKey, ... } — who owns each draft slot
 // (pre-draft uses slot_to_roster_id from draft object; in_progress/complete uses picks)
 let slotOwners = {};   // draft slot number (string) → teamKey
-let rosterIdToTeam = {};  // Sleeper roster_id (string) → our teamKey
+let rosterIdToTeam        = {};  // Sleeper roster_id (string) → our teamKey
+let rosterIdToDisplayName = {};  // Sleeper roster_id (string) → display name (fallback)
 
 async function loadRosterMapping() {
   rosterIdToTeam = {};
@@ -310,6 +311,7 @@ async function loadRosterMapping() {
                    : Object.keys(DATA||{}).find(k => k.toLowerCase() === (u.display_name||'').toLowerCase())
                    || username;
       rosterIdToTeam[String(r.roster_id)] = capKey;
+      rosterIdToDisplayName[String(r.roster_id)] = u.display_name || u.username || `Roster ${r.roster_id}`;
       console.log(`Roster ${r.roster_id} → ${capKey} (${u.display_name})`);
     });
   } catch(e) {
@@ -352,7 +354,9 @@ async function refreshDraft() {
     if (draftInfo.slot_to_roster_id) {
       Object.entries(draftInfo.slot_to_roster_id).forEach(([slot, rid]) => {
         const teamKey = rosterIdToTeam[String(rid)];
-        slotOwners[String(slot)] = teamKey || `roster_${rid}`;
+        // Use cap team key if matched, otherwise fall back to Sleeper display name
+        slotOwners[String(slot)] = teamKey || rosterIdToDisplayName[String(rid)] || `roster_${rid}`;
+        console.log(`Slot ${slot} → rid ${rid} → ${slotOwners[String(slot)]}`);
       });
     }
 
@@ -588,7 +592,10 @@ function renderBoard() {
       const assigned = !!pick.player;
       // Who currently OWNS this slot (after trades), from slot_to_roster_id
       const ownerKey  = slotOwners[String(p)] || null;
-      const ownerName = ownerKey ? (DATA[ownerKey]?.team_name || ownerKey) : null;
+      // ownerKey may be a DATA key (username) or a Sleeper display name fallback
+      const ownerName = ownerKey
+        ? (DATA[ownerKey]?.team_name || ownerKey)  // use team_name if in DATA, else show as-is
+        : null;
       const isSleeper = pick.sleeperPick && !pick.team;
       const assignedTeamKey  = pick.team || null;
       const assignedTeamName = assignedTeamKey ? (DATA[assignedTeamKey]?.team_name || assignedTeamKey) : '';
@@ -725,6 +732,15 @@ function selectPickForAssign(key, sal) {
   const avail = rookiePlayers.filter(rk =>
     !rk.taken && !draftedNames.has(rk.name.toLowerCase())
   );
+  // Sort: ranked players first by adp, then alphabetical
+  avail.sort((a, b) => {
+    const ar = a.adp < 999 ? a.adp : null;
+    const br = b.adp < 999 ? b.adp : null;
+    if (ar !== null && br !== null) return ar - br;
+    if (ar !== null) return -1;
+    if (br !== null) return 1;
+    return a.name.localeCompare(b.name);
+  });
   pSel.innerHTML = '<option value="">— select player —</option>' +
     avail.map(rk =>
       `<option value="${rk.name}">${rk.name} · ${rk.pos}${rk.nflTeam!=='—'?' · '+rk.nflTeam:''}${rk.adp<999?' (#'+rk.adp+')':''}</option>`
