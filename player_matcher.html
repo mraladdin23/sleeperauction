@@ -245,9 +245,11 @@ async function loadAndMatch() {
 
     // Step 4: Match each player
     // Build name index for fast exact matching
+    const SKILL = new Set(['QB','RB','WR','TE']);
     const nameIdx = {};
     Object.entries(sleeperDb).forEach(([pid, p]) => {
       if (!p.first_name || !p.last_name) return;
+      if (!p.fantasy_positions?.some(pos => SKILL.has(pos))) return;
       const key = norm(p.first_name + ' ' + p.last_name);
       if (!nameIdx[key]) nameIdx[key] = [];
       nameIdx[key].push({pid, p});
@@ -283,9 +285,10 @@ async function loadAndMatch() {
         bestP = chosen.p;
         bestScore = 1.0;
       } else {
-        // Fuzzy scan
+        // Fuzzy scan — skill positions only
         Object.entries(sleeperDb).forEach(([pid, p]) => {
           if (!p.first_name || !p.last_name) return;
+          if (!p.fantasy_positions?.some(pos => SKILL.has(pos))) return;
           const s = score(rp.name, p.first_name, p.last_name);
           if (s > bestScore) { bestScore = s; bestPid = pid; bestP = p; }
         });
@@ -393,6 +396,7 @@ function renderTable() {
       const alts = Object.entries(sleeperDb)
         .map(([pid,p]) => {
           if (!p.first_name||!p.last_name) return null;
+          if (!p.fantasy_positions?.some(pos => SKILL.has(pos))) return null;
           const s = score(rp.name, p.first_name, p.last_name);
           return {pid, name:`${p.first_name} ${p.last_name}`, team:p.team||'', pos:p.fantasy_positions?.[0]||'', s};
         })
