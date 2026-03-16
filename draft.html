@@ -190,33 +190,47 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
           </div>
         </div>
 
-        <div id="assign-panel" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-top:12px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-            <div style="font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);">Assign Pick</div>
-            <button onclick="showSlotData()" style="font-size:10px;padding:2px 8px;background:none;border:1px solid var(--border);border-radius:4px;color:var(--text3);cursor:pointer;font-family:var(--font-body);">🔍 Show Data</button>
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-top:12px;overflow:hidden;">
+          <!-- Tab bar -->
+          <div style="display:flex;border-bottom:1px solid var(--border);">
+            <button id="tab-assign" onclick="switchDraftTab('assign')"
+              style="flex:1;padding:9px 6px;font-size:12px;font-weight:600;font-family:var(--font-body);background:var(--accent);color:#fff;border:none;cursor:pointer;">
+              ✎ Assign Pick
+            </button>
+            <button id="tab-order" onclick="switchDraftTab('order')"
+              style="flex:1;padding:9px 6px;font-size:12px;font-weight:600;font-family:var(--font-body);background:var(--surface2);color:var(--text3);border:none;border-left:1px solid var(--border);cursor:pointer;">
+              🔀 Pick Order
+            </button>
           </div>
-            <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin-bottom:10px;">Assign Pick</div>
+
+          <!-- Assign Pick panel -->
+          <div id="assign-panel" style="padding:12px;">
             <div style="display:flex;gap:6px;margin-bottom:6px;">
-              <select id="assign-round-sel" onchange="onAssignRoundOrSlotChange()" style="flex:1;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;">
-                <option value="">Rd</option>
-                <option value="1">Round 1</option>
-                <option value="2">Round 2</option>
-                <option value="3">Round 3</option>
-                <option value="4">Round 4</option>
+              <select id="assign-round-sel" onchange="onAssignRoundOrSlotChange()" style="flex:1;width:100%;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;">
+                <option value="">Rd</option><option value="1">Round 1</option><option value="2">Round 2</option><option value="3">Round 3</option><option value="4">Round 4</option>
               </select>
-              <select id="assign-slot-sel" onchange="onAssignRoundOrSlotChange()" style="flex:1;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;">
-                <option value="">Pick</option>
-                <option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option>
+              <select id="assign-slot-sel" onchange="onAssignRoundOrSlotChange()" style="flex:1;width:100%;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;">
+                <option value="">Pick</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option>
               </select>
             </div>
             <div id="assign-owner-label" style="font-size:11px;color:var(--cyan,#00d4ff);margin-bottom:6px;min-height:16px;"></div>
-            <select id="assign-player-sel" style="width:100%;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;margin-bottom:6px;">
+            <select id="assign-player-sel" style="width:100%;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;margin-bottom:6px;">
               <option value="">— select player —</option>
             </select>
-            <select id="assign-team-sel" style="width:100%;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;margin-bottom:8px;">
+            <select id="assign-team-sel" style="width:100%;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;margin-bottom:8px;">
               <option value="">— assign to team —</option>
             </select>
             <button onclick="doAssignFromPanel()" class="pick-btn" style="width:100%;padding:8px;">✓ Assign to Active Roster</button>
+          </div>
+
+          <!-- Pick Order editor -->
+          <div id="order-panel" style="display:none;padding:12px;">
+            <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">
+              Set who owns each pick slot. Overrides Sleeper's draft order and is saved to Firebase.
+            </div>
+            <div id="order-rows" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;"></div>
+            <button onclick="savePickOrder()" class="pick-btn" style="width:100%;padding:8px;">💾 Save Pick Order</button>
+            <button onclick="showSlotData()" style="width:100%;margin-top:6px;padding:6px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text3);font-size:11px;cursor:pointer;font-family:var(--font-body);">🔍 Show Raw Data</button>
           </div>
         </div>
       </div>
@@ -411,6 +425,17 @@ async function refreshDraft() {
     } else {
       console.warn('No slot_to_roster_id or draft_order found — draft order not set in Sleeper yet');
     }
+
+    // Override with any manually saved pick order from Firebase
+    // (takes precedence over Sleeper API data for traded picks)
+    try {
+      const savedOrder = await db.ref(`leagues/${leagueId()}/draftSlotOwners`).once('value');
+      const saved = savedOrder.val();
+      if (saved && Object.keys(saved).length) {
+        Object.assign(slotOwners, saved);
+        console.log('Loaded saved pick order from Firebase:', saved);
+      }
+    } catch(e) { console.warn('Could not load saved pick order:', e); }
 
     // 3. Fetch actual picks made (empty array for pre_draft, populated otherwise)
     const picks = await fetch(`https://api.sleeper.app/v1/draft/${draftInfo.draft_id}/picks`).then(r=>r.json());
@@ -912,6 +937,81 @@ async function clearPick(key) {
   await loadRookiePlayers();
   renderBoard();
 }
+
+// ── Draft panel tab switching ─────────────────────────────────
+function switchDraftTab(tab) {
+  const isAssign = tab === 'assign';
+  document.getElementById('assign-panel').style.display = isAssign ? '' : 'none';
+  document.getElementById('order-panel').style.display  = isAssign ? 'none' : '';
+  document.getElementById('tab-assign').style.background = isAssign ? 'var(--accent)' : 'var(--surface2)';
+  document.getElementById('tab-assign').style.color      = isAssign ? '#fff' : 'var(--text3)';
+  document.getElementById('tab-order').style.background  = isAssign ? 'var(--surface2)' : 'var(--accent)';
+  document.getElementById('tab-order').style.color       = isAssign ? 'var(--text3)' : '#fff';
+  if (!isAssign) renderOrderPanel();
+}
+
+// ── Pick order editor ─────────────────────────────────────────
+function renderOrderPanel() {
+  const ROUNDS = 4, TEAMS = draftInfo?.settings?.teams || 12;
+  const container = document.getElementById('order-rows');
+  if (!container) return;
+
+  // Build team options once
+  const teamOpts = '<option value="">— owner —</option>' +
+    Object.entries(DATA||{}).map(([k,t]) =>
+      `<option value="${k}">${t.team_name}</option>`
+    ).join('');
+
+  // One row per round × slot
+  const sel = 'padding:4px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-body);font-size:11px;outline:none;flex:1;';
+  let rows = '';
+  for (let r = 1; r <= ROUNDS; r++) {
+    rows += `<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);letter-spacing:.4px;margin:6px 0 3px;">Round ${r}</div>`;
+    for (let p = 1; p <= TEAMS; p++) {
+      const current = slotOwners[String(p)] || '';
+      // For snake drafts even rounds reverse
+      const isDraftSnake = draftInfo?.settings?.reversal_round > 0 || draftInfo?.type === 'snake';
+      const effectiveSlot = (isDraftSnake && r % 2 === 0) ? String(TEAMS + 1 - p) : String(p);
+      const owner = slotOwners[effectiveSlot] || '';
+      const opts = teamOpts.replace(`value="${owner}"`, `value="${owner}" selected`);
+      rows += `<div style="display:flex;align-items:center;gap:6px;">
+        <span style="font-size:11px;font-family:var(--font-mono);color:var(--text3);min-width:32px;">${r}.${String(p).padStart(2,'0')}</span>
+        <select data-round="${r}" data-pick="${p}" style="${sel}">${opts}</select>
+      </div>`;
+    }
+  }
+  container.innerHTML = rows;
+}
+
+async function savePickOrder() {
+  const TEAMS = draftInfo?.settings?.teams || 12;
+  const isDraftSnake = draftInfo?.settings?.reversal_round > 0 || draftInfo?.type === 'snake';
+
+  // Read all selects and update slotOwners
+  document.querySelectorAll('#order-rows select').forEach(sel => {
+    const r = Number(sel.dataset.round);
+    const p = Number(sel.dataset.pick);
+    const teamKey = sel.value;
+    if (!teamKey) return;
+    // For snake even rounds, the slot number is reversed
+    const slot = (isDraftSnake && r % 2 === 0) ? String(TEAMS + 1 - p) : String(p);
+    slotOwners[slot] = teamKey;
+  });
+
+  // Save to Firebase so it persists
+  if (leagueId()) {
+    await db.ref(`leagues/${leagueId()}/draftSlotOwners`).set(slotOwners);
+  }
+
+  renderBoard();
+  // Also refresh the assign panel's team dropdown if a pick is selected
+  onAssignRoundOrSlotChange();
+
+  const btn = event.target;
+  btn.textContent = '✅ Saved!';
+  setTimeout(() => { btn.textContent = '💾 Save Pick Order'; }, 2000);
+}
+
 
 function showSlotData() {
   const rows = Object.entries(slotOwners)
