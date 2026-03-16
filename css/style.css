@@ -484,13 +484,62 @@ input[type="number"] { -moz-appearance: textfield; }
 .tab-content.active { display: block; }
 
 /* MOBILE */
+/* TOPBAR ICON BUTTONS */
+.topbar-icon-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  color: var(--text2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .15s;
+  line-height: 1;
+  text-decoration: none;
+}
+.topbar-icon-btn:hover { background: var(--surface2); }
+
+/* NAV DROPDOWN (mobile only — hidden on desktop) */
+.nav-dropdown-wrap { display: none; }
+.nav-dropdown {
+  width: 100%;
+  padding: 10px 14px;
+  background: var(--surface2);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239296a8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  padding-right: 36px;
+}
+
 @media (max-width: 600px) {
-  .topbar { padding: 0 12px; }
-  .main { padding: 16px 12px 80px; }
+  .topbar { padding: 0 12px; height: 50px; }
+  .topbar-logo { font-size: 20px; }
+  .league-badge { max-width: 90px; font-size: 11px; padding: 3px 8px; }
+  .main { padding: 14px 10px 80px; }
   .auction-grid { grid-template-columns: 1fr; }
-  .league-badge { max-width: 100px; }
-  .nav-tabs { padding: 10px 12px 0; }
   .login-card { padding: 28px 20px; }
+
+  /* Hide tab bar, show dropdown */
+  .nav-tabs { display: none; }
+  .nav-dropdown-wrap { display: block; }
+
+  /* Card buttons wrap to second line instead of overflowing */
+  .card-bot { flex-wrap: wrap; gap: 6px; padding: 10px 12px; }
+  .card-bot .btn-primary { margin-left: 0 !important; }
+}
 }
 
 /* PAUSE BANNER */
