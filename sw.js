@@ -1,42 +1,45 @@
 // SleeperBid Service Worker
-// !! Bump this version string every time you deploy changes !!
-// Format: 'sleeperbid-YYYY-MM-DD-N' (N = deploy count that day)
-const CACHE = 'sleeperbid-2026-01-01-1';
+// Cache version is stamped by deploy.sh at deploy time — do not edit manually.
+const CACHE = 'sleeperbid-__TIMESTAMP__';
 
 const STATIC = [
   '/icons/icon-192.png',
   '/icons/icon-512.png',
 ];
 
-// Install: only cache icons (not JS/CSS — those always fetch fresh)
+// Install: cache icons, skip waiting so new SW activates immediately
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE).then(c => c.addAll(STATIC)).then(() => self.skipWaiting())
+    caches.open(CACHE)
+      .then(c => c.addAll(STATIC))
+      .then(() => self.skipWaiting())
   );
 });
 
-// Activate: clear ALL old caches, take control immediately
+// Activate: delete ALL old caches, claim all clients immediately
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys()
-      .then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+      .then(keys => Promise.all(
+        keys.filter(k => k !== CACHE).map(k => caches.delete(k))
+      ))
       .then(() => self.clients.claim())
   );
 });
 
 // Fetch strategy:
-//  - JS, CSS, HTML  → network-first (always get latest, fall back to cache if offline)
-//  - Firebase/API   → network only (never cache live data)
-//  - Icons          → cache-first (never change)
+//   Live data (Firebase, Sleeper API, CDN fonts) → network only, never cache
+//   App code (JS, CSS, HTML)                     → network-first, cache as fallback
+//   Icons / static assets                        → cache-first
 self.addEventListener('fetch', e => {
   const url = e.request.url;
 
-  // Live data — never cache
+  // Never cache live data
   if (
-    url.includes('firebaseio.com') ||
-    url.includes('firebase.google') ||
-    url.includes('sleeper.app') ||
-    url.includes('sleepercdn.com') ||
+    url.includes('firebaseio.com')       ||
+    url.includes('firebase.google')      ||
+    url.includes('sleeper.app')          ||
+    url.includes('sleepercdn.com')       ||
     url.includes('fonts.googleapis.com') ||
     url.includes('fonts.gstatic.com')
   ) {
@@ -44,8 +47,13 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // App code — network-first so deploys are always picked up
-  if (url.endsWith('.js') || url.endsWith('.css') || url.endsWith('.html') || url.endsWith('/')) {
+  // App code — network-first so every deploy is picked up immediately
+  if (
+    url.endsWith('.js')   ||
+    url.endsWith('.css')  ||
+    url.endsWith('.html') ||
+    url.endsWith('/')
+  ) {
     e.respondWith(
       fetch(e.request)
         .then(res => {
@@ -60,8 +68,9 @@ self.addEventListener('fetch', e => {
     return;
   }
 
-  // Icons etc. — cache-first
+  // Icons and other static assets — cache-first
   e.respondWith(
-    caches.match(e.request).then(cached => cached || fetch(e.request))
+    caches.match(e.request)
+      .then(cached => cached || fetch(e.request))
   );
 });
