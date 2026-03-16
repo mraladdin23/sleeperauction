@@ -153,18 +153,25 @@ function getAge(birthDate) {
   if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
   return age;
 }
-function ageBadge(birthDateOrName) {
-  // Accept either a birth_date string (YYYY-MM-DD) or a player name to look up
-  let birthDate = birthDateOrName;
-  if (birthDate && !/^\d{4}-\d{2}-\d{2}/.test(birthDate)) {
-    // Not a date format — treat as player name and look up
-    birthDate = (PLAYER_LOOKUP[birthDate.toLowerCase()] || {}).birth_date || null;
-  }
-  const age = getAge(birthDate);
-  if (!age) return '';
-  const clr = age >= 30 ? 'var(--red)' : age >= 28 ? 'var(--yellow)' : 'var(--text3)';
-  const bg  = age >= 30 ? 'rgba(255,77,106,.12)' : age >= 28 ? 'rgba(255,201,77,.12)' : 'transparent';
-  return `<span style="font-size:10px;color:${clr};background:${bg};border-radius:3px;padding:0 4px;margin-left:4px;">${age}yo</span>`;
+function ageBadge(name) {
+  // Look up age from PLAYER_LOOKUP (populated from Sleeper DB or playerIdMap)
+  const lk = PLAYER_LOOKUP[(name||'').toLowerCase()] || {};
+  // Use integer age field directly; fall back to calculating from birth_date
+  let age = lk.age != null ? Number(lk.age) : getAge(lk.birth_date);
+  if (!age || age < 18 || age > 55) return '';
+  const clr = age >= 32 ? 'var(--red)'
+            : age >= 30 ? 'rgba(255,130,80,1)'   // orange-red
+            : age >= 28 ? 'var(--yellow)'
+            : 'var(--text3)';
+  const bg  = age >= 32 ? 'rgba(255,77,106,.15)'
+            : age >= 30 ? 'rgba(255,130,80,.12)'
+            : age >= 28 ? 'rgba(255,201,77,.12)'
+            : 'transparent';
+  const title = age >= 32 ? 'Age concern — consider cap exposure'
+              : age >= 30 ? 'Entering decline window'
+              : age >= 28 ? 'Prime, approaching 30'
+              : '';
+  return `<span style="font-size:10px;color:${clr};background:${bg};border-radius:3px;padding:0 4px;margin-left:4px;cursor:default;" title="${title}">${age}yo</span>`;
 }
 
 const fmtM    = n => n>=1e6?'$'+(n/1e6).toFixed(1)+'M':n>=1e3?'$'+(n/1e3).toFixed(0)+'K':'$'+n;
@@ -720,12 +727,27 @@ function renderTaxi() {
         </div>
         ${players.map(p => {
           const promo = (promos[key]||{})[p.name];
-          const ye = p.years_exp != null ? p.years_exp : null;
+          // years_exp: use stored value first, then PLAYER_LOOKUP from Sleeper
+          const lk = PLAYER_LOOKUP[p.name.toLowerCase()] || {};
+          const yeStored = p.years_exp != null ? Number(p.years_exp) : null;
+          const yeLookup = lk.years_exp != null ? Number(lk.years_exp) : null;
+          const ye = yeStored ?? yeLookup;  // prefer stored (manually set) over lookup
+          const playerAge = lk.age != null ? Number(lk.age) : null;
+
           let gradBadge = '';
           if (ye != null) {
-            if (ye >= 3) gradBadge = '<span style="font-size:10px;background:rgba(255,77,106,.15);color:var(--red);border-radius:4px;padding:1px 6px;margin-left:5px;">Must promote — Yr ' + ye + '</span>';
-            else if (ye === 2) gradBadge = '<span style="font-size:10px;background:rgba(255,201,77,.15);color:var(--yellow);border-radius:4px;padding:1px 6px;margin-left:5px;">Last year (Yr 2)</span>';
-            else gradBadge = '<span style="font-size:10px;color:var(--text3);margin-left:5px;">Yr ' + ye + '</span>';
+            if (ye >= 3)
+              gradBadge = `<span style="font-size:10px;background:rgba(255,77,106,.15);color:var(--red);border-radius:4px;padding:1px 6px;margin-left:5px;">🚨 Must promote — Yr ${ye}</span>`;
+            else if (ye === 2)
+              gradBadge = `<span style="font-size:10px;background:rgba(255,201,77,.15);color:var(--yellow);border-radius:4px;padding:1px 6px;margin-left:5px;">⚠️ Last year (Yr 2)</span>`;
+            else if (ye === 1)
+              gradBadge = `<span style="font-size:10px;color:var(--text3);margin-left:5px;">Yr 1 of 2</span>`;
+            else
+              gradBadge = `<span style="font-size:10px;color:var(--text3);margin-left:5px;">Yr 0 (rookie)</span>`;
+          } else if (playerAge != null) {
+            // No years_exp set — infer urgency from age
+            if (playerAge >= 24)
+              gradBadge = `<span style="font-size:10px;background:rgba(255,201,77,.1);color:var(--yellow);border-radius:4px;padding:1px 6px;margin-left:5px;" title="Age ${playerAge} — check eligibility">⚠️ Check yr (age ${playerAge})</span>`;
           }
           return `<div class="taxi-row">
             <div class="taxi-info">
