@@ -19,6 +19,7 @@ let tab  = 'overview';
 let rosterFilter = 'all';
 let editCtx = null;
 let offseasonMode = false;  // toggled by commissioner
+let PLAYER_LOOKUP = {};     // name.toLowerCase() -> {birth_date, ...} from Sleeper cache
 let holdouts = {};
 let promos   = {};
 let _promoTarget = null;
@@ -36,6 +37,20 @@ function subscribeRosters() {
     if (cfg.cap) CAP = cfg.cap;
     if (cfg.offseason) offseasonMode = cfg.offseason;
   }).catch(()=>{});
+
+  // Build player name lookup from cached Sleeper DB for age badges
+  try {
+    const cached = localStorage.getItem('sb_players');
+    if (cached) {
+      const players = JSON.parse(cached);
+      Object.values(players).forEach(p => {
+        if (p.first_name && p.last_name) {
+          const key = `${p.first_name} ${p.last_name}`.toLowerCase();
+          PLAYER_LOOKUP[key] = { birth_date: p.birth_date || null };
+        }
+      });
+    }
+  } catch(e) {}
 
   rosterRef().on('value', snap => {
     const fbData = snap.val();
@@ -112,11 +127,18 @@ function getAge(birthDate) {
   if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
   return age;
 }
-function ageBadge(birthDate) {
+function ageBadge(birthDateOrName) {
+  // Accept either a birth_date string (YYYY-MM-DD) or a player name to look up
+  let birthDate = birthDateOrName;
+  if (birthDate && !/^\d{4}-\d{2}-\d{2}/.test(birthDate)) {
+    // Not a date format — treat as player name and look up
+    birthDate = (PLAYER_LOOKUP[birthDate.toLowerCase()] || {}).birth_date || null;
+  }
   const age = getAge(birthDate);
   if (!age) return '';
   const clr = age >= 30 ? 'var(--red)' : age >= 28 ? 'var(--yellow)' : 'var(--text3)';
-  return `<span style="font-size:10px;color:${clr};margin-left:5px;">${age}</span>`;
+  const bg  = age >= 30 ? 'rgba(255,77,106,.12)' : age >= 28 ? 'rgba(255,201,77,.12)' : 'transparent';
+  return `<span style="font-size:10px;color:${clr};background:${bg};border-radius:3px;padding:0 4px;margin-left:4px;">${age}yo</span>`;
 }
 
 const fmtM    = n => n>=1e6?'$'+(n/1e6).toFixed(1)+'M':n>=1e3?'$'+(n/1e3).toFixed(0)+'K':'$'+n;
@@ -179,7 +201,8 @@ function renderOverview() {
       if(cnt===1) return `<span class="scar-one">${pos}:1</span>`;
       return '';
     }).filter(Boolean).join('');
-    return `<div class="ov-card" onclick="openTeamPanel('${key}')" style="cursor:pointer;">
+    return `<div class="ov-card" onclick="openTeamPanel('${key}')" style="cursor:pointer;${sp>CAP?'border-color:var(--red);':''}">
+      ${sp>CAP ? `<div style="background:rgba(255,77,106,.12);border-bottom:1px solid rgba(255,77,106,.3);padding:4px 12px;font-size:11px;font-weight:600;color:var(--red);">⚠️ OVER CAP by ${fmtM(sp-CAP)}</div>` : ''}
       <div class="ov-header">
         <div><div class="ov-name">${t.team_name}</div><div class="ov-user">${key}</div></div>
         <div style="text-align:right;">
@@ -187,7 +210,7 @@ function renderOverview() {
           <div style="font-size:10px;color:var(--text3);">cap used</div>
         </div>
       </div>
-      <div class="cap-bar"><div class="cap-bar-fill" style="width:${(sp/CAP*100).toFixed(1)}%;background:${clr};"></div></div>
+      <div class="cap-bar"><div class="cap-bar-fill" style="width:${Math.min((sp/CAP*100),100).toFixed(1)}%;background:${clr};"></div></div>
       <div class="ov-money">
         <span><strong style="color:${clr};">${fmtM(sp)}</strong> spent</span>
         <span><strong style="color:var(--green);">${fmtM(av)}</strong> avail</span>
@@ -266,7 +289,7 @@ function renderRosters() {
         const hoBtn=comm?`<button class="act-btn" onclick="toggleHoldout('${key}','${p.name.replace(/'/g,"\\'")}')" title="${ho?'Remove holdout':'Flag holdout'}">${ho?'🔥':'🏳'}</button>`:'';
         const editBtn=comm?`<td class="act-cell">${hoBtn}<button class="act-btn" onclick="openEdit('${key}','starters',${p._idx})">✏️</button></td>`:'';
         return `<tr class="pr">
-          <td>${p.name}${ageBadge(p.birth_date)}${hoBadge}</td>
+          <td>${p.name}${ageBadge(p.name)}${hoBadge}</td>
           <td>${badge(p.pos)}</td>
           <td class="sal-cell"><div>${fmtM(p.salary)}</div>
             <div class="sal-bar"><div class="sal-bar-fill" style="width:${bw}%;background:${POS_COLORS[p.pos]||'var(--text3)'};"></div></div>
@@ -280,7 +303,7 @@ function renderRosters() {
       rows+=`<tr class="sec-row"><td colspan="${comm?3:2}">IR <span style="opacity:.55;font-size:10px;">75% cap</span></td><td class="sec-add">${ab}</td></tr>`;
       rows+=irArr.map((p,i)=>{
         const eb=comm?`<td class="act-cell"><button class="act-btn" onclick="openEdit('${key}','ir',${i})">✏️</button></td>`:'';
-        return `<tr class="pr"><td>${p.name}${ageBadge(p.birth_date)}<span class="ir-note">IR</span></td><td>${badge('IR')}</td><td class="sal-cell">${fmtM(Math.round(p.salary*.75))}</td>${eb}</tr>`;
+        return `<tr class="pr"><td>${p.name}${ageBadge(p.name)}<span class="ir-note">IR</span></td><td>${badge('IR')}</td><td class="sal-cell">${fmtM(Math.round(p.salary*.75))}</td>${eb}</tr>`;
       }).join('');
     } else if(comm){
       rows+=`<tr class="sec-row"><td colspan="3">IR <span style="opacity:.55;font-size:10px;">75% cap</span></td><td class="sec-add"><button class="add-slot-btn" onclick="openAdd('${key}','ir','')">+IR</button></td></tr>`;
@@ -406,13 +429,15 @@ function renderAllPlayers() {
     const wl = JSON.parse(localStorage.getItem('sb_cap_watchlist')||'{}');
     const starred = !!wl[p.name];
     return `<tr>
-      <td style="font-size:13px;padding:8px 14px;">
-        <button onclick="capToggleWatch(${JSON.stringify(p.name)})" style="background:none;border:none;cursor:pointer;font-size:14px;padding:0 6px 0 0;color:${starred?'var(--yellow)':'var(--text3)'};">${starred?'⭐':'☆'}</button>
-        <span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);margin-right:6px;min-width:24px;display:inline-block;text-align:right;">${i+1}</span>${p.name}${ageBadge(p.birth_date)}${hoBadge}${slotBadge}
+      <td style="padding:8px 6px 8px 12px;width:28px;">
+        <button onclick="capToggleWatch(${JSON.stringify(p.name)})" style="background:none;border:none;cursor:pointer;font-size:13px;padding:0;line-height:1;color:${starred?'var(--yellow)':'var(--text3)'};">${starred?'⭐':'☆'}</button>
       </td>
-      <td style="padding:8px 6px;">${p.pos&&p.pos!=='—'?`<span class="pos-badge" style="background:${posClr}22;color:${posClr};">${p.pos}</span>`:'<span style="color:var(--text3);font-size:11px;">—</span>'}</td>
-      <td style="padding:8px 14px;"><span onclick="openTeamPanel('${p.teamKey}')" style="color:var(--text2);cursor:pointer;font-size:12px;">${p.teamName} <span style="color:var(--accent2);font-size:10px;">↗</span></span></td>
-      <td style="text-align:right;font-family:var(--font-mono);font-size:13px;padding:8px 16px;color:${p.slot==='Taxi'?'var(--text3)':p.slot==='IR'?'var(--text2)':'var(--text)'};">${fmtM(p.salary)}${p.rawSal?`<span style="color:var(--text3);font-size:10px;margin-left:4px;">(${fmtM(p.rawSal)})</span>`:''}</td>
+      <td style="font-size:13px;padding:8px 8px 8px 0;">
+        <span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);margin-right:5px;">${i+1}</span>${p.name}${ageBadge(p.name)}${hoBadge}${slotBadge}
+      </td>
+      <td style="padding:8px 6px;white-space:nowrap;">${p.pos&&p.pos!=='—'?`<span class="pos-badge" style="background:${posClr}22;color:${posClr};">${p.pos}</span>`:'<span style="color:var(--text3);font-size:11px;">—</span>'}</td>
+      <td style="padding:8px 10px;white-space:nowrap;"><span onclick="openTeamPanel('${p.teamKey}')" style="color:var(--text2);cursor:pointer;font-size:12px;">${p.teamName} <span style="color:var(--accent2);font-size:10px;">↗</span></span></td>
+      <td style="text-align:right;font-family:var(--font-mono);font-size:13px;padding:8px 14px;white-space:nowrap;color:${p.slot==='Taxi'?'var(--text3)':p.slot==='IR'?'var(--text2)':'var(--text)'};">${fmtM(p.salary)}${p.rawSal?`<span style="color:var(--text3);font-size:10px;margin-left:4px;">(${fmtM(p.rawSal)})</span>`:''}</td>
     </tr>`;
   }).join('');
   el.innerHTML = `<div style="padding:16px 0 8px;">
@@ -430,12 +455,14 @@ function renderAllPlayers() {
         <span style="font-size:14px;font-weight:600;">${apPosFilter==='ALL'?'All Rostered Players':apPosFilter+' Players'}${apSearch?' · "'+apSearch+'"':''}</span>
         <span style="font-size:12px;color:var(--text3);">${filtered.length} players${apPosFilter!=='ALL'&&!apSearch?' · '+fmtM(totalSal)+' total cap':''}</span>
       </div>
-      ${filtered.length?`<table style="width:100%;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);">
-        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 6px;text-align:left;font-weight:500;width:30px;">⭐</th>
-        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 14px;text-align:left;font-weight:500;">Player</th>
+      ${filtered.length?`<table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+        <colgroup><col style="width:32px"/><col/><col style="width:44px"/><col style="width:140px"/><col style="width:100px"/></colgroup>
+        <thead><tr style="border-bottom:1px solid var(--border);">
+        <th style="font-size:10px;color:var(--text3);padding:7px 6px;text-align:left;font-weight:500;">⭐</th>
+        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 8px 7px 0;text-align:left;font-weight:500;">Player</th>
         <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 6px;text-align:left;font-weight:500;">Pos</th>
-        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 14px;text-align:left;font-weight:500;">Owner</th>
-        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 16px;text-align:right;font-weight:500;">Salary ▼</th>
+        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 10px;text-align:left;font-weight:500;">Owner</th>
+        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 14px;text-align:right;font-weight:500;">Salary ▼</th>
       </tr></thead><tbody>${rows}</tbody></table>`:`<div style="padding:40px;text-align:center;color:var(--text3);">No players found matching "${apSearch}"</div>`}
     </div>
   </div>`;
@@ -624,7 +651,7 @@ function renderTaxi() {
           return `<div class="taxi-row">
             <div class="taxi-info">
               <div class="taxi-pname">
-                ${p.name}${promo ? '<span class="promoted-badge">⬆️ Promoted</span>' : ''}${gradBadge}
+                ${p.name}${ageBadge(p.name)}${promo ? '<span class="promoted-badge">⬆️ Promoted</span>' : ''}${gradBadge}
               </div>
               <div class="taxi-psal">${fmtM(p.salary)}</div>
               ${promo?.note ? `<div class="taxi-pnote">${promo.note}</div>` : ''}
@@ -671,7 +698,7 @@ function renderWatchlist() {
     const ho = (holdouts[p.teamKey]||{})[name];
     return `<tr>
       <td style="padding:9px 14px;font-size:13px;">
-        ${name}${ageBadge(p.birth_date)}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:5px;">🔥</span>':''}
+        ${name}${ageBadge(p.name)}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:5px;">🔥</span>':''}
       </td>
       <td style="padding:9px 6px;">${p.pos?`<span class="pos-badge pb-${p.pos}">${p.pos}</span>`:''}</td>
       <td style="padding:9px 14px;font-size:12px;color:var(--text2);">${p.team_name}</td>
@@ -1161,9 +1188,50 @@ function renderCommish() {
       </tr></thead><tbody>${starterRows}</tbody></table>
     </div>
 
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-top:24px;">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:14px;font-weight:600;">🔄 Process Trade</span>
+        <span style="font-size:12px;color:var(--text3);">Move players between two teams</span>
+      </div>
+      <div style="padding:16px;display:grid;grid-template-columns:1fr 1fr;gap:16px;" id="trade-panel">
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;">Team A</div>
+          <select id="trade-team-a" onchange="tradePopulatePlayers('a')" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:13px;outline:none;margin-bottom:8px;">
+            <option value="">— Select team —</option>
+            ${Object.entries(DATA).map(([k,t])=>`<option value="${k}">${t.team_name}</option>`).join('')}
+          </select>
+          <select id="trade-players-a" multiple style="width:100%;height:140px;padding:6px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;">
+            <option disabled>Select team first</option>
+          </select>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;">Hold Ctrl/Cmd to select multiple</div>
+        </div>
+        <div>
+          <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:8px;">Team B</div>
+          <select id="trade-team-b" onchange="tradePopulatePlayers('b')" style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:13px;outline:none;margin-bottom:8px;">
+            <option value="">— Select team —</option>
+            ${Object.entries(DATA).map(([k,t])=>`<option value="${k}">${t.team_name}</option>`).join('')}
+          </select>
+          <select id="trade-players-b" multiple style="width:100%;height:140px;padding:6px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;">
+            <option disabled>Select team first</option>
+          </select>
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;">Hold Ctrl/Cmd to select multiple</div>
+        </div>
+      </div>
+      <div style="padding:0 16px 16px;">
+        <div id="trade-preview" style="font-size:12px;color:var(--text3);margin-bottom:10px;min-height:20px;"></div>
+        <button onclick="processTrade()" style="padding:8px 20px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-size:13px;font-weight:500;cursor:pointer;font-family:var(--font-body);">Execute Trade</button>
+      </div>
+    </div>
+
   </div>`;
 
   loadRosterIdMap();
+  // Wire trade multi-select preview after render
+  setTimeout(() => {
+    ['a','b'].forEach(side => {
+      document.getElementById(`trade-players-${side}`)?.addEventListener('change', tradeUpdatePreview);
+    });
+  }, 0);
 }
 
 
@@ -1236,6 +1304,13 @@ function openEdit(teamKey,slot,idx){
   const pf=document.getElementById('modal-pos-field');
   if(slot==='starters'){pf.style.display='';document.getElementById('modal-pos').value=p.pos||'WR';}
   else pf.style.display='none';
+  // Years exp field for taxi players
+  const yeRow=document.getElementById('modal-yeexp-row');
+  const yeSel=document.getElementById('modal-yeexp');
+  if(yeRow && yeSel){
+    yeRow.style.display=slot==='taxi'?'':'none';
+    yeSel.value=p.years_exp!=null?String(p.years_exp):'';
+  }
   document.getElementById('edit-modal').style.display='flex';
 }
 function openAdd(teamKey,slot,defaultPos){
@@ -1249,6 +1324,10 @@ function openAdd(teamKey,slot,defaultPos){
   const pf=document.getElementById('modal-pos-field');
   pf.style.display='';
   document.getElementById('modal-pos').value=defaultPos||'WR';
+  // Years exp field
+  const yeRow=document.getElementById('modal-yeexp-row');
+  const yeSel=document.getElementById('modal-yeexp');
+  if(yeRow && yeSel){yeRow.style.display=slot==='taxi'?'':'none';yeSel.value='';}
   document.getElementById('edit-modal').style.display='flex';
 }
 function closeModal(){document.getElementById('edit-modal').style.display='none';editCtx=null;}
@@ -1258,6 +1337,7 @@ async function savePlayer(){
   const salary=parseInt(document.getElementById('modal-salary').value);
   const slot=document.getElementById('modal-slot').value;
   const pos=document.getElementById('modal-pos').value;
+  const yeVal=document.getElementById('modal-yeexp')?.value;
   const errEl=document.getElementById('modal-err');
   if(!name){errEl.textContent='Player name required.';return;}
   if(!salary||salary<0){errEl.textContent='Enter a valid salary.';return;}
@@ -1269,7 +1349,11 @@ async function savePlayer(){
     else if(os==='ir')t.ir.splice(idx,1);
     else if(os==='taxi')t.taxi.splice(idx,1);
   }
-  const player=slot==='starters'?{pos,name,salary}:{name,salary};
+  let player=slot==='starters'?{pos,name,salary}:{name,salary};
+  // Add years_exp for taxi players
+  if(slot==='taxi' && yeVal!==''){
+    player.years_exp=parseInt(yeVal);
+  }
   if(slot==='starters')t.starters.push(player);
   else if(slot==='ir'){if(!t.ir)t.ir=[];t.ir.push(player);}
   else if(slot==='taxi'){if(!t.taxi)t.taxi=[];t.taxi.push(player);}
