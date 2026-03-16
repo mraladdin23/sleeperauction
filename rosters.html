@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="SleeperBid"/>
 <title>Ballers Salary Cap Empire</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
@@ -10,7 +13,8 @@
 <style>
 :root{--bg:#0d0f14;--surface:#161820;--surface2:#1e2029;--surface3:#252733;--border:#2e3040;--border2:#3a3d52;--accent:#7c5cfc;--accent2:#9d7ffe;--green:#18e07a;--red:#ff4d6a;--yellow:#ffc94d;--cyan:#00d4ff;--text:#e8eaf0;--text2:#9296a8;--text3:#5a5e72;--font-display:'Bebas Neue',sans-serif;--font-body:'DM Sans',sans-serif;--font-mono:'JetBrains Mono',monospace;--radius:10px;--radius-sm:6px;}
 *{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;min-height:100vh;}
+html{overflow-x:hidden;overscroll-behavior:none;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;min-height:100vh;overflow-x:hidden;overscroll-behavior:none;}
 ::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-track{background:var(--bg);}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
 
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:54px;background:rgba(22,24,32,.95);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;backdrop-filter:blur(12px);}
@@ -207,7 +211,7 @@ body.light-mode .sec-row td{background:rgba(200,205,225,.4);}
     <span class="last-upd" id="last-upd"></span>
     <button class="tibtn" onclick="window.print()" title="Print">🖨</button>
     <button class="tibtn" id="theme-btn" onclick="toggleTheme()" title="Toggle theme">☀️</button>
-    <a href="index.html" class="tibtn" title="Auctions">🏈</a>
+    <button class="tibtn" onclick="window.location='index.html'" title="Auctions">🏈</button>
   </div>
 </div>
 
