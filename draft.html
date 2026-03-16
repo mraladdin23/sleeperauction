@@ -366,6 +366,17 @@ async function refreshDraft() {
 
     if (!draftInfo) throw new Error('no suitable draft');
 
+    // Log the raw draft object so we can see what Sleeper returned
+    console.log('=== draftInfo ===', JSON.stringify({
+      draft_id: draftInfo.draft_id,
+      type: draftInfo.type,
+      status: draftInfo.status,
+      slot_to_roster_id: draftInfo.slot_to_roster_id,
+      draft_order: draftInfo.draft_order,
+      settings: draftInfo.settings,
+    }, null, 2));
+    console.log('=== rosterIdToTeam ===', JSON.stringify(rosterIdToTeam));
+
     // 2. slot_to_roster_id shows who CURRENTLY owns each slot (post-trade)
     //    Keys are "1".."12", values are roster_id integers
     if (draftInfo.slot_to_roster_id) {
@@ -887,11 +898,15 @@ function showSlotData() {
       return `Slot ${slot}: ${teamName} (key="${key}", roster_id=${rid})`;
     });
   const rMap = Object.entries(rosterIdToTeam)
-    .map(([rid, key]) => `  roster_id ${rid} → "${key}" (${DATA[key]?.team_name||'NOT IN DATA'})`).join('\n');
+    .map(([rid, key]) => `  rid ${rid} → "${key}" (${DATA[key]?.team_name||'NOT IN DATA'})`).join('\n');
+  const rawSlot = JSON.stringify(draftInfo?.slot_to_roster_id || 'MISSING', null, 2);
+  const rawOrder = JSON.stringify(draftInfo?.draft_order || 'MISSING', null, 2);
   alert(
-    `=== Slot Owners (${rows.length}) ===\n${rows.join('\n')}\n\n` +
-    `=== rosterIdToTeam ===\n${rMap}\n\n` +
-    `Draft type: ${draftInfo?.type || '?'} · teams: ${draftInfo?.settings?.teams || '?'}`
+    `=== slotOwners (${rows.length}) ===\n${rows.join('\n') || '(empty)'}\n\n` +
+    `=== raw slot_to_roster_id ===\n${rawSlot}\n\n` +
+    `=== raw draft_order ===\n${rawOrder}\n\n` +
+    `=== rosterIdToTeam (${Object.keys(rosterIdToTeam).length}) ===\n${rMap}\n\n` +
+    `Draft: ${draftInfo?.type || '?'} · status: ${draftInfo?.status || '?'} · teams: ${draftInfo?.settings?.teams || '?'}`
   );
 }
 
