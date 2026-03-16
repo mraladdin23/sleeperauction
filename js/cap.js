@@ -487,8 +487,13 @@ function renderAllPlayers() {
     (t.taxi||[]).forEach(p => { if(p.name) players.push({name:p.name,pos:p.pos||'—',salary:p.salary,slot:'Taxi',teamName:t.team_name,teamKey:key}); });
   });
 
+  const apNflFilter = (document.getElementById('ap-nfl-filter')?.value || '').toUpperCase();
   let filtered = apPosFilter==='ALL' ? players : players.filter(p=>p.pos===apPosFilter);
   if (apSearch) filtered = filtered.filter(p=>p.name.toLowerCase().includes(apSearch));
+  if (apNflFilter) filtered = filtered.filter(p => {
+    const lk = PLAYER_LOOKUP[p.name.toLowerCase()] || {};
+    return (lk.nfl_team || '').toUpperCase() === apNflFilter;
+  });
   filtered.sort((a,b)=>b.salary-a.salary);
   const totalSal = filtered.filter(p=>p.slot==='Active').reduce((s,p)=>s+p.salary,0);
   const stats = apStatsMap || {};
@@ -555,17 +560,23 @@ function renderAllPlayers() {
     </tr>`;
   }).join('');
 
-  // Only build the static shell once — search input stays alive between keystrokes
+  // Only build the static shell once — keeps search input alive between keystrokes
   if (!document.getElementById('ap-rows')) {
     el.innerHTML = `<div style="padding:16px 0 8px;">
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 4px 10px;">
-        <div style="display:flex;gap:6px;" id="ap-chips"></div>
-        <div style="flex:1;min-width:160px;display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;">
-          <span style="color:var(--text3);font-size:13px;">🔍</span>
-          <input id="ap-search-input" type="text" placeholder="Search players…"
-            style="background:none;border:none;outline:none;color:var(--text);font-size:13px;font-family:var(--font-body);width:100%;"
-            oninput="apSearch=this.value.toLowerCase().trim();apRenderRows();" />
-        </div>
+      <div class="fa-search">
+        <span class="search-icon">🔍</span>
+        <input id="ap-search-input" type="text" placeholder="Search players…"
+          oninput="apSearch=this.value.toLowerCase().trim();apRenderRows();" />
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
+        <div class="fa-filters" style="margin-bottom:0;" id="ap-chips"></div>
+        <select id="ap-nfl-filter" onchange="apRenderRows()"
+          style="padding:5px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:12px;font-family:var(--font-body);outline:none;cursor:pointer;">
+          <option value="">All NFL Teams</option>
+          ${['ARI','ATL','BAL','BUF','CAR','CHI','CIN','CLE','DAL','DEN','DET','GB',
+             'HOU','IND','JAX','KC','LAC','LAR','LV','MIA','MIN','NE','NO','NYG',
+             'NYJ','PHI','PIT','SEA','SF','TB','TEN','WAS'].map(t=>`<option value="${t}">${t}</option>`).join('')}
+        </select>
       </div>
       <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
         <div style="padding:9px 14px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">
@@ -592,7 +603,7 @@ function renderAllPlayers() {
 
   // Update pos chips
   const chips = ['ALL','QB','RB','WR','TE'].map(pos=>
-    `<button class="ap-chip${apPosFilter===pos?' active':''}" onclick="apSetPos('${pos}')">${pos==='ALL'?'All':pos}</button>`
+    `<div class="filter-chip${apPosFilter===pos?' active':''}" onclick="apSetPos('${pos}')">${pos==='ALL'?'All':pos}</div>`
   ).join('');
   document.getElementById('ap-chips').innerHTML = chips;
 
