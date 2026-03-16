@@ -452,6 +452,28 @@ function closeTeamPanel() { document.getElementById('team-panel').style.display=
 function renderCommish() {
   if (!isComm()) { document.getElementById('tab-commish').innerHTML='<div style="padding:40px;text-align:center;color:var(--text3);">Commissioner only.</div>'; return; }
   const el = document.getElementById('tab-commish');
+
+  // Roster ID mapping rows
+  const savedMap = window._rosterIdMap || {};
+  let mapRows = Object.keys(DATA).map(key => {
+    const t = DATA[key];
+    const savedId = savedMap[key] || '';
+    return `<tr>
+      <td style="padding:8px 14px;">
+        <div style="font-size:13px;font-weight:500;">${t.team_name}</div>
+        <div style="font-size:11px;color:var(--text3);">${key}</div>
+      </td>
+      <td style="padding:8px 14px;" id="maprow-dispname-${key}">
+        <span style="font-size:12px;color:var(--text3);">—</span>
+      </td>
+      <td style="padding:8px 14px;">
+        <input id="maprow-input-${key}" type="number" value="${savedId}"
+          placeholder="e.g. 3"
+          style="width:80px;padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-mono);font-size:13px;outline:none;"/>
+      </td>
+    </tr>`;
+  }).join('');
+
   let taxiRows='';
   Object.entries(DATA).forEach(([key,t])=>{
     const taxiArr=(t.taxi||[]).filter(p=>p.name);
@@ -469,11 +491,15 @@ function renderCommish() {
           </select>
         </td>
         <td style="padding:8px 6px;font-family:var(--font-mono);font-size:12px;color:var(--text3);">${fmtM(p.salary)}</td>
-        <td style="padding:8px 6px;">${!promo?`<button onclick="commPromote('${key}',${ti})" style="font-size:11px;padding:3px 9px;border:1px solid rgba(24,224,122,.3);border-radius:4px;background:none;color:var(--green);cursor:pointer;font-family:var(--font-body);">⬆️ Promote</button>`:`<span style="font-size:11px;color:var(--green);">⬆️ Promoted</span> <button onclick="commUndoPromo('${key}','${p.name.replace(/'/g,"\\'")}'" style="font-size:11px;padding:3px 7px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text3);cursor:pointer;margin-left:4px;">↩</button>`}</td>
-        <td style="padding:8px 14px;text-align:right;"><button onclick="openEdit('${key}','taxi',${ti})" style="font-size:12px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text2);cursor:pointer;">✏️ Edit</button></td>
+        <td style="padding:8px 6px;">${!promo
+          ? `<button onclick="commPromote('${key}',${ti})" style="font-size:11px;padding:3px 9px;border:1px solid rgba(24,224,122,.3);border-radius:4px;background:none;color:var(--green);cursor:pointer;font-family:var(--font-body);">\u2b06\ufe0f Promote</button>`
+          : `<span style="font-size:11px;color:var(--green);">\u2b06\ufe0f Promoted</span> <button onclick="commUndoPromo('${key}','${p.name.replace(/'/g,"\\'")}'" style="font-size:11px;padding:3px 7px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text3);cursor:pointer;margin-left:4px;">\u21a9</button>`
+        }</td>
+        <td style="padding:8px 14px;text-align:right;"><button onclick="openEdit('${key}','taxi',${ti})" style="font-size:12px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text2);cursor:pointer;">\u270f\ufe0f Edit</button></td>
       </tr>`;
     });
   });
+
   let starterRows='';
   Object.entries(DATA).forEach(([key,t])=>{
     const starters=t.starters||[];
@@ -484,18 +510,45 @@ function renderCommish() {
       const idx=t.starters.findIndex(s=>s.name===p.name&&s.pos===p.pos&&s.salary===p.salary);
       const ho=(holdouts[key]||{})[p.name];
       starterRows+=`<tr>
-        <td style="padding:7px 14px;font-size:13px;">${p.name}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:5px;">🔥</span>':''}</td>
+        <td style="padding:7px 14px;font-size:13px;">${p.name}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:5px;">\ud83d\udd25</span>':''}</td>
         <td style="padding:7px 6px;"><span style="background:${(POS_COLORS[p.pos]||'#888')}22;color:${POS_COLORS[p.pos]||'var(--text3)'};padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;">${p.pos}</span></td>
         <td style="padding:7px 6px;font-family:var(--font-mono);font-size:12px;">${fmtM(p.salary)}</td>
-        <td style="padding:7px 6px;"><button onclick="toggleHoldout('${key}','${p.name.replace(/'/g,"\\'")}')" style="font-size:12px;padding:3px 8px;border:1px solid ${ho?'rgba(255,201,77,.4)':'var(--border)'};border-radius:4px;background:none;color:${ho?'var(--yellow)':'var(--text3)'};cursor:pointer;">${ho?'🔥 Remove':'🏳 Flag'}</button></td>
-        <td style="padding:7px 14px;text-align:right;"><button onclick="openEdit('${key}','starters',${idx})" style="font-size:12px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text2);cursor:pointer;">✏️ Edit</button></td>
+        <td style="padding:7px 6px;"><button onclick="toggleHoldout('${key}','${p.name.replace(/'/g,"\\'")}'" style="font-size:12px;padding:3px 8px;border:1px solid ${ho?'rgba(255,201,77,.4)':'var(--border)'};border-radius:4px;background:none;color:${ho?'var(--yellow)':'var(--text3)'};cursor:pointer;">${ho?'\ud83d\udd25 Remove':'\ud83c\udff3\ufe0f Flag'}</button></td>
+        <td style="padding:7px 14px;text-align:right;"><button onclick="openEdit('${key}','starters',${idx})" style="font-size:12px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text2);cursor:pointer;">\u270f\ufe0f Edit</button></td>
       </tr>`;
     });
   });
+
   el.innerHTML=`<div style="padding:16px 0;">
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px;">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+        <div>
+          <span style="font-size:14px;font-weight:600;">\ud83d\udd17 Roster ID Mapping</span>
+          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Link each username to their Sleeper roster ID so open spots stay in sync on the auction page</div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button onclick="commFetchRosterIds()" style="padding:7px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);font-size:12px;cursor:pointer;font-family:var(--font-body);">\ud83d\udd04 Auto-fetch from Sleeper</button>
+          <button onclick="commSaveRosterMap()" style="padding:7px 14px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-size:12px;cursor:pointer;font-family:var(--font-body);">\ud83d\udcbe Save Mapping</button>
+        </div>
+      </div>
+      <div style="font-size:11px;color:var(--text3);padding:8px 16px;background:rgba(124,92,252,.06);border-bottom:1px solid var(--border);">
+        Or find IDs manually at: <a href="https://api.sleeper.app/v1/league/${leagueId()}/rosters" target="_blank" style="color:var(--accent2);font-family:var(--font-mono);">api.sleeper.app/v1/league/${leagueId()}/rosters</a>
+      </div>
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="border-bottom:1px solid var(--border);">
+          <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:500;">Cap Username / Team</th>
+          <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:500;">Sleeper Display Name</th>
+          <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:500;">Roster ID</th>
+        </tr></thead>
+        <tbody>${mapRows}</tbody>
+      </table>
+      <div id="map-status" style="padding:8px 16px;font-size:12px;color:var(--green);min-height:28px;"></div>
+    </div>
+
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px;">
       <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">
-        <span style="font-size:14px;font-weight:600;">🚕 Taxi Squad — Set Positions &amp; Promote</span>
+        <span style="font-size:14px;font-weight:600;">\ud83d\ude95 Taxi Squad \u2014 Set Positions &amp; Promote</span>
         <span style="font-size:12px;color:var(--text3);">Positions save instantly to Firebase</span>
       </div>
       <table style="width:100%;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);">
@@ -506,9 +559,10 @@ function renderCommish() {
         <th></th>
       </tr></thead><tbody>${taxiRows}</tbody></table>
     </div>
+
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
       <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">
-        <span style="font-size:14px;font-weight:600;">🏈 Active Rosters — Edit &amp; Holdouts</span>
+        <span style="font-size:14px;font-weight:600;">\ud83c\udfc8 Active Rosters \u2014 Edit &amp; Holdouts</span>
         <span style="font-size:12px;color:var(--text3);">Click ✏️ to edit salary/position/name</span>
       </div>
       <table style="width:100%;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);">
@@ -519,8 +573,98 @@ function renderCommish() {
         <th></th>
       </tr></thead><tbody>${starterRows}</tbody></table>
     </div>
+
   </div>`;
+
+  loadRosterIdMap();
 }
+
+async function loadRosterIdMap() {
+  if (!leagueId()) return;
+  try {
+    const snap = await db.ref(`leagues/${leagueId()}/usernameToRosterId`).once('value');
+    const map  = snap.val() || {};
+    window._rosterIdMap = {};
+    // map is stored as { username: roster_id }
+    Object.entries(map).forEach(([uname, rid]) => {
+      window._rosterIdMap[uname] = rid;
+      const inp = document.getElementById(`maprow-input-${uname}`);
+      if (inp) inp.value = rid;
+    });
+    // Also try to show display names from the reverse lookup
+    await commRefreshDisplayNames(map);
+  } catch(e) { /* non-fatal */ }
+}
+
+async function commRefreshDisplayNames(map) {
+  if (!leagueId()) return;
+  try {
+    const [rosters, users] = await Promise.all([
+      fetch(`https://api.sleeper.app/v1/league/${leagueId()}/rosters`).then(r=>r.json()),
+      fetch(`https://api.sleeper.app/v1/league/${leagueId()}/users`).then(r=>r.json()),
+    ]);
+    const userMap = {};
+    users.forEach(u => { userMap[u.user_id] = u; });
+    const rosterUserMap = {};
+    rosters.forEach(r => { rosterUserMap[r.roster_id] = userMap[r.owner_id] || {}; });
+    // Match DATA keys to roster IDs via the saved map
+    Object.entries(map).forEach(([uname, rid]) => {
+      const u = rosterUserMap[rid];
+      const dispName = u?.display_name || u?.username || '';
+      const el = document.getElementById(`maprow-dispname-${uname}`);
+      if (el && dispName) el.innerHTML = `<span style="font-size:12px;color:var(--text2);">${dispName}</span>`;
+    });
+  } catch(e) { /* non-fatal */ }
+}
+
+async function commFetchRosterIds() {
+  if (!leagueId()) { showToast('No league ID found', 'error'); return; }
+  const status = document.getElementById('map-status');
+  if (status) status.textContent = 'Fetching from Sleeper...';
+  try {
+    const [rosters, users] = await Promise.all([
+      fetch(`https://api.sleeper.app/v1/league/${leagueId()}/rosters`).then(r=>r.json()),
+      fetch(`https://api.sleeper.app/v1/league/${leagueId()}/users`).then(r=>r.json()),
+    ]);
+    const userMap = {};
+    users.forEach(u => { userMap[u.user_id] = u; });
+    let matched = 0;
+    rosters.forEach(r => {
+      const u = userMap[r.owner_id] || {};
+      const sleeperUsername = (u.username || '').toLowerCase();
+      // Try to match against DATA keys (also lowercased)
+      const dataKey = Object.keys(DATA).find(k => k.toLowerCase() === sleeperUsername);
+      if (dataKey) {
+        const inp = document.getElementById(`maprow-input-${dataKey}`);
+        if (inp) inp.value = r.roster_id;
+        const dispEl = document.getElementById(`maprow-dispname-${dataKey}`);
+        if (dispEl) dispEl.innerHTML = `<span style="font-size:12px;color:var(--text2);">${u.display_name || u.username}</span>`;
+        matched++;
+      }
+    });
+    if (status) status.textContent = `Matched ${matched} of ${Object.keys(DATA).length} teams. Review and click Save.`;
+  } catch(e) {
+    if (status) status.textContent = 'Fetch failed: ' + e.message;
+  }
+}
+
+async function commSaveRosterMap() {
+  if (!leagueId()) return;
+  const map = {};
+  Object.keys(DATA).forEach(key => {
+    const inp = document.getElementById(`maprow-input-${key}`);
+    const val = inp ? parseInt(inp.value) : NaN;
+    if (!isNaN(val) && val > 0) map[key] = val;
+  });
+  await db.ref(`leagues/${leagueId()}/usernameToRosterId`).set(map);
+  window._rosterIdMap = map;
+  // Immediately sync roster sizes with the new map
+  await syncRosterSizes();
+  const status = document.getElementById('map-status');
+  if (status) status.textContent = `✅ Saved ${Object.keys(map).length} mappings and synced roster sizes.`;
+  showToast('Roster mapping saved & synced!', 'success');
+}
+
 async function commSetTaxiPos(teamKey,idx,pos){
   if(!DATA[teamKey]?.taxi?.[idx])return;
   DATA[teamKey].taxi[idx].pos=pos||undefined;
