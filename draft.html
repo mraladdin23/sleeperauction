@@ -124,6 +124,12 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
     <div class="app-btn current">
       <span class="app-btn-icon">🎓</span><span>Rookie Draft</span>
     </div>
+    <button class="app-btn" style="opacity:.4;cursor:not-allowed;" title="Coming soon">
+      <span class="app-btn-icon">📅</span><span>Schedule</span>
+    </button>
+    <button class="app-btn" style="opacity:.4;cursor:not-allowed;" title="Coming soon">
+      <span class="app-btn-icon">🏆</span><span>Standings</span>
+    </button>
   </div>
   <div class="app-bar-right">
     <div class="avatar" id="cap-avatar" title="Logged in user"></div>
@@ -263,39 +269,58 @@ async function refreshDraft() {
   try {
     const drafts = await fetch(`https://api.sleeper.app/v1/league/${leagueId()}/drafts`).then(r=>r.json());
     if (drafts?.length) {
+      // Prefer rookie/linear; never use startup
       const d = drafts.find(d => d.type === 'rookie' || d.type === 'linear')
              || drafts.find(d => d.type !== 'startup')
              || drafts[drafts.length - 1];
       if (d) {
         draftInfo = d;
-        const picks = await fetch(`https://api.sleeper.app/v1/draft/${d.draft_id}/picks`).then(r=>r.json());
-        if (Array.isArray(picks)) {
-          picks.forEach(pk => {
-            const key = `${pk.round}-${pk.draft_slot || pk.pick_no}`;
-            const fn = pk.metadata?.first_name || '';
-            const ln = pk.metadata?.last_name  || '';
-            const name = (fn || ln) ? `${fn} ${ln}`.trim() : null;
-            if (name) sleeperPicks[key] = { player: name, sleeperPick: true };
-          });
+
+        // Store slot→team mapping for showing which team owns which pick
+        if (d.slot_to_roster_id) window._draftSlotToRoster = d.slot_to_roster_id;
+
+        if (d.status === 'complete' || d.status === 'in_progress') {
+          // Fetch actual picks made
+          const picks = await fetch(`https://api.sleeper.app/v1/draft/${d.draft_id}/picks`).then(r=>r.json());
+          if (Array.isArray(picks) && picks.length) {
+            picks.forEach(pk => {
+              const slot = pk.draft_slot || pk.pick_no;
+              const key  = `${pk.round}-${slot}`;
+              const fn   = pk.metadata?.first_name || '';
+              const ln   = pk.metadata?.last_name  || '';
+              const name = (fn || ln) ? `${fn} ${ln}`.trim() : null;
+              if (name) {
+                // Map roster_id to our DATA teamKey via usernameToRosterId
+                sleeperPicks[key] = { player: name, sleeperPick: true, rosterId: pk.roster_id };
+              }
+            });
+
+            // If draft is complete, map roster IDs to teamKeys and auto-save to Firebase
+            if (d.status === 'complete') {
+              await autoSaveCompletedDraft(sleeperPicks, d);
+            }
+          }
         }
+
+        const statusLabel = d.status === 'pre_draft' ? 'scheduled (pre-draft)' : d.status;
         document.getElementById('draft-subtitle').textContent =
-          `Sleeper draft loaded · status: ${d.status} · ${d.season || ''} · ${d.type}`;
+          `Sleeper draft · status: ${statusLabel} · ${d.season || ''} · type: ${d.type} · ID: ${d.draft_id}`;
       }
     } else {
       document.getElementById('draft-subtitle').textContent = 'No Sleeper draft found — using manual entry mode';
     }
   } catch(e) {
+    console.warn('Draft fetch error:', e);
     document.getElementById('draft-subtitle').textContent = 'Could not load Sleeper draft — manual entry mode';
   }
 
-  // 2. Load manual board from Firebase
+  // 2. Load manual/saved board from Firebase (overrides Sleeper picks)
   let savedBoard = {};
   try {
     const snap = await db.ref(`leagues/${leagueId()}/rookieDraft`).once('value');
     savedBoard = snap.val() || {};
   } catch(e) {}
 
-  // Firebase manual picks override Sleeper auto-picks
   board = { ...sleeperPicks, ...savedBoard };
 
   // 3. Load available rookies
@@ -310,7 +335,7 @@ async function refreshDraft() {
 async function loadRookiePlayers() {
   try {
     const cached = localStorage.getItem('sb_players');
-    if (!cached) { rookiePlayers = []; return; }
+    if (!cached) { rookiePlayers = []; renderAvailList(); return; }
     const players = JSON.parse(cached);
     const SKILL = new Set(['QB','RB','WR','TE']);
     const draftedNames = new Set(Object.values(board).map(p => (p.player||'').toLowerCase()));
@@ -324,16 +349,18 @@ async function loadRookiePlayers() {
       .filter(([,p]) => {
         if (!p.fantasy_positions?.some(pos => SKILL.has(pos))) return false;
         const ye = p.years_exp;
+        // years_exp 0 = rookie (in-season); null/undefined = pre-draft / offseason entrant
         if (ye !== 0 && ye !== null && ye !== undefined) return false;
-        const hasRank = p.search_rank && p.search_rank <= 800;
-        const hasTeam = p.team && p.team !== 'FA';
-        return hasRank || hasTeam;
+        // For confirmed rookies (ye===0) include anyone with a reasonable rank
+        if (ye === 0) return (p.search_rank && p.search_rank <= 800) || p.team;
+        // For pre-draft (ye===null) require ADP rank — they're always FA until signed
+        return p.search_rank && p.search_rank <= 800;
       })
       .map(([id, p]) => ({
         id,
         name: `${p.first_name} ${p.last_name}`.trim(),
         pos:  p.fantasy_positions?.find(pos => SKILL.has(pos)) || '',
-        nflTeam: p.team || 'FA',
+        nflTeam: p.team && p.team !== 'FA' ? p.team : '—',
         adp: p.search_rank || 999,
         taken: draftedNames.has(`${p.first_name} ${p.last_name}`.trim().toLowerCase())
             || rostered.has(`${p.first_name} ${p.last_name}`.trim().toLowerCase()),
@@ -341,6 +368,53 @@ async function loadRookiePlayers() {
       .sort((a, b) => a.adp - b.adp);
   } catch(e) { rookiePlayers = []; }
   renderAvailList();
+}
+
+// Auto-save completed Sleeper draft picks to Firebase and roster data
+async function autoSaveCompletedDraft(sleeperPicks, draftData) {
+  try {
+    // Load roster ID → teamKey mapping
+    const mapSnap = await db.ref(`leagues/${leagueId()}/usernameToRosterId`).once('value');
+    const rosterMap = mapSnap.val() || {};
+    // Invert: rosterId → teamKey
+    const rosterIdToTeam = {};
+    Object.entries(rosterMap).forEach(([teamKey, rid]) => { rosterIdToTeam[rid] = teamKey; });
+
+    const boardSnap = await db.ref(`leagues/${leagueId()}/rookieDraft`).once('value');
+    const existingBoard = boardSnap.val() || {};
+
+    let changed = false;
+    for (const [key, pick] of Object.entries(sleeperPicks)) {
+      if (existingBoard[key]) continue; // already saved manually, skip
+      const teamKey = rosterIdToTeam[pick.rosterId];
+      if (!teamKey || !DATA[teamKey]) continue;
+
+      // Calculate salary from pick key
+      const [r, p] = key.split('-').map(Number);
+      const sal = rookieSal(r, p);
+
+      // Add to active roster (not taxi - commissioner will move to taxi if needed)
+      if (!DATA[teamKey].starters) DATA[teamKey].starters = [];
+      const alreadyRostered = [...(DATA[teamKey].starters||[]),...(DATA[teamKey].taxi||[])].some(pl => pl.name === pick.player);
+      if (!alreadyRostered) {
+        DATA[teamKey].starters.push({ name: pick.player, pos: '—', salary: sal });
+        changed = true;
+      }
+
+      // Save to draft board
+      existingBoard[key] = { player: pick.player, team: teamKey, salary: sal, fromSleeper: true };
+    }
+
+    if (changed) {
+      // Recalculate cap for affected teams and check over-cap
+      Object.values(DATA).forEach(t => {
+        t.cap_spent = (t.starters||[]).reduce((s,p)=>s+p.salary,0)
+                    + (t.ir||[]).reduce((s,p)=>s+Math.round(p.salary*.75),0);
+      });
+      await db.ref(`leagues/${leagueId()}/rosterData`).set(DATA);
+      await db.ref(`leagues/${leagueId()}/rookieDraft`).set(existingBoard);
+    }
+  } catch(e) { console.warn('autoSaveCompletedDraft:', e); }
 }
 
 // ── Render board ──────────────────────────────────────────────
@@ -373,8 +447,10 @@ function renderBoard() {
         </div>`;
 
       if (assigned) {
+        const pickTeamKey = pick.team;
+        const isOverCap = pickTeamKey && DATA[pickTeamKey] && DATA[pickTeamKey].cap_spent > CAP;
         html += `<div class="pick-player">${pick.player}</div>
-          ${teamName ? `<div class="pick-team">${teamName}</div>` : ''}
+          ${teamName ? `<div class="pick-team" style="${isOverCap ? 'color:var(--red);font-weight:600;' : ''}">${teamName}${isOverCap ? ' ⚠️ OVER CAP' : ''}</div>` : ''}
           ${isSleeper ? `<div class="pick-source">via Sleeper</div>` : ''}
           ${comm ? `<button class="pick-clear" onclick="clearPick('${key}')">✕ Clear</button>` : ''}`;
       } else if (comm) {
@@ -468,14 +544,22 @@ async function assignPick(key, salary) {
   await db.ref(`leagues/${leagueId()}/rookieDraft/${key}`).set(entry);
   board[key] = entry;
 
-  // Add to team taxi in rosterData
+  // Add to team's ACTIVE roster (not taxi — commissioner moves to taxi manually if needed)
   if (DATA && DATA[teamKey]) {
-    if (!DATA[teamKey].taxi) DATA[teamKey].taxi = [];
-    DATA[teamKey].taxi.push({ name: pName, salary, years_exp: 0 });
-    // Recalculate cap_spent
+    if (!DATA[teamKey].starters) DATA[teamKey].starters = [];
+    const already = [...(DATA[teamKey].starters||[]),...(DATA[teamKey].taxi||[])].some(p => p.name === pName);
+    if (!already) {
+      DATA[teamKey].starters.push({ name: pName, pos: '—', salary });
+    }
+    // Recalculate cap
     DATA[teamKey].cap_spent = (DATA[teamKey].starters||[]).reduce((s,p)=>s+p.salary,0)
       + (DATA[teamKey].ir||[]).reduce((s,p)=>s+Math.round(p.salary*.75),0);
     await db.ref(`leagues/${leagueId()}/rosterData`).set(DATA);
+    // Warn if over cap
+    if (DATA[teamKey].cap_spent > CAP) {
+      const over = fmtM(DATA[teamKey].cap_spent - CAP);
+      setTimeout(() => alert(`⚠️ ${DATA[teamKey].team_name} is now OVER CAP by ${over}!\nThey need to drop players to get under ${fmtM(CAP)}.`), 100);
+    }
   }
 
   await loadRookiePlayers();
