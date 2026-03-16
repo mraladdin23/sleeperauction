@@ -28,7 +28,7 @@
 
 html {
   overflow-x: hidden;
-  overscroll-behavior-x: none;
+  overscroll-behavior: none;
 }
 
 body {
@@ -38,7 +38,7 @@ body {
   font-size: 15px;
   min-height: 100vh;
   overflow-x: hidden;
-  overscroll-behavior-x: none;
+  overscroll-behavior: none;
 }
 
 /* SCROLLBAR */
