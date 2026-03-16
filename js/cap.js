@@ -1,3 +1,4 @@
+// CAP v2026-03-16-v4 (All Players = fa-table layout)
 
 let CAP = 301_200_000; // loaded from Firebase leagues/{id}/settings/cap
 const COMM        = 'mraladdin23';
@@ -495,7 +496,8 @@ function apBuildShell(el) {
       '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">' +
         '<div style="padding:9px 14px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">' +
           '<span id="ap-title" style="font-size:14px;font-weight:600;"></span>' +
-          '<span id="ap-count" style="font-size:12px;color:var(--text3);"></span>' +
+          '<span id="ap-count" style="font-size:12px;color:var(--text3);"></span> <span style="font-size:10px;color:var(--text3);">[v4]</span>' +
+        '<span id="ap-version" style="font-size:10px;color:var(--text3);margin-left:8px;"></span>' +
         '</div>' +
         '<div style="overflow-x:auto;">' +
           '<table class="fa-table">' +
@@ -606,6 +608,7 @@ function renderAllPlayers() {
     '<div class="filter-chip' + (apPosFilter===pos?' active':'') + '" onclick="apSetPos(\'' + pos + '\')">' + (pos==='ALL'?'All':pos) + '</div>'
   ).join('');
 
+  document.getElementById('ap-version').textContent = 'v4';
   document.getElementById('ap-title').textContent =
     (apPosFilter==='ALL' ? 'All Rostered Players' : apPosFilter + ' Players') + (apSearch ? ' · "' + apSearch + '"' : '');
   document.getElementById('ap-count').textContent =
