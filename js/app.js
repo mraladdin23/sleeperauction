@@ -311,7 +311,12 @@ const App = (() => {
   }
 
   // ── Tab switching ────────────────────────────────────────
-  function switchTab(name) { UI.switchTab(name); }
+  function switchTab(name) {
+    UI.switchTab(name);
+    if (name === 'watchlist') UI.renderWatchlistTab();
+  }
+
+  function faSort(col) { UI.faSort(col); }
 
   // ── Free agents ──────────────────────────────────────────
   function setFilter(pos, el) {
@@ -915,7 +920,7 @@ const App = (() => {
     doSetup,
     switchTab,
     setFilter, renderFreeAgents, loadFreeAgents,
-    refreshAll, renderAll,
+    refreshAll, renderAll, faSort,
     enableNotifications,
     computeCustomPts,
     toggleWatch,

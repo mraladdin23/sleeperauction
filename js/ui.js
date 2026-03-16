@@ -346,12 +346,14 @@ const UI = (() => {
   // ── Free agents ───────────────────────────────────────────
   if (window.faPage === undefined) window.faPage = 0;
   window._faAllFiltered = window._faAllFiltered || [];
+  window._faSort = window._faSort || { col: 'pts', dir: 'desc' };
   const FA_PAGE_SIZE = 50;
 
   function renderFreeAgents(posFilter, resetPage) {
     const { state } = App;
     if (resetPage) window.faPage = 0;
     const query       = (document.getElementById('fa-search')?.value || '').toLowerCase();
+    const nflTeamFilter = (document.getElementById('fa-nfl-team-filter')?.value || '').toUpperCase();
     const now         = Date.now();
     const activeIds   = new Set(state.auctions.filter(a => !a.processed && !a.cancelled && a.expiresAt > now).map(a => a.playerId));
     const myTeam      = getMyTeam(state);
@@ -359,14 +361,41 @@ const UI = (() => {
       ? state.auctions.find(a => !a.processed && !a.cancelled && a.expiresAt > now && a.nominatedBy === myTeam.roster_id)
       : null;
 
-    window._faAllFiltered = state.freeAgents.filter(id => {
+    // Populate NFL team dropdown on first render
+    const nflDd = document.getElementById('fa-nfl-team-filter');
+    if (nflDd && nflDd.options.length <= 1) {
+      const teams = [...new Set(state.freeAgents.map(id => state.players[id]?.team).filter(t => t && t !== 'FA'))].sort();
+      teams.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; nflDd.appendChild(o); });
+    }
+
+    let filtered = state.freeAgents.filter(id => {
       const p = state.players[id];
       if (!p?.first_name) return false;
       if (posFilter !== 'ALL' && !(p.fantasy_positions || []).includes(posFilter)) return false;
       if (query && !playerName(p).toLowerCase().includes(query)) return false;
+      if (nflTeamFilter && (p.team || '').toUpperCase() !== nflTeamFilter) return false;
       return true;
     });
 
+    // Sort
+    const { col, dir } = window._faSort;
+    const mult = dir === 'asc' ? 1 : -1;
+    filtered.sort((a, b) => {
+      const pa = state.players[a] || {}, pb = state.players[b] || {};
+      if (col === 'name') return mult * (playerName(pa).localeCompare(playerName(pb)));
+      if (col === 'team') return mult * ((pa.team||'').localeCompare(pb.team||''));
+      if (col === 'bye')  return mult * ((pa.bye_week||99) - (pb.bye_week||99));
+      if (col === 'pts')  { const ap = App.computeCustomPts(a), bp = App.computeCustomPts(b); return mult * ((ap??-1) - (bp??-1)); }
+      return 0;
+    });
+
+    // Update sort indicators
+    ['name','team','bye','pts'].forEach(c => {
+      const el = document.getElementById(`fa-sort-${c}`);
+      if (el) el.textContent = col === c ? (dir === 'asc' ? '▲' : '▼') : '';
+    });
+
+    window._faAllFiltered = filtered;
     _renderFAPage(myTeam, activeIds, myActiveNom);
   }
 
@@ -849,6 +878,65 @@ const UI = (() => {
     document.getElementById('fa-tbody')?.closest('table')?.scrollIntoView({behavior:'smooth',block:'start'});
   }
 
+  function faSort(col) {
+    if (window._faSort.col === col) {
+      window._faSort.dir = window._faSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+      window._faSort = { col, dir: col === 'pts' ? 'desc' : 'asc' };
+    }
+    renderFreeAgents(App.state.posFilter || 'ALL');
+  }
+
+  function renderWatchlistTab() {
+    const { state } = App;
+    const wl = state.watchlist || {};
+    const ids = Object.keys(wl);
+    const grid = document.getElementById('watchlist-grid');
+    const count = document.getElementById('wl-count');
+    if (count) count.textContent = ids.length;
+    if (!grid) return;
+    if (!ids.length) {
+      grid.innerHTML = emptyState('⭐', 'No Watchlist Players', 'Star players from the Free Agents tab to track them here.');
+      return;
+    }
+    const now = Date.now();
+    const activeIds = new Set(state.auctions.filter(a => !a.processed && !a.cancelled && a.expiresAt > now).map(a => a.playerId));
+    const myTeam    = getMyTeam(state);
+    const myActiveNom = myTeam
+      ? state.auctions.find(a => !a.processed && !a.cancelled && a.expiresAt > now && a.nominatedBy === myTeam.roster_id)
+      : null;
+    grid.innerHTML = ids.map(id => {
+      const p         = state.players[id] || {};
+      const pos2      = playerPos(p);
+      const inAuction = activeIds.has(id);
+      const canNom    = !inAuction && !myActiveNom;
+      const customPts = App.computeCustomPts(id);
+      const ptsLabel  = customPts !== null ? customPts.toFixed(1) : '—';
+      return `<div class="auction-card" style="padding:14px;">
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
+          ${playerAvatarHTML(id, 40)}
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;font-size:14px;">${playerName(p)}</div>
+            <div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap;align-items:center;">
+              <span class="pos-badge pos-${pos2}">${pos2}</span>
+              <span style="font-size:12px;color:var(--text2);">${playerTeam(p)}</span>
+              <span style="font-size:12px;color:var(--text3);">${ptsLabel} pts</span>
+            </div>
+          </div>
+          <button onclick="App.toggleWatch('${id}')" style="background:none;border:none;font-size:18px;cursor:pointer;color:var(--yellow);">⭐</button>
+        </div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          ${inAuction
+            ? `<span style="font-size:11px;color:var(--yellow);padding:5px 0;">In Auction</span>`
+            : !myTeam
+            ? ''
+            : `<button class="btn btn-green btn-sm" ${canNom?'':'disabled'} onclick="App.openNomModal('${id}')">Nominate</button>`
+          }
+        </div>
+      </div>`;
+    }).join('');
+  }
+
   return {
     showScreen, setLoading, switchTab, setAvatar,
     playerName, playerPos, playerTeam, playerEmoji, playerAvatarHTML,
@@ -860,6 +948,7 @@ const UI = (() => {
     startTimers, openModal, closeModal, toast,
     getMyTeam, getTeamName,
     faPagePrev, faPageNext,
+    faSort, renderWatchlistTab,
   };
 })();
 

@@ -1,5 +1,5 @@
 
-const CAP         = 301_200_000;
+let CAP = 301_200_000; // loaded from Firebase leagues/{id}/settings/cap
 const COMM        = 'mraladdin23';
 const FB_PATH     = () => `leagues/${leagueId()}/rosterData`;
 const POSITIONS   = ['QB','RB','WR','TE'];
@@ -18,6 +18,7 @@ let DATA = null;
 let tab  = 'overview';
 let rosterFilter = 'all';
 let editCtx = null;
+let offseasonMode = false;  // toggled by commissioner
 let holdouts = {};
 let promos   = {};
 let _promoTarget = null;
@@ -29,6 +30,13 @@ function subscribeRosters() {
   const lid = leagueId();
   db.ref(`leagues/${lid}/holdouts`).once('value').then(s=>{holdouts=s.val()||{};if(DATA)renderTab(tab);}).catch(()=>{});
   db.ref(`leagues/${lid}/taxiPromos`).once('value').then(s=>{promos=s.val()||{};if(DATA)renderTab(tab);}).catch(()=>{});
+  // Load cap setting and offseason mode
+  db.ref(`leagues/${lid}/settings`).once('value').then(s => {
+    const cfg = s.val() || {};
+    if (cfg.cap) CAP = cfg.cap;
+    if (cfg.offseason) offseasonMode = cfg.offseason;
+  }).catch(()=>{});
+
   rosterRef().on('value', snap => {
     const fbData = snap.val();
     if (fbData && Object.keys(fbData).length > 0) {
@@ -94,6 +102,23 @@ async function syncRosterSizes() {
   } catch(e) { console.warn('rosterSizes sync failed:', e); }
 }
 
+
+function getAge(birthDate) {
+  if (!birthDate) return null;
+  const today = new Date();
+  const birth = new Date(birthDate);
+  let age = today.getFullYear() - birth.getFullYear();
+  const m = today.getMonth() - birth.getMonth();
+  if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+  return age;
+}
+function ageBadge(birthDate) {
+  const age = getAge(birthDate);
+  if (!age) return '';
+  const clr = age >= 30 ? 'var(--red)' : age >= 28 ? 'var(--yellow)' : 'var(--text3)';
+  return `<span style="font-size:10px;color:${clr};margin-left:5px;">${age}</span>`;
+}
+
 const fmtM    = n => n>=1e6?'$'+(n/1e6).toFixed(1)+'M':n>=1e3?'$'+(n/1e3).toFixed(0)+'K':'$'+n;
 const pctOf   = n => ((n/CAP)*100).toFixed(1)+'%';
 const capClr  = s => s/CAP>.72?'var(--red)':s/CAP>.58?'var(--yellow)':'var(--green)';
@@ -103,7 +128,7 @@ const badge   = pos => `<span class="pos-badge pb-${pos}">${pos}</span>`;
 // ── Tab switcher ──────────────────────────────────────────────
 function setTab(t) {
   tab = t;
-  ['overview','allplayers','compare','toppaid','taxi','commish'].forEach(n => {
+  ['overview','allplayers','compare','toppaid','taxi','watchlist','rookiedraft','commish'].forEach(n => {
     document.getElementById('tab-'+n).style.display = n===t?'':'none';
   });
   document.querySelectorAll('.nav-tab').forEach(b =>
@@ -120,6 +145,8 @@ function renderTab(t) {
   else if (t==='compare')    renderCompare();
   else if (t==='toppaid')    renderTopPaid();
   else if (t==='taxi')       renderTaxi();
+  else if (t==='watchlist')  renderWatchlist();
+  else if (t==='rookiedraft') renderRookieDraft();
   else if (t==='commish')    renderCommish();
 }
 
@@ -239,7 +266,7 @@ function renderRosters() {
         const hoBtn=comm?`<button class="act-btn" onclick="toggleHoldout('${key}','${p.name.replace(/'/g,"\\'")}')" title="${ho?'Remove holdout':'Flag holdout'}">${ho?'🔥':'🏳'}</button>`:'';
         const editBtn=comm?`<td class="act-cell">${hoBtn}<button class="act-btn" onclick="openEdit('${key}','starters',${p._idx})">✏️</button></td>`:'';
         return `<tr class="pr">
-          <td>${p.name}${hoBadge}</td>
+          <td>${p.name}${ageBadge(p.birth_date)}${hoBadge}</td>
           <td>${badge(p.pos)}</td>
           <td class="sal-cell"><div>${fmtM(p.salary)}</div>
             <div class="sal-bar"><div class="sal-bar-fill" style="width:${bw}%;background:${POS_COLORS[p.pos]||'var(--text3)'};"></div></div>
@@ -253,7 +280,7 @@ function renderRosters() {
       rows+=`<tr class="sec-row"><td colspan="${comm?3:2}">IR <span style="opacity:.55;font-size:10px;">75% cap</span></td><td class="sec-add">${ab}</td></tr>`;
       rows+=irArr.map((p,i)=>{
         const eb=comm?`<td class="act-cell"><button class="act-btn" onclick="openEdit('${key}','ir',${i})">✏️</button></td>`:'';
-        return `<tr class="pr"><td>${p.name}<span class="ir-note">IR</span></td><td>${badge('IR')}</td><td class="sal-cell">${fmtM(Math.round(p.salary*.75))}</td>${eb}</tr>`;
+        return `<tr class="pr"><td>${p.name}${ageBadge(p.birth_date)}<span class="ir-note">IR</span></td><td>${badge('IR')}</td><td class="sal-cell">${fmtM(Math.round(p.salary*.75))}</td>${eb}</tr>`;
       }).join('');
     } else if(comm){
       rows+=`<tr class="sec-row"><td colspan="3">IR <span style="opacity:.55;font-size:10px;">75% cap</span></td><td class="sec-add"><button class="add-slot-btn" onclick="openAdd('${key}','ir','')">+IR</button></td></tr>`;
@@ -376,8 +403,13 @@ function renderAllPlayers() {
     const slotBadge=p.slot==='IR'?`<span style="font-size:10px;background:rgba(255,77,106,.15);color:var(--red);padding:1px 5px;border-radius:3px;margin-left:5px;">IR</span>`:p.slot==='Taxi'?`<span style="font-size:10px;background:rgba(90,94,114,.25);color:var(--text3);padding:1px 5px;border-radius:3px;margin-left:5px;">Taxi</span>`:'';
     const ho=(holdouts[p.teamKey]||{})[p.name];
     const hoBadge=ho?`<span style="font-size:10px;background:rgba(255,201,77,.15);color:var(--yellow);border-radius:3px;padding:1px 5px;margin-left:5px;">🔥</span>`:'';
+    const wl = JSON.parse(localStorage.getItem('sb_cap_watchlist')||'{}');
+    const starred = !!wl[p.name];
     return `<tr>
-      <td style="font-size:13px;padding:8px 14px;"><span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);margin-right:6px;min-width:24px;display:inline-block;text-align:right;">${i+1}</span>${p.name}${hoBadge}${slotBadge}</td>
+      <td style="font-size:13px;padding:8px 14px;">
+        <button onclick="capToggleWatch(${JSON.stringify(p.name)})" style="background:none;border:none;cursor:pointer;font-size:14px;padding:0 6px 0 0;color:${starred?'var(--yellow)':'var(--text3)'};">${starred?'⭐':'☆'}</button>
+        <span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);margin-right:6px;min-width:24px;display:inline-block;text-align:right;">${i+1}</span>${p.name}${ageBadge(p.birth_date)}${hoBadge}${slotBadge}
+      </td>
       <td style="padding:8px 6px;">${p.pos&&p.pos!=='—'?`<span class="pos-badge" style="background:${posClr}22;color:${posClr};">${p.pos}</span>`:'<span style="color:var(--text3);font-size:11px;">—</span>'}</td>
       <td style="padding:8px 14px;"><span onclick="openTeamPanel('${p.teamKey}')" style="color:var(--text2);cursor:pointer;font-size:12px;">${p.teamName} <span style="color:var(--accent2);font-size:10px;">↗</span></span></td>
       <td style="text-align:right;font-family:var(--font-mono);font-size:13px;padding:8px 16px;color:${p.slot==='Taxi'?'var(--text3)':p.slot==='IR'?'var(--text2)':'var(--text)'};">${fmtM(p.salary)}${p.rawSal?`<span style="color:var(--text3);font-size:10px;margin-left:4px;">(${fmtM(p.rawSal)})</span>`:''}</td>
@@ -399,6 +431,7 @@ function renderAllPlayers() {
         <span style="font-size:12px;color:var(--text3);">${filtered.length} players${apPosFilter!=='ALL'&&!apSearch?' · '+fmtM(totalSal)+' total cap':''}</span>
       </div>
       ${filtered.length?`<table style="width:100%;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);">
+        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 6px;text-align:left;font-weight:500;width:30px;">⭐</th>
         <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 14px;text-align:left;font-weight:500;">Player</th>
         <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 6px;text-align:left;font-weight:500;">Pos</th>
         <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 14px;text-align:left;font-weight:500;">Owner</th>
@@ -449,341 +482,357 @@ function openTeamPanel(key) {
 function closeTeamPanel() { document.getElementById('team-panel').style.display='none'; }
 
 // ── COMMISSIONER TAB ─────────────────────────────────────────
-function renderCommish() {
-  if (!isComm()) { document.getElementById('tab-commish').innerHTML='<div style="padding:40px;text-align:center;color:var(--text3);">Commissioner only.</div>'; return; }
-  const el = document.getElementById('tab-commish');
+// ── WATCHLIST TAB ─────────────────────────────────────────────
+function renderWatchlist() {
+  const el = document.getElementById('tab-watchlist');
+  const wl = JSON.parse(localStorage.getItem('sb_cap_watchlist') || '{}');
+  const ids = Object.keys(wl);
+  if (!ids.length) {
+    el.innerHTML = `<div style="padding:60px;text-align:center;color:var(--text3);">
+      <div style="font-size:32px;margin-bottom:12px;">⭐</div>
+      <div style="font-size:14px;">No players on your watchlist yet.</div>
+      <div style="font-size:12px;margin-top:6px;">Star players in the All Players tab to track them here.</div>
+    </div>`;
+    return;
+  }
 
-  // Roster ID mapping rows
-  const savedMap = window._rosterIdMap || {};
-  let mapRows = Object.keys(DATA).map(key => {
-    const t = DATA[key];
+  // Build flat list of all rostered players for lookup
+  const allPlayers = {};
+  Object.entries(DATA).forEach(([teamKey, t]) => {
+    [...(t.starters||[]), ...(t.ir||[]), ...(t.taxi||[])].forEach(p => {
+      if (p.name) allPlayers[p.name] = { ...p, teamKey, team_name: t.team_name };
+    });
+  });
+
+  const rows = ids.map(name => {
+    const p = allPlayers[name];
+    if (!p) return '';
+    const slot = (DATA[p.teamKey]?.starters||[]).find(s=>s.name===name) ? 'Active'
+               : (DATA[p.teamKey]?.ir||[]).find(s=>s.name===name) ? 'IR' : 'Taxi';
+    const slotClr = slot==='IR'?'var(--red)':slot==='Taxi'?'var(--text3)':'var(--text2)';
+    const ho = (holdouts[p.teamKey]||{})[name];
     return `<tr>
-      <td style="padding:8px 14px;">
-        <div style="font-size:13px;font-weight:500;">${t.team_name}</div>
-        <div style="font-size:11px;color:var(--text3);">${key}</div>
+      <td style="padding:9px 14px;font-size:13px;">
+        ${name}${ageBadge(p.birth_date)}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:5px;">🔥</span>':''}
       </td>
-      <td style="padding:8px 14px;" id="maprow-dispname-${key}" colspan="2">
-        <span style="font-size:12px;color:var(--text3);">Loading Sleeper teams…</span>
+      <td style="padding:9px 6px;">${p.pos?`<span class="pos-badge pb-${p.pos}">${p.pos}</span>`:''}</td>
+      <td style="padding:9px 14px;font-size:12px;color:var(--text2);">${p.team_name}</td>
+      <td style="padding:9px 6px;font-size:11px;color:${slotClr};">${slot}</td>
+      <td style="padding:9px 14px;text-align:right;font-family:var(--font-mono);font-size:13px;">${fmtM(p.salary)}</td>
+      <td style="padding:9px 14px;text-align:right;">
+        <button onclick="capRemoveWatch(${JSON.stringify(name)})" style="background:none;border:none;color:var(--text3);cursor:pointer;font-size:13px;">✕</button>
       </td>
     </tr>`;
-  }).join('');
+  }).filter(Boolean).join('');
 
-  let taxiRows='';
-  Object.entries(DATA).forEach(([key,t])=>{
-    const taxiArr=(t.taxi||[]).filter(p=>p.name);
-    if(!taxiArr.length)return;
-    taxiRows+=`<tr><td colspan="5" style="background:var(--surface2);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);padding:6px 14px;">${t.team_name}</td></tr>`;
-    taxiArr.forEach((p)=>{
-      const ti=(t.taxi||[]).findIndex(x=>x.name===p.name);
-      const promo=(promos[key]||{})[p.name];
-      taxiRows+=`<tr>
-        <td style="padding:8px 14px;font-size:13px;">${p.name}</td>
-        <td style="padding:8px 6px;">
-          <select onchange="commSetTaxiPos('${key}',${ti},this.value)" style="background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);padding:3px 6px;font-size:12px;font-family:var(--font-body);">
-            <option value="">—</option>
-            ${['QB','RB','WR','TE'].map(pos=>`<option value="${pos}"${(p.pos||'')=== pos?' selected':''}>${pos}</option>`).join('')}
-          </select>
-        </td>
-        <td style="padding:8px 6px;font-family:var(--font-mono);font-size:12px;color:var(--text3);">${fmtM(p.salary)}</td>
-        <td style="padding:8px 6px;">${!promo
-          ? `<button onclick="commPromote('${key}',${ti})" style="font-size:11px;padding:3px 9px;border:1px solid rgba(24,224,122,.3);border-radius:4px;background:none;color:var(--green);cursor:pointer;font-family:var(--font-body);">\u2b06\ufe0f Promote</button>`
-          : `<span style="font-size:11px;color:var(--green);">\u2b06\ufe0f Promoted</span> <button onclick="commUndoPromo('${key}','${p.name.replace(/'/g,"\\'")}'" style="font-size:11px;padding:3px 7px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text3);cursor:pointer;margin-left:4px;">\u21a9</button>`
-        }</td>
-        <td style="padding:8px 14px;text-align:right;"><button onclick="openEdit('${key}','taxi',${ti})" style="font-size:12px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text2);cursor:pointer;">\u270f\ufe0f Edit</button></td>
-      </tr>`;
-    });
-  });
-
-  let starterRows='';
-  Object.entries(DATA).forEach(([key,t])=>{
-    const starters=t.starters||[];
-    if(!starters.length)return;
-    starterRows+=`<tr><td colspan="5" style="background:var(--surface2);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);padding:6px 14px;">${t.team_name}</td></tr>`;
-    const po=['QB','RB','WR','TE'];
-    [...starters].sort((a,b)=>(po.indexOf(a.pos)-po.indexOf(b.pos))||b.salary-a.salary).forEach(p=>{
-      const idx=t.starters.findIndex(s=>s.name===p.name&&s.pos===p.pos&&s.salary===p.salary);
-      const ho=(holdouts[key]||{})[p.name];
-      starterRows+=`<tr>
-        <td style="padding:7px 14px;font-size:13px;">${p.name}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:5px;">\ud83d\udd25</span>':''}</td>
-        <td style="padding:7px 6px;"><span style="background:${(POS_COLORS[p.pos]||'#888')}22;color:${POS_COLORS[p.pos]||'var(--text3)'};padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;">${p.pos}</span></td>
-        <td style="padding:7px 6px;font-family:var(--font-mono);font-size:12px;">${fmtM(p.salary)}</td>
-        <td style="padding:7px 6px;"><button onclick="toggleHoldout('${key}','${p.name.replace(/'/g,"\\'")}')" style="font-size:12px;padding:3px 8px;border:1px solid ${ho?'rgba(255,201,77,.4)':'var(--border)'};border-radius:4px;background:none;color:${ho?'var(--yellow)':'var(--text3)'};cursor:pointer;">${ho?'🔥 Remove':'🏳 Flag'}</button></td>
-        <td style="padding:7px 14px;text-align:right;"><button onclick="openEdit('${key}','starters',${idx})" style="font-size:12px;padding:3px 8px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text2);cursor:pointer;">\u270f\ufe0f Edit</button></td>
-      </tr>`;
-    });
-  });
-
-  el.innerHTML=`<div style="padding:16px 0;">
-
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px;">
-      <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-        <div>
-          <span style="font-size:14px;font-weight:600;">\ud83d\udd17 Roster ID Mapping</span>
-          <div style="font-size:11px;color:var(--text3);margin-top:2px;">Link each username to their Sleeper roster ID so open spots stay in sync on the auction page</div>
-        </div>
-        <button onclick="commSaveRosterMap()" style="padding:7px 14px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-size:12px;cursor:pointer;font-family:var(--font-body);">💾 Save Mapping</button>
-      </div>
-      <div style="font-size:11px;color:var(--text3);padding:8px 16px;background:rgba(124,92,252,.06);border-bottom:1px solid var(--border);">
-        Or find IDs manually at: <a href="https://api.sleeper.app/v1/league/${leagueId()}/rosters" target="_blank" style="color:var(--accent2);font-family:var(--font-mono);">api.sleeper.app/v1/league/${leagueId()}/rosters</a>
+  el.innerHTML = `<div style="padding:16px 0;">
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+      <div style="padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">
+        <span style="font-size:14px;font-weight:600;">⭐ Watchlist — ${ids.length} players</span>
       </div>
       <table style="width:100%;border-collapse:collapse;">
         <thead><tr style="border-bottom:1px solid var(--border);">
-          <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:500;">Cap Username / Team</th>
-          <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:500;" colspan="2">Sleeper Team (pick from dropdown)</th>
+          <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:500;">Player</th>
+          <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 6px;text-align:left;font-weight:500;">Pos</th>
+          <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:500;">Team</th>
+          <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 6px;text-align:left;font-weight:500;">Slot</th>
+          <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 14px;text-align:right;font-weight:500;">Salary</th>
+          <th></th>
         </tr></thead>
-        <tbody>${mapRows}</tbody>
+        <tbody>${rows || '<tr><td colspan="6" style="padding:20px;text-align:center;color:var(--text3);">No matching players found in rosters.</td></tr>'}</tbody>
       </table>
-      <div id="map-status" style="padding:8px 16px;font-size:12px;color:var(--green);min-height:28px;"></div>
     </div>
-
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px;">
-      <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">
-        <span style="font-size:14px;font-weight:600;">\ud83d\ude95 Taxi Squad \u2014 Set Positions &amp; Promote</span>
-        <span style="font-size:12px;color:var(--text3);">Positions save instantly to Firebase</span>
-      </div>
-      <table style="width:100%;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);">
-        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:500;">Player</th>
-        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 6px;text-align:left;font-weight:500;">Pos</th>
-        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 6px;text-align:left;font-weight:500;">Salary</th>
-        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 6px;text-align:left;font-weight:500;">Status</th>
-        <th></th>
-      </tr></thead><tbody>${taxiRows}</tbody></table>
-    </div>
-
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
-      <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">
-        <span style="font-size:14px;font-weight:600;">\ud83c\udfc8 Active Rosters \u2014 Edit &amp; Holdouts</span>
-        <span style="font-size:12px;color:var(--text3);">Click ✏️ to edit salary/position/name</span>
-      </div>
-      <table style="width:100%;border-collapse:collapse;"><thead><tr style="border-bottom:1px solid var(--border);">
-        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 14px;text-align:left;font-weight:500;">Player</th>
-        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 6px;text-align:left;font-weight:500;">Pos</th>
-        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 6px;text-align:left;font-weight:500;">Salary</th>
-        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;padding:7px 6px;text-align:left;font-weight:500;">Holdout</th>
-        <th></th>
-      </tr></thead><tbody>${starterRows}</tbody></table>
-    </div>
-
   </div>`;
-
-  loadRosterIdMap();
 }
 
-// ── Roster ID Mapping ─────────────────────────────────────────
-// Fetches Sleeper teams and lets commissioner pick who maps to who
-// via dropdowns — no typing usernames required.
-
-let _sleeperRosterOptions = []; // cached [{rosterId, displayName, username}]
-
-async function loadRosterIdMap() {
-  if (!leagueId()) return;
-  try {
-    // Load saved map
-    const snap = await db.ref(`leagues/${leagueId()}/usernameToRosterId`).once('value');
-    window._rosterIdMap = snap.val() || {};
-    // Load Sleeper teams for dropdowns
-    await commBuildDropdowns();
-  } catch(e) { console.warn('loadRosterIdMap:', e); }
+function capAddWatch(name) {
+  const wl = JSON.parse(localStorage.getItem('sb_cap_watchlist') || '{}');
+  wl[name] = Date.now();
+  localStorage.setItem('sb_cap_watchlist', JSON.stringify(wl));
+  renderTab(tab);
+}
+function capRemoveWatch(name) {
+  const wl = JSON.parse(localStorage.getItem('sb_cap_watchlist') || '{}');
+  delete wl[name];
+  localStorage.setItem('sb_cap_watchlist', JSON.stringify(wl));
+  renderTab(tab);
+}
+function capToggleWatch(name) {
+  const wl = JSON.parse(localStorage.getItem('sb_cap_watchlist') || '{}');
+  if (wl[name]) capRemoveWatch(name); else capAddWatch(name);
 }
 
-async function commBuildDropdowns() {
-  if (!leagueId()) return;
-  const status = document.getElementById('map-status');
+
+// ── ROOKIE DRAFT TAB ──────────────────────────────────────────
+// Salary scale: R1 picks 1-6=$15M, 7-12=$10M | R2 1-6=$7.5M, 7-12=$5M
+//               R3 1-6=$3M, 7-12=$2M | R4 any=$1M
+const ROOKIE_SALARY_SCALE = {
+  '1-1':15e6,'1-2':15e6,'1-3':15e6,'1-4':15e6,'1-5':15e6,'1-6':15e6,
+  '1-7':10e6,'1-8':10e6,'1-9':10e6,'1-10':10e6,'1-11':10e6,'1-12':10e6,
+  '2-1':7.5e6,'2-2':7.5e6,'2-3':7.5e6,'2-4':7.5e6,'2-5':7.5e6,'2-6':7.5e6,
+  '2-7':5e6,'2-8':5e6,'2-9':5e6,'2-10':5e6,'2-11':5e6,'2-12':5e6,
+  '3-1':3e6,'3-2':3e6,'3-3':3e6,'3-4':3e6,'3-5':3e6,'3-6':3e6,
+  '3-7':2e6,'3-8':2e6,'3-9':2e6,'3-10':2e6,'3-11':2e6,'3-12':2e6,
+};
+function rookieSalary(round, pick) {
+  if (round >= 4) return 1_000_000;
+  return ROOKIE_SALARY_SCALE[`${round}-${pick}`] || 1_000_000;
+}
+
+// Cache for Sleeper rookie players (years_exp === 0 or 1 in current season)
+let _rookiePlayers = null;
+
+async function fetchRookiePlayers() {
+  // Pull from the full player DB — filter to skill position players with years_exp 0
+  // (Sleeper sets years_exp=0 for rookies entering their first season)
+  if (_rookiePlayers) return _rookiePlayers;
   try {
-    if (status) status.textContent = 'Loading Sleeper teams…';
-    const [rosters, users] = await Promise.all([
-      fetch(`https://api.sleeper.app/v1/league/${leagueId()}/rosters`).then(r=>r.json()),
-      fetch(`https://api.sleeper.app/v1/league/${leagueId()}/users`).then(r=>r.json()),
-    ]);
-    const userMap = {};
-    users.forEach(u => { userMap[u.user_id] = u; });
-    _sleeperRosterOptions = rosters.map(r => {
-      const u = userMap[r.owner_id] || {};
-      return {
-        rosterId:    r.roster_id,
-        displayName: u.display_name || u.username || `Team ${r.roster_id}`,
-        username:    u.username || '',
-      };
-    }).sort((a,b) => a.displayName.localeCompare(b.displayName));
-
-    // Build dropdown options string
-    const blankOpt = `<option value="">— pick —</option>`;
-    const opts = _sleeperRosterOptions.map(o =>
-      `<option value="${o.rosterId}">${o.displayName}${o.username && o.username !== o.displayName ? ' ('+o.username+')' : ''} — #${o.rosterId}</option>`
-    ).join('');
-
-    // Populate each row's dropdown
-    Object.keys(DATA).forEach(key => {
-      const saved = window._rosterIdMap[key];
-      const cell = document.getElementById(`maprow-dispname-${key}`);
-      if (!cell) return;
-      cell.innerHTML = `<select id="mapdrop-${key}"
-        style="padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;font-family:var(--font-body);max-width:220px;cursor:pointer;outline:none;">
-        ${blankOpt}${opts}
-      </select>`;
-      const sel = document.getElementById(`mapdrop-${key}`);
-      if (sel && saved) sel.value = saved;
-      // Hide the old number input
-      const inp = document.getElementById(`maprow-input-${key}`);
-      if (inp) inp.style.display = 'none';
+    const cached = localStorage.getItem('sb_players');
+    if (!cached) return [];
+    const players = JSON.parse(cached);
+    const SKILL = new Set(['QB','RB','WR','TE']);
+    // Get all drafted pick IDs from Firebase to mark as taken
+    let draftedNames = new Set();
+    if (leagueId()) {
+      const snap = await db.ref(`leagues/${leagueId()}/rookieDraft`).once('value');
+      const board = snap.val() || {};
+      Object.values(board).forEach(p => { if (p.player) draftedNames.add(p.player.toLowerCase()); });
+    }
+    // Also exclude already-rostered players from DATA
+    const rostered = new Set();
+    Object.values(DATA || {}).forEach(t => {
+      [...(t.starters||[]), ...(t.ir||[]), ...(t.taxi||[])].forEach(p => {
+        if (p.name) rostered.add(p.name.toLowerCase());
+      });
     });
 
-    if (status) status.textContent = `Loaded ${_sleeperRosterOptions.length} Sleeper teams. Match each cap username to their Sleeper team, then click Save.`;
-  } catch(e) {
-    if (status) status.textContent = 'Could not load Sleeper teams: ' + (e.message || e);
-  }
+    _rookiePlayers = Object.entries(players)
+      .filter(([,p]) => {
+        if (!SKILL.has(p.fantasy_positions?.[0])) return false;
+        if (p.years_exp !== 0) return false;            // true rookies only
+        if (p.search_rank > 500 || !p.search_rank) return false;
+        return true;
+      })
+      .map(([id, p]) => ({
+        id,
+        name: `${p.first_name} ${p.last_name}`,
+        pos: p.fantasy_positions?.[0] || '',
+        nflTeam: p.team || 'FA',
+        adp: p.search_rank || 999,
+        age: p.birth_date ? getAge(p.birth_date) : null,
+        rostered: rostered.has(`${p.first_name} ${p.last_name}`.toLowerCase()),
+        drafted: draftedNames.has(`${p.first_name} ${p.last_name}`.toLowerCase()),
+      }))
+      .sort((a, b) => a.adp - b.adp);
+    return _rookiePlayers;
+  } catch(e) { return []; }
 }
 
-async function commSaveRosterMap() {
-  if (!leagueId()) return;
-  const map = {};
-  Object.keys(DATA).forEach(key => {
-    const sel = document.getElementById(`mapdrop-${key}`);
-    const val = sel ? parseInt(sel.value) : NaN;
-    if (!isNaN(val) && val > 0) map[key] = val;
+async function renderRookieDraft() {
+  const el = document.getElementById('tab-rookiedraft');
+  _rookiePlayers = null; // clear cache on every render
+  el.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text3);"><div class="spinner"></div><div style="margin-top:12px;">Loading draft board…</div></div>`;
+
+  let draftData = null, sleeperPicks = {};
+  if (leagueId()) {
+    try {
+      const drafts = await fetch(`https://api.sleeper.app/v1/league/${leagueId()}/drafts`).then(r=>r.json());
+      // Find rookie/standard draft (not startup)
+      const rookie = drafts?.find(d => d.type !== 'startup') || drafts?.[drafts.length - 1];
+      if (rookie) {
+        draftData = rookie;
+        if (rookie.status === 'complete' || rookie.status === 'in_progress') {
+          const picks = await fetch(`https://api.sleeper.app/v1/draft/${rookie.draft_id}/picks`).then(r=>r.json());
+          picks.forEach(pk => {
+            const key = `${pk.round}-${pk.pick_no}`;
+            sleeperPicks[key] = {
+              player: pk.metadata?.first_name ? `${pk.metadata.first_name} ${pk.metadata.last_name}` : pk.player_id,
+              teamKey: null, // Sleeper picks don't map to our teamKeys directly
+              sleeperPick: true,
+            };
+          });
+        }
+      }
+    } catch(e) { /* non-fatal */ }
+  }
+
+  // Load manual board from Firebase
+  let savedBoard = {};
+  try {
+    if (leagueId()) {
+      const snap = await db.ref(`leagues/${leagueId()}/rookieDraft`).once('value');
+      savedBoard = snap.val() || {};
+    }
+  } catch(e) {}
+
+  // Merge: Firebase manual picks take priority over Sleeper
+  const board = { ...sleeperPicks, ...savedBoard };
+
+  // Fetch rookie player list
+  const rookies = await fetchRookiePlayers();
+
+  el.innerHTML = buildRookieDraftUI(draftData, board, rookies);
+}
+
+function buildRookieDraftUI(draftData, board, rookies) {
+  const comm = isComm();
+  const ROUNDS = 4, PICKS_PER = 12;
+
+  // Build a set of drafted player names for the available list
+  const draftedNames = new Set(Object.values(board).map(p => (p.player||'').toLowerCase()));
+
+  // ── Draft board grid ──────────────────────────────────────
+  let gridHTML = '';
+  for (let r = 1; r <= ROUNDS; r++) {
+    const salLabel = r===1?'$15M / $10M' : r===2?'$7.5M / $5M' : r===3?'$3M / $2M' : '$1M';
+    gridHTML += `<div style="margin-bottom:24px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <span style="font-size:13px;font-weight:600;color:var(--text2);">Round ${r}</span>
+        <span style="font-size:11px;color:var(--text3);">${salLabel}</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(195px,1fr));gap:8px;">`;
+    for (let p = 1; p <= PICKS_PER; p++) {
+      const key = `${r}-${p}`;
+      const sal = rookieSalary(r, p);
+      const pick = board[key] || {};
+      const assigned = !!pick.player;
+      const teamName = pick.teamKey ? (DATA[pick.teamKey]?.team_name || pick.teamKey) : (pick.team ? (DATA[pick.team]?.team_name || pick.team) : '');
+      const fromSleeper = pick.sleeperPick && !savedBoard;
+
+      gridHTML += `<div style="background:var(--surface);border:1px solid ${assigned?'var(--accent)':'var(--border)'};border-radius:var(--radius-sm);padding:10px 12px;min-height:80px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <span style="font-size:11px;font-weight:600;color:var(--accent2);">Pick ${r}.${p < 10 ? '0'+p : p}</span>
+          <span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);">${fmtM(sal)}</span>
+        </div>
+        ${assigned
+          ? `<div style="font-size:13px;font-weight:500;line-height:1.3;">${pick.player}</div>
+             ${teamName ? `<div style="font-size:11px;color:var(--accent2);margin-top:2px;">${teamName}</div>` : ''}
+             ${fromSleeper ? `<div style="font-size:10px;color:var(--text3);margin-top:2px;">via Sleeper</div>` : ''}
+             ${comm ? `<button onclick="rookieClearPick('${key}')" style="font-size:10px;padding:2px 8px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text3);cursor:pointer;margin-top:6px;font-family:var(--font-body);">✕ Clear</button>` : ''}`
+          : comm
+          ? `<div style="display:flex;flex-direction:column;gap:4px;">
+               <select id="rdraft-player-${key}" onchange="(function(s){var m=document.getElementById('rdraft-manual-${key}');if(m)m.style.display=s.value==='__manual__'?'':'none';})(this)" style="padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;font-family:var(--font-body);outline:none;cursor:pointer;">
+                 <option value="">— Select player —</option>
+                 ${rookies.filter(rk => !draftedNames.has(rk.name.toLowerCase())).map(rk =>
+                   `<option value="${rk.name}">${rk.name} · ${rk.pos} · ${rk.nflTeam} (ADP ${rk.adp})</option>`
+                 ).join('')}
+                 <option value="__manual__">✏️ Type manually…</option>
+               </select>
+               <input id="rdraft-manual-${key}" placeholder="Player name (manual)" style="display:none;padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;font-family:var(--font-body);outline:none;width:100%;" oninput="" />
+               <select id="rdraft-team-${key}" style="padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;font-family:var(--font-body);outline:none;cursor:pointer;">
+                 <option value="">— Owner —</option>
+                 ${Object.entries(DATA).map(([k,t]) => `<option value="${k}">${t.team_name}</option>`).join('')}
+               </select>
+               <button onclick="rookieAssignPick('${key}',${sal})" style="padding:5px 8px;background:var(--accent);border:none;border-radius:4px;color:#fff;font-size:12px;cursor:pointer;font-family:var(--font-body);">Assign to Taxi</button>
+             </div>
+`
+          : `<div style="font-size:12px;color:var(--text3);">Open</div>`
+        }
+      </div>`;
+    }
+    gridHTML += '</div></div>';
+  }
+
+  // ── Available rookies by position ─────────────────────────
+  const posGroups = { QB: [], RB: [], WR: [], TE: [] };
+  rookies.forEach(rk => {
+    if (posGroups[rk.pos]) posGroups[rk.pos].push(rk);
   });
-  if (Object.keys(map).length === 0) {
-    showToast('No mappings selected — use the dropdowns to match teams first.', 'error');
-    return;
-  }
-  await db.ref(`leagues/${leagueId()}/usernameToRosterId`).set(map);
-  window._rosterIdMap = map;
-  await syncRosterSizes();
-  const status = document.getElementById('map-status');
-  if (status) status.textContent = `✅ Saved ${Object.keys(map).length} mappings and synced roster sizes to auction page.`;
-  showToast('Mapping saved & roster sizes synced!', 'success');
-}
 
-// Auto-fetch button just re-runs the dropdown build
-async function commFetchRosterIds() { await commBuildDropdowns(); }
-
-
-async function commSetTaxiPos(teamKey,idx,pos){
-  if(!DATA[teamKey]?.taxi?.[idx])return;
-  DATA[teamKey].taxi[idx].pos=pos||undefined;
-  await saveToFirebase();
-  showToast('Position updated to '+(pos||'—'),'success');
-}
-async function commPromote(teamKey,idx){
-  const p=DATA[teamKey]?.taxi?.[idx]; if(!p)return;
-  const note=prompt(`Promotion note for ${p.name} (optional):`); if(note===null)return;
-  const safe=p.name.replace(/[.#$\/\[\]]/g,'_');
-  if(!promos[teamKey])promos[teamKey]={};
-  const data={note:note||'',promoted:true,promotedAt:Date.now()};
-  promos[teamKey][p.name]=data;
-  if(leagueId())await db.ref(`leagues/${leagueId()}/taxiPromos/${teamKey}/${safe}`).set(data);
-  showToast(p.name+' promoted ⬆️','success');
-  renderCommish();
-}
-async function commUndoPromo(teamKey,playerName){
-  const safe=playerName.replace(/[.#$\/\[\]]/g,'_');
-  if(promos[teamKey])delete promos[teamKey][playerName];
-  if(leagueId())await db.ref(`leagues/${leagueId()}/taxiPromos/${teamKey}/${safe}`).remove();
-  showToast('Promotion undone','info');
-  renderCommish();
-}
-
-// ── COMPARE ──────────────────────────────────────────────────
-function renderCompare() {
-  const el = document.getElementById('tab-compare');
-  const teams = Object.entries(DATA);
-  const vals = {
-    spent: teams.map(([,t])=>t.cap_spent),
-    avail: teams.map(([,t])=>CAP-t.cap_spent),
-    QB: teams.map(([,t])=>posTotal(t,'QB')),
-    RB: teams.map(([,t])=>posTotal(t,'RB')),
-    WR: teams.map(([,t])=>posTotal(t,'WR')),
-    TE: teams.map(([,t])=>posTotal(t,'TE')),
-  };
-  function heat(val,arr,hex){const mn=Math.min(...arr),mx=Math.max(...arr),p=mx===mn?0:(val-mn)/(mx-mn);return `<div class="heat" style="background:${hex};opacity:${(p*.28+.04).toFixed(2)};"></div>`;}
-  const sorted=[...teams].sort((a,b)=>b[1].cap_spent-a[1].cap_spent);
-  const rows=sorted.map(([key,t])=>{
-    const sp=t.cap_spent,av=CAP-sp,qb=posTotal(t,'QB'),rb=posTotal(t,'RB'),wr=posTotal(t,'WR'),te=posTotal(t,'TE');
-    return `<tr>
-      <td><div class="cmp-name"><a href="team.html?team=${key}" style="text-decoration:none;color:inherit;">${t.team_name}</a></div><div class="cmp-user">${key}</div></td>
-      <td class="${sp===Math.max(...vals.spent)?'worst':sp===Math.min(...vals.spent)?'best':''}">${heat(sp,vals.spent,'#ff4d6a')}${fmtM(sp)}<div style="font-size:10px;color:var(--text3);">${pctOf(sp)}</div></td>
-      <td style="color:var(--green);">${heat(av,vals.avail,'#18e07a')}${fmtM(av)}</td>
-      <td class="qb-h">${heat(qb,vals.QB,'#b89ffe')}${fmtM(qb)}</td>
-      <td class="rb-h">${heat(rb,vals.RB,'#18e07a')}${fmtM(rb)}</td>
-      <td class="wr-h">${heat(wr,vals.WR,'#00d4ff')}${fmtM(wr)}</td>
-      <td class="te-h">${heat(te,vals.TE,'#ffc94d')}${fmtM(te)}</td>
-    </tr>`;
-  }).join('');
-  el.innerHTML=`<p style="font-size:12px;color:var(--text3);margin-bottom:14px;">Sorted by cap spent. Shading = relative spend per column.</p>
-    <div class="cmp-wrap"><table class="cmp-table">
-      <thead><tr><th style="text-align:left;">Team</th><th>Cap Spent</th><th style="color:var(--green);">Available</th>
-      <th class="qb-h">QB</th><th class="rb-h">RB</th><th class="wr-h">WR</th><th class="te-h">TE</th></tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>`;
-}
-
-// ── TOP PAID ─────────────────────────────────────────────────
-function renderTopPaid() {
-  const el = document.getElementById('tab-toppaid');
-  function topByPos(pos,limit){
-    const all=[];
-    Object.entries(DATA).forEach(([key,t])=>{t.starters.filter(p=>p.pos===pos).forEach(p=>all.push({...p,team_name:t.team_name}));});
-    return all.sort((a,b)=>b.salary-a.salary).slice(0,limit);
-  }
-  const sections=[{pos:'QB',limit:10,label:'Top 10 QBs'},{pos:'RB',limit:10,label:'Top 10 RBs'},{pos:'WR',limit:15,label:'Top 15 WRs'},{pos:'TE',limit:5,label:'Top 5 TEs'}];
-  el.innerHTML=`<div class="top-paid-grid">${sections.map(({pos,limit,label})=>{
-    const players=topByPos(pos,limit);
-    const maxSal=players[0]?.salary||1;
-    const color=POS_COLORS[pos];
-    return `<div class="tp-section">
-      <div class="tp-section-header"><div class="tp-section-title" style="color:${color};">${label}</div><div class="tp-section-sub">by salary</div></div>
-      ${players.map((p,i)=>{
-        const cls=i===0?'tp-rank-1':i===1?'tp-rank-2':i===2?'tp-rank-3':'';
-        return `<div class="tp-row">
-          <div class="tp-rank ${cls}">${i+1}</div>
-          <div style="flex:1;min-width:0;">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;">
-              <span class="tp-player-name">${p.name}</span>
-              <span class="tp-salary" style="color:${color};">${fmtM(p.salary)}</span>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;margin-top:3px;">
-              <div style="flex:1;"><div class="tp-sal-bar-bg"><div class="tp-sal-bar-fill" style="width:${Math.round(p.salary/maxSal*100)}%;background:${color};"></div></div></div>
-              <span class="tp-team-lbl">${p.team_name}</span>
-            </div>
+  let availHTML = '';
+  Object.entries(posGroups).forEach(([pos, players]) => {
+    if (!players.length) return;
+    const clr = { QB:'#b89ffe', RB:'#18e07a', WR:'#00d4ff', TE:'#ffc94d' }[pos] || 'var(--text2)';
+    availHTML += `<div style="flex:1;min-width:200px;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:${clr};margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border);">${pos}</div>
+      ${players.map(rk => {
+        const taken = draftedNames.has(rk.name.toLowerCase()) || rk.rostered;
+        return `<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;border-bottom:1px solid rgba(46,48,64,.3);opacity:${taken?'0.35':'1'};">
+          <div>
+            <span style="font-size:13px;${taken?'text-decoration:line-through;color:var(--text3);':''}">${rk.name}</span>
+            <span style="font-size:11px;color:var(--text3);margin-left:5px;">${rk.nflTeam}</span>
+            ${rk.age ? `<span style="font-size:10px;color:var(--text3);margin-left:4px;">${rk.age}yo</span>` : ''}
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);">ADP ${rk.adp}</span>
+            ${taken ? `<span style="font-size:10px;color:var(--text3);">drafted</span>` : ''}
           </div>
         </div>`;
       }).join('')}
     </div>`;
-  }).join('')}</div>`;
+  });
+
+  return `<div style="padding:16px 0;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+      <div>
+        <div style="font-size:16px;font-weight:600;">🎓 Rookie Draft Board</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px;">
+          ${draftData
+            ? `Sleeper draft loaded — status: <strong>${draftData.status}</strong> · ${draftData.season || ''}`
+            : 'Manual mode — assign picks using the dropdowns below'}
+        </div>
+      </div>
+      <button onclick="renderRookieDraft()" style="padding:6px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);font-size:12px;cursor:pointer;font-family:var(--font-body);">↻ Refresh</button>
+    </div>
+
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;margin-bottom:20px;font-size:12px;color:var(--text3);">
+      Salaries: R1 picks 1-6 = $15M · 7-12 = $10M &nbsp;|&nbsp; R2 1-6 = $7.5M · 7-12 = $5M &nbsp;|&nbsp; R3 1-6 = $3M · 7-12 = $2M &nbsp;|&nbsp; R4 = $1M &nbsp;·&nbsp; All go to taxi squad
+    </div>
+
+    <div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start;">
+      <div style="flex:2;min-width:300px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text2);">Draft Board</div>
+        ${gridHTML}
+      </div>
+      <div style="flex:1;min-width:260px;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:12px;color:var(--text2);">Available Rookies</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Top 500 ADP · struck through = drafted</div>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;">${availHTML}</div>
+      </div>
+    </div>
+  </div>`;
 }
 
-// ── TAXI TRACKER ──────────────────────────────────────────────
-function renderTaxi() {
-  const el = document.getElementById('tab-taxi');
-  const comm = isComm();
-  const allTeams = Object.entries(DATA).filter(([,t])=>(t.taxi||[]).filter(p=>p.name).length>0);
-  if(!allTeams.length){el.innerHTML='<div style="color:var(--text3);padding:40px;text-align:center;">No taxi players found.</div>';return;}
-  el.innerHTML=`<p style="font-size:13px;color:var(--text3);margin-bottom:16px;">Taxi squad players don't count toward the cap.${comm?' Commissioner can mark players as promoted.':''}</p>
-    <div class="taxi-grid">${allTeams.map(([key,t])=>{
-      const players=(t.taxi||[]).filter(p=>p.name).sort((a,b)=>b.salary-a.salary);
-      const promoCount=players.filter(p=>(promos[key]||{})[p.name]).length;
-      return `<div class="taxi-card">
-        <div class="taxi-card-hdr">
-          <a href="team.html?team=${key}" style="text-decoration:none;color:inherit;">${t.team_name}</a>
-          <span style="font-size:11px;color:var(--text3);">${promoCount}/${players.length} promoted</span>
-        </div>
-        ${players.map(p=>{
-          const promo=(promos[key]||{})[p.name];
-          return `<div class="taxi-row">
-            <div class="taxi-info">
-              <div class="taxi-pname">${p.name}${promo?'<span class="promoted-badge">⬆️ Promoted</span>':''}</div>
-              <div class="taxi-psal">${fmtM(p.salary)}</div>
-              ${promo?.note?`<div class="taxi-pnote">${promo.note}</div>`:''}
-            </div>
-            <div style="display:flex;gap:4px;">
-              ${comm&&!promo?`<button class="promo-btn" onclick="openPromoModal('${key}','${p.name.replace(/'/g,"\\'")}')">⬆️ Promote</button>`:''}
-              ${comm&&promo?`<button class="undo-btn" onclick="undoPromo('${key}','${p.name.replace(/'/g,"\\'")}')">↩ Undo</button>`:''}
-            </div>
-          </div>`;
-        }).join('')}
-      </div>`;
-    }).join('')}</div>`;
+async function rookieAssignPick(key, salary) {
+  const sel    = document.getElementById(`rdraft-player-${key}`);
+  const manual = document.getElementById(`rdraft-manual-${key}`);
+  const teamSel = document.getElementById(`rdraft-team-${key}`);
+  if (!sel || !teamSel) return;
+
+  let pName = sel.value === '__manual__' ? (manual?.value||'').trim() : sel.value;
+  const teamKey = teamSel.value;
+
+  if (!pName)    { showToast('Select or enter a player name', 'error'); return; }
+  if (!teamKey)  { showToast('Select an owner', 'error'); return; }
+
+  if (!DATA[teamKey].taxi) DATA[teamKey].taxi = [];
+  DATA[teamKey].taxi.push({ name: pName, salary, years_exp: 0 });
+  await saveToFirebase();
+
+  if (leagueId()) {
+    await db.ref(`leagues/${leagueId()}/rookieDraft/${key}`).set({
+      player: pName, team: teamKey, salary, assignedAt: Date.now()
+    });
+  }
+  showToast(`${pName} → ${DATA[teamKey].team_name} taxi squad`, 'success');
+  renderRookieDraft();
 }
+
+async function rookieClearPick(key) {
+  if (!leagueId()) return;
+  const snap = await db.ref(`leagues/${leagueId()}/rookieDraft/${key}`).once('value');
+  const pick = snap.val();
+  if (pick?.team && DATA[pick.team]) {
+    // Remove from taxi squad too
+    const taxi = DATA[pick.team].taxi || [];
+    const idx = taxi.findIndex(p => p.name === pick.player);
+    if (idx > -1) { taxi.splice(idx, 1); await saveToFirebase(); }
+  }
+  await db.ref(`leagues/${leagueId()}/rookieDraft/${key}`).remove();
+  showToast('Pick cleared', 'info');
+  renderRookieDraft();
+}
+
 
 // ── HOLDOUT ───────────────────────────────────────────────────
 async function toggleHoldout(teamKey, playerName) {
