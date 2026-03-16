@@ -241,6 +241,53 @@ const Auction = (() => {
       .reduce((sum, a) => sum + getMyMaxBid(a, rosterId), 0);
   }
 
+  function passesRef(leagueId, auctionId) {
+    return db.ref(`leagues/${leagueId}/auctions/${auctionId}/passes`);
+  }
+
+  // ── Pass on an auction ───────────────────────────────────
+  // Records this roster's "not interested" vote.
+  // If all non-nominating, non-bidding teams have passed → auto-close.
+  async function passAuction(leagueId, auctionId, rosterId, allRosterIds, teamName, playerName) {
+    // Record the pass
+    await passesRef(leagueId, auctionId).update({ [rosterId]: Date.now() });
+
+    await logActivity(leagueId, {
+      type: 'pass',
+      auctionId,
+      playerName: playerName || '',
+      rosterId,
+      teamName: teamName || `Team ${rosterId}`,
+    });
+
+    // Check if all others have passed — if so, close immediately
+    const snap    = await auctionRef(leagueId, auctionId).once('value');
+    const auction = snap.val();
+    if (!auction || auction.cancelled || auction.processed) return false;
+
+    const passes    = Object.keys(auction.passes || {}).map(Number);
+    const bids      = Array.isArray(auction.bids) ? auction.bids : Object.values(auction.bids || {});
+    const bidders   = new Set(bids.map(b => b.rosterId));
+    const nominator = auction.nominatedBy;
+
+    // Everyone who must pass = all teams except nominator and anyone who has bid
+    const mustPass = allRosterIds.filter(id => id !== nominator && !bidders.has(id));
+    const allPassed = mustPass.every(id => passes.includes(id));
+
+    if (allPassed) {
+      // Auto-close: expire it now
+      await auctionRef(leagueId, auctionId).update({ expiresAt: Date.now() - 1, autoClosedByPasses: true });
+      await logActivity(leagueId, {
+        type: 'autoclose',
+        auctionId,
+        playerName: playerName || '',
+        teamName: 'System',
+      });
+      return true; // closed
+    }
+    return false;
+  }
+
   return {
     DURATION_MS, MIN_BID,
     isNightPause, msTillPauseEnd, effectiveTimeLeft,
@@ -251,6 +298,7 @@ const Auction = (() => {
     setRosterSize,
     addWatch, removeWatch,
     logActivity,
+    passAuction,
     computeLeadingBid, getMyMaxBid, getCommittedFaab,
   };
 })();

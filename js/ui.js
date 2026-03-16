@@ -164,6 +164,7 @@ const UI = (() => {
     let pill = '';
     if (isCan)                                       pill = `<span class="status-pill status-expired">Cancelled</span>`;
     else if (auction.processed)                      pill = `<span class="status-pill status-won">Claimed ✓</span>`;
+    else if (isExp && auction.autoClosedByPasses)    pill = `<span class="status-pill status-expired">All Passed</span>`;
     else if (isExp && leading.rosterId === myRid)    pill = `<span class="status-pill status-won">Won ✓</span>`;
     else if (isExp)                                  pill = `<span class="status-pill status-expired">Ended</span>`;
     else if (paused)                                 pill = `<span class="status-pill status-paused">⏸ Paused</span>`;
@@ -179,6 +180,36 @@ const UI = (() => {
       ? `<button class="btn btn-primary btn-sm" style="margin-left:auto;" onclick="App.openBidModal('${auction.id}')">
            ${isWin ? 'Update Bid' : isOut ? 'Bid Again' : 'Bid'}
          </button>` : '';
+
+    // ── Pass / Not Interested ──────────────────────────────
+    const passes     = Object.keys(auction.passes || {}).map(Number);
+    const bids       = Array.isArray(auction.bids) ? auction.bids : Object.values(auction.bids || {});
+    const bidderRids = new Set(bids.map(b => b.rosterId));
+    const totalTeams = state.teams.length;
+    // Teams that need to pass = everyone except nominator and bidders
+    const mustPassCount = state.teams.filter(t =>
+      t.roster_id !== auction.nominatedBy && !bidderRids.has(t.roster_id)
+    ).length;
+    const passCount  = passes.filter(rid => rid !== auction.nominatedBy && !bidderRids.has(rid)).length;
+    const myPassed   = myRid && passes.includes(myRid);
+    const myBid      = myRid ? Auction.getMyMaxBid(auction, myRid) : 0;
+    // Can pass if: auction active, not nominator, haven't bid, haven't already passed
+    const canPass    = canBid && myRid && auction.nominatedBy !== myRid && !myBid && !myPassed;
+
+    const passBtn = canPass
+      ? `<button class="btn btn-sm pass-btn" onclick="App.passAuction('${auction.id}')"
+           style="background:rgba(255,77,106,.08);color:var(--red);border:1px solid rgba(255,77,106,.25);margin-left:6px;">
+           👎 Pass
+         </button>`
+      : myPassed && canBid
+      ? `<span style="font-size:11px;color:var(--text3);margin-left:6px;">Passed</span>`
+      : '';
+
+    const passCounter = canBid && mustPassCount > 0
+      ? `<span style="font-size:11px;color:var(--text3);margin-left:6px;" title="${passCount} of ${mustPassCount} non-bidding teams have passed">
+           ${passCount}/${mustPassCount} passed
+         </span>`
+      : '';
 
     const cancelBtn = isComm && canBid
       ? `<button class="btn btn-sm" style="background:var(--red-dim);color:var(--red);border:1px solid rgba(255,77,106,0.25);margin-left:6px;"
@@ -201,6 +232,7 @@ const UI = (() => {
 
     return `<div class="${cls}" id="card-${auction.id}">
       ${isUrgent ? '<div style="background:var(--red);color:#fff;font-size:10px;font-weight:700;text-align:center;padding:3px;letter-spacing:.5px;border-radius:var(--radius) var(--radius) 0 0;">⚡ CLOSING SOON</div>' : ''}
+      ${canBid && mustPassCount > 0 && passCount === mustPassCount - 1 ? '<div style="background:rgba(255,201,77,.15);color:var(--yellow);font-size:10px;font-weight:600;text-align:center;padding:3px;letter-spacing:.3px;">⚠️ 1 team left to pass — closes when they do</div>' : ''}
       <div class="card-top">
         ${playerAvatarHTML(auction.playerId, 44)}
         <div class="player-info">
@@ -226,7 +258,7 @@ const UI = (() => {
           <div class="timer ${timerCls}" id="timer-${auction.id}">${timerTxt}</div>
         </div>
       </div>
-      <div class="card-bot">${pill}${watchBtn}${bidBtn}${cancelBtn}${claimBtn}${deleteBtn}</div>
+      <div class="card-bot">${pill}${watchBtn}${passBtn}${passCounter}${bidBtn}${cancelBtn}${claimBtn}${deleteBtn}</div>
     </div>`;
   }
 
@@ -634,8 +666,8 @@ const UI = (() => {
       return;
     }
 
-    const icons = { nomination: '🏷', bid: '💰', claim: '✅', cancel: '❌' };
-    const colors = { nomination: 'var(--accent2)', bid: 'var(--yellow)', claim: 'var(--green)', cancel: 'var(--red)' };
+    const icons  = { nomination: '🏷', bid: '💰', claim: '✅', cancel: '❌', pass: '👎', autoclose: '🔒' };
+    const colors = { nomination: 'var(--accent2)', bid: 'var(--yellow)', claim: 'var(--green)', cancel: 'var(--red)', pass: 'var(--text3)', autoclose: 'var(--text2)' };
 
     el.innerHTML = feed.slice(0, 50).map(item => {
       const icon  = icons[item.type]  || '📋';
@@ -649,6 +681,10 @@ const UI = (() => {
         desc = `<strong style="color:var(--green);">${item.teamName}</strong> claimed <strong style="color:var(--accent2);">${item.playerName}</strong> for <strong style="color:var(--green);">${App.fmtFaab(item.amount)}</strong>`;
       else if (item.type === 'cancel')
         desc = `Auction for <strong style="color:var(--accent2);">${item.playerName}</strong> was cancelled`;
+      else if (item.type === 'pass')
+        desc = `<strong style="color:var(--text);">${item.teamName}</strong> passed on <strong style="color:var(--accent2);">${item.playerName}</strong>`;
+      else if (item.type === 'autoclose')
+        desc = `Auction for <strong style="color:var(--accent2);">${item.playerName}</strong> closed early — all teams passed`;
 
       return `<div class="history-row" style="gap:10px;">
         <div style="font-size:20px;flex-shrink:0;width:28px;text-align:center;">${icon}</div>

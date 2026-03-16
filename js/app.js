@@ -806,6 +806,30 @@ const App = (() => {
     UI.toast('Auction cancelled.', 'info');
   }
 
+  async function passAuction(auctionId) {
+    const auction = state.auctions.find(a => a.id === auctionId);
+    if (!auction) return;
+    const myTeam = UI.getMyTeam(state);
+    if (!myTeam) return;
+    const p           = state.players[auction.playerId] || {};
+    const allRosterIds = state.teams.map(t => t.roster_id);
+    try {
+      const closed = await Auction.passAuction(
+        state.leagueId, auctionId,
+        myTeam.roster_id, allRosterIds,
+        myTeam.display_name || myTeam.username,
+        UI.playerName(p)
+      );
+      if (closed) {
+        UI.toast('All teams passed — auction closed early!', 'success');
+      } else {
+        UI.toast('Marked as not interested.', 'info');
+      }
+    } catch(e) {
+      UI.toast('Could not record pass: ' + e.message, 'error');
+    }
+  }
+
   async function deleteAuction(auctionId) {
     if (!confirm('PERMANENTLY DELETE this auction? Cannot be undone.')) return;
     await Auction.deleteAuction(state.leagueId, auctionId);
@@ -878,7 +902,7 @@ const App = (() => {
     openNomModal, closeNomModal, closeNomModalOutside, submitNomination,
     commSetAllRosterSizes,
     openBidModal, closeBidModal, closeBidModalOutside, submitBid, updateBidHint,
-    pushToClaim, cancelAuction, deleteAuction,
+    pushToClaim, cancelAuction, deleteAuction, passAuction,
     commOverrideFaab, commSetAllFaab, confirmReset,
     filterHistory,
   };
