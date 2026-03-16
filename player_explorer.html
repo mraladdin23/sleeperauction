@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>SleeperBid — Player Explorer</title>
+<style>
+:root{--bg:#0d0f14;--surface:#161820;--surface2:#1e2029;--border:#2e3040;--accent:#7c5cfc;--green:#18e07a;--yellow:#ffc94d;--red:#ff4d6a;--text:#e8eaf0;--text2:#9296a8;--text3:#5a5e72;--font-body:'DM Sans',sans-serif;--font-mono:'JetBrains Mono',monospace;--radius:8px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;padding:20px;max-width:1400px;margin:0 auto;}
+h1{font-size:22px;margin-bottom:4px;}
+.sub{color:var(--text3);font-size:13px;margin-bottom:18px;}
+.controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:16px;}
+button{padding:7px 14px;border:none;border-radius:var(--radius);cursor:pointer;font-size:13px;font-family:var(--font-body);}
+.btn-p{background:var(--accent);color:#fff;}
+.btn-s{background:var(--surface2);color:var(--text2);border:1px solid var(--border);}
+.btn-g{background:rgba(24,224,122,.12);color:var(--green);border:1px solid rgba(24,224,122,.3);}
+select,input{padding:7px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:13px;font-family:var(--font-body);outline:none;}
+.filter-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center;}
+.stat-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:8px 14px;min-width:90px;}
+.sv{font-size:18px;font-weight:600;font-family:var(--font-mono);}
+.sl{font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:1px;}
+.scroll{overflow-x:auto;max-height:70vh;overflow-y:auto;}
+table{width:100%;border-collapse:collapse;min-width:900px;}
+thead th{background:var(--surface2);font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;padding:7px 10px;text-align:left;position:sticky;top:0;z-index:5;cursor:pointer;white-space:nowrap;user-select:none;}
+thead th:hover{color:var(--text);}
+tbody tr{border-bottom:1px solid rgba(46,48,64,.35);}
+tbody tr:hover{background:rgba(255,255,255,.02);}
+td{padding:6px 10px;font-size:12px;vertical-align:middle;}
+.pos-badge{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;}
+.ye-0{background:rgba(24,224,122,.15);color:var(--green);}
+.ye-null{background:rgba(0,212,255,.1);color:var(--cyan,#00d4ff);}
+.ye-old{background:rgba(90,94,114,.2);color:var(--text3);}
+.age-high{color:var(--red);}
+.age-med{color:var(--yellow);}
+img.thumb{width:28px;height:28px;border-radius:50%;object-fit:cover;}
+.info-box{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:16px;font-size:13px;line-height:1.7;color:var(--text2);display:none;}
+.info-box.visible{display:block;}
+</style>
+</head>
+<body>
+<h1>🔍 Sleeper Player Explorer</h1>
+<p class="sub">Browse the full Sleeper player database. Use this to understand years_exp and age values so you can define the right rookie filter rule.</p>
+
+<div class="controls">
+  <button class="btn-p" id="load-btn" onclick="loadPlayers()">⬇️ Load Player Database</button>
+  <button class="btn-g" id="dl-btn" onclick="downloadCSV()" disabled>📥 Download CSV</button>
+  <button class="btn-s" onclick="toggleInfo()">ℹ️ Rookie filter guide</button>
+</div>
+
+<div class="info-box" id="info-box">
+  <strong>Understanding years_exp in Sleeper:</strong><br/>
+  • <strong>0</strong> = rookie in their first active NFL season (drafted this year)<br/>
+  • <strong>null / blank</strong> = pre-draft / offseason entrant — not yet in the NFL, or between contracts<br/>
+  • <strong>1</strong> = second-year player (eligible for taxi squad if your rules allow it)<br/>
+  • <strong>2+</strong> = veteran<br/><br/>
+  <strong>Recommended rookie draft pool rule options:</strong><br/>
+  • <em>Conservative</em>: years_exp === 0 only (current-season confirmed rookies)<br/>
+  • <em>Moderate</em>: years_exp === 0 OR (null AND age ≤ 23) — catches pre-draft players<br/>
+  • <em>Broad</em>: years_exp ≤ 1 AND age ≤ 24 — includes 2nd-year players still on taxi<br/><br/>
+  Sort by <strong>years_exp</strong> and look at the null/0 rows. The <strong>age</strong> and <strong>search_rank</strong> columns tell you which ones are legitimately draftable.
+</div>
+
+<div class="filter-row">
+  <input id="search" placeholder="🔍 name or team…" oninput="render()" style="width:180px;"/>
+  <select id="pos-filter" onchange="render()">
+    <option value="">All positions</option>
+    <option value="QB">QB</option>
+    <option value="RB">RB</option>
+    <option value="WR">WR</option>
+    <option value="TE">TE</option>
+  </select>
+  <select id="ye-filter" onchange="render()">
+    <option value="">All years_exp</option>
+    <option value="0">0 (confirmed rookie)</option>
+    <option value="null">null (pre-draft / unsigned)</option>
+    <option value="1">1</option>
+    <option value="2">2</option>
+    <option value="3+">3+</option>
+  </select>
+  <select id="age-filter" onchange="render()">
+    <option value="">All ages</option>
+    <option value="21-">≤ 21</option>
+    <option value="22">22</option>
+    <option value="23">23</option>
+    <option value="24">24</option>
+    <option value="25">25</option>
+    <option value="26+">26+</option>
+  </select>
+  <label style="font-size:13px;color:var(--text3);display:flex;align-items:center;gap:6px;">
+    <input type="checkbox" id="has-rank" onchange="render()"/> Has ADP rank
+  </label>
+  <label style="font-size:13px;color:var(--text3);display:flex;align-items:center;gap:6px;">
+    <input type="checkbox" id="on-team" onchange="render()"/> On NFL team
+  </label>
+</div>
+
+<div class="stat-row" id="stat-row"></div>
+
+<div class="scroll">
+<table id="main-table">
+  <thead>
+    <tr>
+      <th style="width:32px;"></th>
+      <th onclick="sortBy('name')">Name ↕</th>
+      <th onclick="sortBy('pos')">Pos ↕</th>
+      <th onclick="sortBy('team')">NFL Team ↕</th>
+      <th onclick="sortBy('age')">Age ↕</th>
+      <th onclick="sortBy('ye')">years_exp ↕</th>
+      <th onclick="sortBy('rank')">ADP Rank ↕</th>
+      <th>Player ID</th>
+    </tr>
+  </thead>
+  <tbody id="tbody"></tbody>
+</table>
+</div>
+<div id="no-data" style="padding:40px;text-align:center;color:var(--text3);">Click "Load Player Database" to begin.</div>
+
+<script>
+const POS_COLORS = {QB:'#b89ffe',RB:'#18e07a',WR:'#00d4ff',TE:'#ffc94d'};
+let allPlayers = [];
+let sortCol = 'rank', sortDir = 1;
+
+async function loadPlayers() {
+  const btn = document.getElementById('load-btn');
+  btn.textContent = 'Loading…'; btn.disabled = true;
+
+  let raw = localStorage.getItem('sb_players');
+  if (!raw) {
+    btn.textContent = 'Downloading (~10MB)…';
+    try {
+      const r = await fetch('https://api.sleeper.app/v1/players/nfl');
+      raw = await r.text();
+      try { localStorage.setItem('sb_players', raw); } catch(e) {}
+    } catch(e) {
+      alert('Failed: ' + e.message); btn.disabled = false; btn.textContent = '⬇️ Load'; return;
+    }
+  }
+
+  const db = JSON.parse(raw);
+  const SKILL = new Set(['QB','RB','WR','TE']);
+  allPlayers = Object.entries(db)
+    .filter(([,p]) => p.fantasy_positions?.some(pos => SKILL.has(pos)) && p.first_name && p.last_name)
+    .map(([pid, p]) => ({
+      pid,
+      name: `${p.first_name} ${p.last_name}`,
+      pos:  p.fantasy_positions?.find(pos => SKILL.has(pos)) || '',
+      team: p.team || '',
+      age:  p.age != null ? Number(p.age) : null,
+      ye:   p.years_exp != null ? Number(p.years_exp) : null,
+      yeRaw: p.years_exp,
+      rank: p.search_rank || null,
+    }));
+
+  btn.textContent = `✅ Loaded ${allPlayers.length.toLocaleString()} players`;
+  btn.disabled = false;
+  document.getElementById('dl-btn').disabled = false;
+  document.getElementById('no-data').style.display = 'none';
+  render();
+}
+
+function getFiltered() {
+  const q     = document.getElementById('search').value.toLowerCase();
+  const pos   = document.getElementById('pos-filter').value;
+  const ye    = document.getElementById('ye-filter').value;
+  const age   = document.getElementById('age-filter').value;
+  const hasRank = document.getElementById('has-rank').checked;
+  const onTeam  = document.getElementById('on-team').checked;
+
+  return allPlayers.filter(p => {
+    if (q && !p.name.toLowerCase().includes(q) && !(p.team||'').toLowerCase().includes(q)) return false;
+    if (pos && p.pos !== pos) return false;
+    if (ye === '0'   && p.ye !== 0) return false;
+    if (ye === 'null' && p.yeRaw !== null && p.yeRaw !== undefined) return false;
+    if (ye === '1'   && p.ye !== 1) return false;
+    if (ye === '2'   && p.ye !== 2) return false;
+    if (ye === '3+'  && (p.ye == null || p.ye < 3)) return false;
+    if (age === '21-'  && (p.age == null || p.age > 21)) return false;
+    if (age === '22'   && p.age !== 22) return false;
+    if (age === '23'   && p.age !== 23) return false;
+    if (age === '24'   && p.age !== 24) return false;
+    if (age === '25'   && p.age !== 25) return false;
+    if (age === '26+'  && (p.age == null || p.age < 26)) return false;
+    if (hasRank && !p.rank) return false;
+    if (onTeam && !p.team) return false;
+    return true;
+  });
+}
+
+function sortBy(col) {
+  if (sortCol === col) sortDir *= -1; else { sortCol = col; sortDir = 1; }
+  render();
+}
+
+function render() {
+  const filtered = getFiltered();
+  filtered.sort((a,b) => {
+    const av = a[sortCol], bv = b[sortCol];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1;
+    if (bv == null) return -1;
+    return sortDir * (av < bv ? -1 : av > bv ? 1 : 0);
+  });
+
+  // Stats
+  const ye0   = filtered.filter(p=>p.ye===0).length;
+  const yeNull = filtered.filter(p=>p.yeRaw===null||p.yeRaw===undefined).length;
+  const ye1   = filtered.filter(p=>p.ye===1).length;
+  document.getElementById('stat-row').innerHTML = [
+    ['Showing', filtered.length, 'var(--text)'],
+    ['ye=0 (rookie)', ye0, 'var(--green)'],
+    ['ye=null (pre-draft)', yeNull, 'var(--cyan,#00d4ff)'],
+    ['ye=1 (2nd yr)', ye1, 'var(--text3)'],
+  ].map(([l,v,c])=>`<div class="stat"><div class="sv" style="color:${c}">${v}</div><div class="sl">${l}</div></div>`).join('');
+
+  const PAGE = 200;
+  const rows = filtered.slice(0, PAGE).map(p => {
+    const posClr = POS_COLORS[p.pos]||'#888';
+    const yeClass = p.ye === 0 ? 'ye-0' : (p.yeRaw === null || p.yeRaw === undefined) ? 'ye-null' : 'ye-old';
+    const yeLabel = p.yeRaw === null || p.yeRaw === undefined ? 'null' : String(p.ye);
+    const ageClr  = p.age >= 30 ? 'age-high' : p.age >= 28 ? 'age-med' : '';
+    const photo = `<img class="thumb" src="https://sleepercdn.com/content/nfl/players/thumb/${p.pid}.jpg" onerror="this.style.opacity='.15'" />`;
+    return `<tr>
+      <td>${photo}</td>
+      <td style="font-weight:500;">${p.name}</td>
+      <td><span class="pos-badge" style="background:${posClr}22;color:${posClr};">${p.pos}</span></td>
+      <td style="color:var(--text2);">${p.team||<span style="color:var(--text3)">FA</span>}</td>
+      <td class="${ageClr}">${p.age??'—'}</td>
+      <td><span class="pos-badge ${yeClass}">${yeLabel}</span></td>
+      <td style="color:var(--text3);font-family:var(--font-mono);">${p.rank??'—'}</td>
+      <td style="font-family:var(--font-mono);font-size:11px;color:var(--text3);">${p.pid}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('tbody').innerHTML = rows;
+  if (filtered.length > PAGE) {
+    document.getElementById('tbody').innerHTML +=
+      `<tr><td colspan="8" style="padding:12px;text-align:center;color:var(--text3);font-size:12px;">Showing first ${PAGE} of ${filtered.length} — use filters to narrow down</td></tr>`;
+  }
+}
+
+function downloadCSV() {
+  const filtered = getFiltered();
+  const rows = [['player_id','name','pos','nfl_team','age','years_exp','adp_rank']];
+  filtered.forEach(p => {
+    const yeLabel = (p.yeRaw === null || p.yeRaw === undefined) ? '' : String(p.ye);
+    rows.push([p.pid, p.name, p.pos, p.team||'', p.age??'', yeLabel, p.rank??'']);
+  });
+  const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv);
+  a.download = `sleeper_players_${document.getElementById('pos-filter').value||'all'}_${document.getElementById('ye-filter').value||'all'}.csv`;
+  a.click();
+}
+
+function toggleInfo() {
+  const b = document.getElementById('info-box');
+  b.classList.toggle('visible');
+}
+</script>
+</body>
+</html>
