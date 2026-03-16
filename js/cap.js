@@ -476,153 +476,145 @@ async function loadApStats() {
   return apStatsMap;
 }
 
+const AP_NFL_TEAMS = ['ARI','ATL','BAL','BUF','CAR','CHI','CIN','CLE','DAL','DEN','DET','GB','HOU','IND','JAX','KC','LAC','LAR','LV','MIA','MIN','NE','NO','NYG','NYJ','PHI','PIT','SEA','SF','TB','TEN','WAS'];
+
+function apBuildShell(el) {
+  const teamOpts = AP_NFL_TEAMS.map(t => `<option value="${t}">${t}</option>`).join('');
+  el.innerHTML =
+    '<div style="padding:16px 0 8px;">' +
+      '<div class="fa-search">' +
+        '<span class="search-icon">🔍</span>' +
+        '<input id="ap-search-input" type="text" placeholder="Search players…" oninput="apSearch=this.value.toLowerCase().trim();apRenderRows();" />' +
+      '</div>' +
+      '<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">' +
+        '<div class="fa-filters" style="margin-bottom:0;" id="ap-chips"></div>' +
+        '<select id="ap-nfl-filter" onchange="apRenderRows()" style="padding:5px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:12px;font-family:var(--font-body);outline:none;cursor:pointer;">' +
+          '<option value="">All NFL Teams</option>' + teamOpts +
+        '</select>' +
+      '</div>' +
+      '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">' +
+        '<div style="padding:9px 14px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">' +
+          '<span id="ap-title" style="font-size:14px;font-weight:600;"></span>' +
+          '<span id="ap-count" style="font-size:12px;color:var(--text3);"></span>' +
+        '</div>' +
+        '<div style="overflow-x:auto;">' +
+          '<table class="fa-table">' +
+            '<thead><tr>' +
+              '<th>Player</th>' +
+              '<th>NFL Team</th>' +
+              '<th>Pts (2025)</th>' +
+              '<th>Owner</th>' +
+              '<th style="text-align:right;">Salary</th>' +
+              '<th style="text-align:right;"></th>' +
+            '</tr></thead>' +
+            '<tbody id="ap-rows"></tbody>' +
+          '</table>' +
+        '</div>' +
+        '<div id="ap-empty" style="display:none;padding:30px;text-align:center;color:var(--text3);">No players found.</div>' +
+      '</div>' +
+    '</div>';
+}
+
 function renderAllPlayers() {
   const el = document.getElementById('tab-allplayers');
 
-  // Build flat player list
-  let players = [];
+  // Build flat player list from all roster slots
+  const players = [];
   Object.entries(DATA).forEach(([key, t]) => {
-    (t.starters||[]).forEach(p => players.push({name:p.name,pos:p.pos,salary:p.salary,slot:'Active',teamName:t.team_name,teamKey:key}));
-    (t.ir||[]).forEach(p => { if(p.name) players.push({name:p.name,pos:p.pos||'—',salary:Math.round(p.salary*.75),rawSal:p.salary,slot:'IR',teamName:t.team_name,teamKey:key}); });
-    (t.taxi||[]).forEach(p => { if(p.name) players.push({name:p.name,pos:p.pos||'—',salary:p.salary,slot:'Taxi',teamName:t.team_name,teamKey:key}); });
+    (t.starters||[]).forEach(p => { if(p.name) players.push({name:p.name, pos:p.pos||'—', salary:p.salary, slot:'Active', teamName:t.team_name, teamKey:key}); });
+    (t.ir||[]).forEach(p =>     { if(p.name) players.push({name:p.name, pos:p.pos||'—', salary:Math.round(p.salary*.75), rawSal:p.salary, slot:'IR',     teamName:t.team_name, teamKey:key}); });
+    (t.taxi||[]).forEach(p =>   { if(p.name) players.push({name:p.name, pos:p.pos||'—', salary:p.salary, slot:'Taxi',   teamName:t.team_name, teamKey:key}); });
   });
 
+  // Filter
   const apNflFilter = (document.getElementById('ap-nfl-filter')?.value || '').toUpperCase();
-  let filtered = apPosFilter==='ALL' ? players : players.filter(p=>p.pos===apPosFilter);
-  if (apSearch) filtered = filtered.filter(p=>p.name.toLowerCase().includes(apSearch));
-  if (apNflFilter) filtered = filtered.filter(p => {
-    const lk = PLAYER_LOOKUP[p.name.toLowerCase()] || {};
-    return (lk.nfl_team || '').toUpperCase() === apNflFilter;
-  });
-  filtered.sort((a,b)=>b.salary-a.salary);
-  const totalSal = filtered.filter(p=>p.slot==='Active').reduce((s,p)=>s+p.salary,0);
-  const stats = apStatsMap || {};
+  let filtered = apPosFilter === 'ALL' ? players : players.filter(p => p.pos === apPosFilter);
+  if (apSearch)    filtered = filtered.filter(p => p.name.toLowerCase().includes(apSearch));
+  if (apNflFilter) filtered = filtered.filter(p => (PLAYER_LOOKUP[p.name.toLowerCase()]?.nfl_team||'').toUpperCase() === apNflFilter);
+  filtered.sort((a, b) => b.salary - a.salary);
 
-  // Build rows — reuse fa-table / fa-mini-avatar / player-cell classes from style.css
+  const totalSal = filtered.filter(p => p.slot === 'Active').reduce((s, p) => s + p.salary, 0);
+  const stats    = apStatsMap || {};
+  const wl       = JSON.parse(localStorage.getItem('sb_cap_watchlist') || '{}');
+
+  // Build rows — identical structure to FA tab, with owner/salary/badges added
   const rows = filtered.map(p => {
-    const lk      = PLAYER_LOOKUP[p.name.toLowerCase()] || {};
-    const pid     = lk.player_id;
-    const nflTeam = lk.nfl_team || p.pos || '—';
-    const posClr  = POS_COLORS[p.pos] || 'var(--text3)';
-    const ho      = (holdouts[p.teamKey]||{})[p.name];
-    const wl      = JSON.parse(localStorage.getItem('sb_cap_watchlist')||'{}');
-    const starred = !!wl[p.name];
+    const lk       = PLAYER_LOOKUP[p.name.toLowerCase()] || {};
+    const pid      = lk.player_id || '';
+    const nflTeam  = lk.nfl_team  || '—';
+    const ho       = (holdouts[p.teamKey]||{})[p.name];
+    const starred  = !!wl[p.name];
     const safeName = p.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 
-    // Stats — same fields as auction FA tab
+    // Stats line — same as FA tab
     const raw = pid ? (stats[pid] || {}) : {};
-    const statBits = [];
-    if (raw.pass_yd) statBits.push(`${Math.round(raw.pass_yd)} PaYd`);
-    if (raw.pass_td) statBits.push(`${raw.pass_td} PaTD`);
-    if (raw.rush_yd) statBits.push(`${Math.round(raw.rush_yd)} RuYd`);
-    if (raw.rush_td) statBits.push(`${raw.rush_td} RuTD`);
-    if (raw.rec)     statBits.push(`${raw.rec} Rec`);
-    if (raw.rec_yd)  statBits.push(`${Math.round(raw.rec_yd)} ReYd`);
-    if (raw.rec_td)  statBits.push(`${raw.rec_td} ReTD`);
-    const statLine = statBits.length
-      ? `<div style="font-size:10px;color:var(--text3);margin-top:2px;">${statBits.join(' · ')}</div>` : '';
-    const pts = raw.pts_ppr != null ? raw.pts_ppr.toFixed(1) : '—';
+    const bits = [];
+    if (raw.pass_yd) bits.push(Math.round(raw.pass_yd) + ' PaYd');
+    if (raw.pass_td) bits.push(raw.pass_td + ' PaTD');
+    if (raw.rush_yd) bits.push(Math.round(raw.rush_yd) + ' RuYd');
+    if (raw.rush_td) bits.push(raw.rush_td + ' RuTD');
+    if (raw.rec)     bits.push(raw.rec + ' Rec');
+    if (raw.rec_yd)  bits.push(Math.round(raw.rec_yd) + ' ReYd');
+    if (raw.rec_td)  bits.push(raw.rec_td + ' ReTD');
+    const statLine = bits.length ? '<div style="font-size:10px;color:var(--text3);margin-top:2px;">' + bits.join(' · ') + '</div>' : '';
+    const pts      = raw.pts_ppr != null ? raw.pts_ppr.toFixed(1) : '—';
 
-    // Slot badge (IR / Taxi only)
+    // Cap-specific badges
     const slotBadge = p.slot !== 'Active'
-      ? `<span style="font-size:10px;background:${p.slot==='IR'?'rgba(255,77,106,.12)':'rgba(90,94,114,.2)'};color:${p.slot==='IR'?'var(--red)':'var(--text3)'};padding:1px 5px;border-radius:3px;margin-left:5px;">${p.slot}</span>` : '';
+      ? '<span style="font-size:10px;background:' + (p.slot==='IR'?'rgba(255,77,106,.12)':'rgba(90,94,114,.2)') + ';color:' + (p.slot==='IR'?'var(--red)':'var(--text3)') + ';padding:1px 5px;border-radius:3px;margin-left:5px;">' + p.slot + '</span>' : '';
+    const hoBadge  = ho ? '<span style="font-size:10px;color:var(--yellow);margin-left:4px;">🔥</span>' : '';
+    const salClr   = p.slot === 'Taxi' ? 'var(--text3)' : p.slot === 'IR' ? 'var(--text2)' : 'var(--text)';
 
-    return `<tr>
-      <td>
-        <div class="player-cell">
-          <div class="fa-mini-avatar">
-            <img src="https://sleepercdn.com/content/nfl/players/thumb/${pid||'0'}.jpg"
-                 onerror="this.style.display='none';this.nextSibling.style.cssText='display:flex;align-items:center;justify-content:center;width:100%;height:100%;font-size:11px;'" />
-            <span style="display:none;color:${posClr};">${p.pos||'?'}</span>
-          </div>
-          <div>
-            <div style="font-weight:500;">${p.name}${ageBadge(p.name)}${slotBadge}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:4px;">🔥</span>':''}</div>
-            <div style="display:flex;gap:6px;margin-top:2px;">
-              <span class="pos-badge pos-${p.pos}">${p.pos||'—'}</span>
-            </div>
-            ${statLine}
-          </div>
-        </div>
-      </td>
-      <td style="color:var(--text2);">${nflTeam}</td>
-      <td style="color:var(--text2);font-family:var(--font-mono);font-size:13px;">${pts}</td>
-      <td style="color:var(--text2);font-family:var(--font-mono);font-size:13px);">
-        <span onclick="openTeamPanel('${p.teamKey}')" style="cursor:pointer;">${p.teamName} <span style="color:var(--accent2);font-size:10px;">↗</span></span>
-      </td>
-      <td style="text-align:right;font-family:var(--font-mono);font-size:13px;color:${p.slot==='Taxi'?'var(--text3)':p.slot==='IR'?'var(--text2)':'var(--text)'};">
-        ${fmtM(p.salary)}${p.rawSal?`<br/><span style="font-size:10px;color:var(--text3);">(${fmtM(p.rawSal)})</span>`:''}
-      </td>
-      <td style="text-align:right;">
-        <button class="btn btn-sm" data-pname="${safeName}" onclick="capToggleWatch(this)"
-          style="background:transparent;border:1px solid var(--border);font-size:13px;padding:4px 7px;"
-          title="${starred?'Unwatch':'Watch'}">${starred?'⭐':'☆'}</button>
-      </td>
-    </tr>`;
+    return '<tr>' +
+      '<td>' +
+        '<div class="player-cell">' +
+          '<div class="fa-mini-avatar">' +
+            (pid ? '<img src="https://sleepercdn.com/content/nfl/players/thumb/' + pid + '.jpg" onerror="this.style.display=\'none\'" />' : '') +
+            '<span style="display:none">' + (p.pos||'?') + '</span>' +
+          '</div>' +
+          '<div>' +
+            '<div style="font-weight:500;">' + p.name + ageBadge(p.name) + slotBadge + hoBadge + '</div>' +
+            '<div style="display:flex;gap:6px;margin-top:2px;"><span class="pos-badge pos-' + p.pos + '">' + (p.pos||'—') + '</span></div>' +
+            statLine +
+          '</div>' +
+        '</div>' +
+      '</td>' +
+      '<td style="color:var(--text2);">' + nflTeam + '</td>' +
+      '<td style="color:var(--text2);font-family:var(--font-mono);font-size:13px;">' + pts + '</td>' +
+      '<td style="color:var(--text2);">' +
+        '<span onclick="openTeamPanel(\'' + p.teamKey + '\')" style="cursor:pointer;">' + p.teamName + ' <span style="color:var(--accent2);font-size:10px;">↗</span></span>' +
+      '</td>' +
+      '<td style="text-align:right;font-family:var(--font-mono);font-size:13px;color:' + salClr + ';">' +
+        fmtM(p.salary) + (p.rawSal ? '<br/><span style="font-size:10px;color:var(--text3);">(' + fmtM(p.rawSal) + ')</span>' : '') +
+      '</td>' +
+      '<td style="text-align:right;">' +
+        '<button class="btn btn-sm" data-pname="' + safeName + '" onclick="capToggleWatch(this)" ' +
+          'style="background:transparent;border:1px solid var(--border);font-size:13px;padding:4px 7px;" ' +
+          'title="' + (starred?'Unwatch':'Watch') + '">' + (starred?'⭐':'☆') + '</button>' +
+      '</td>' +
+    '</tr>';
   }).join('');
 
-  // Only build the static shell once — keeps search input alive between keystrokes
-  if (!document.getElementById('ap-rows')) {
-    el.innerHTML = `<div style="padding:16px 0 8px;">
-      <div class="fa-search">
-        <span class="search-icon">🔍</span>
-        <input id="ap-search-input" type="text" placeholder="Search players…"
-          oninput="apSearch=this.value.toLowerCase().trim();apRenderRows();" />
-      </div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px;">
-        <div class="fa-filters" style="margin-bottom:0;" id="ap-chips"></div>
-        <select id="ap-nfl-filter" onchange="apRenderRows()"
-          style="padding:5px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:12px;font-family:var(--font-body);outline:none;cursor:pointer;">
-          <option value="">All NFL Teams</option>
-          ${['ARI','ATL','BAL','BUF','CAR','CHI','CIN','CLE','DAL','DEN','DET','GB',
-             'HOU','IND','JAX','KC','LAC','LAR','LV','MIA','MIN','NE','NO','NYG',
-             'NYJ','PHI','PIT','SEA','SF','TB','TEN','WAS'].map(t=>`<option value="${t}">${t}</option>`).join('')}
-        </select>
-      </div>
-      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
-        <div style="padding:9px 14px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">
-          <span id="ap-title" style="font-size:14px;font-weight:600;"></span>
-          <span id="ap-count" style="font-size:12px;color:var(--text3);"></span>
-        </div>
-        <div style="overflow-x:auto;">
-          <table class="fa-table">
-            <thead><tr>
-              <th>Player</th>
-              <th>NFL Team</th>
-              <th>2025 Pts</th>
-              <th>Owner</th>
-              <th style="text-align:right;">Salary</th>
-              <th style="text-align:right;"></th>
-            </tr></thead>
-            <tbody id="ap-rows"></tbody>
-          </table>
-        </div>
-        <div id="ap-empty" style="display:none;padding:30px;text-align:center;color:var(--text3);">No players found.</div>
-      </div>
-    </div>`;
-  }
+  // Build shell once, then only update dynamic parts
+  if (!document.getElementById('ap-rows')) apBuildShell(el);
 
-  // Update pos chips
-  const chips = ['ALL','QB','RB','WR','TE'].map(pos=>
-    `<div class="filter-chip${apPosFilter===pos?' active':''}" onclick="apSetPos('${pos}')">${pos==='ALL'?'All':pos}</div>`
+  // Pos chips
+  document.getElementById('ap-chips').innerHTML = ['ALL','QB','RB','WR','TE'].map(pos =>
+    '<div class="filter-chip' + (apPosFilter===pos?' active':'') + '" onclick="apSetPos(\'' + pos + '\')">' + (pos==='ALL'?'All':pos) + '</div>'
   ).join('');
-  document.getElementById('ap-chips').innerHTML = chips;
 
-  // Update title, count, rows
   document.getElementById('ap-title').textContent =
-    (apPosFilter==='ALL'?'All Rostered Players':apPosFilter+' Players') + (apSearch?` · "${apSearch}"` : '');
+    (apPosFilter==='ALL' ? 'All Rostered Players' : apPosFilter + ' Players') + (apSearch ? ' · "' + apSearch + '"' : '');
   document.getElementById('ap-count').textContent =
-    filtered.length + ' players' + (apPosFilter!=='ALL'&&!apSearch?' · '+fmtM(totalSal)+' total cap':'');
+    filtered.length + ' players' + (apPosFilter!=='ALL' && !apSearch ? ' · ' + fmtM(totalSal) + ' total cap' : '');
   document.getElementById('ap-rows').innerHTML = rows;
   document.getElementById('ap-empty').style.display = filtered.length ? 'none' : '';
 
-  // Load stats in background if not yet cached
-  if (!apStatsMap) {
-    loadApStats().then(() => { if (tab === 'allplayers') apRenderRows(); });
-  }
+  if (!apStatsMap) loadApStats().then(() => { if (tab === 'allplayers') apRenderRows(); });
 }
 
-// Re-render rows only — called from search oninput so the input itself isn't rebuilt
 function apRenderRows() { renderAllPlayers(); }
+function apSetPos(pos)  { apPosFilter = pos; renderAllPlayers(); }
 function apSetPos(pos) { apPosFilter = pos; renderAllPlayers(); }
 
 // Watchlist toggle now uses data-pname to avoid quote issues
