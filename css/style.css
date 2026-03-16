@@ -26,6 +26,11 @@
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 
+html {
+  overflow-x: hidden;
+  overscroll-behavior-x: none;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -33,6 +38,7 @@ body {
   font-size: 15px;
   min-height: 100vh;
   overflow-x: hidden;
+  overscroll-behavior-x: none;
 }
 
 /* SCROLLBAR */
