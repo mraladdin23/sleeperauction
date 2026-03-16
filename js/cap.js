@@ -596,7 +596,10 @@ function renderAllPlayers() {
   }).join('');
 
   // Build shell once, then only update dynamic parts
-  if (!document.getElementById('ap-rows')) apBuildShell(el);
+  // Always rebuild shell so layout changes take effect on deploy
+  const savedSearch = document.getElementById('ap-search-input')?.value || '';
+  apBuildShell(el);
+  if (savedSearch) document.getElementById('ap-search-input').value = savedSearch;
 
   // Pos chips
   document.getElementById('ap-chips').innerHTML = ['ALL','QB','RB','WR','TE'].map(pos =>
