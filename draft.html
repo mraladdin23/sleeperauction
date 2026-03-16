@@ -270,49 +270,35 @@ let rosterIdToTeam = {};  // Sleeper roster_id (string) → our teamKey
 
 async function loadRosterMapping() {
   rosterIdToTeam = {};
+  // The cap team keys ARE the Sleeper usernames — so we just need
+  // Sleeper roster_id → username, then look up in DATA directly.
   try {
-    // Primary: load saved mapping from Firebase (teamKey → roster_id)
-    const snap = await db.ref(`leagues/${leagueId()}/usernameToRosterId`).once('value');
-    const mapping = snap.val() || {};
-    Object.entries(mapping).forEach(([teamKey, rid]) => {
-      rosterIdToTeam[String(rid)] = teamKey;
+    const [rosters, users] = await Promise.all([
+      fetch(`https://api.sleeper.app/v1/league/${leagueId()}/rosters`).then(r=>r.json()),
+      fetch(`https://api.sleeper.app/v1/league/${leagueId()}/users`).then(r=>r.json()),
+    ]);
+    const userById = {};
+    (users||[]).forEach(u => { userById[u.user_id] = u; });
+    (rosters||[]).forEach(r => {
+      const u = userById[r.owner_id] || {};
+      const username = (u.username || '').toLowerCase();
+      // Cap key is the username — verify it exists in DATA, fallback to display_name
+      const capKey = DATA[username] ? username
+                   : Object.keys(DATA||{}).find(k => k.toLowerCase() === (u.display_name||'').toLowerCase())
+                   || username;
+      rosterIdToTeam[String(r.roster_id)] = capKey;
+      console.log(`Roster ${r.roster_id} → ${capKey} (${u.display_name})`);
     });
-  } catch(e) { console.warn('loadRosterMapping firebase:', e); }
-
-  // If Firebase mapping is empty, try auto-matching via Sleeper API
-  if (Object.keys(rosterIdToTeam).length === 0 && DATA && leagueId()) {
+  } catch(e) {
+    console.warn('loadRosterMapping:', e);
+    // Last resort: try Firebase saved mapping
     try {
-      const [rosters, users] = await Promise.all([
-        fetch(`https://api.sleeper.app/v1/league/${leagueId()}/rosters`).then(r=>r.json()),
-        fetch(`https://api.sleeper.app/v1/league/${leagueId()}/users`).then(r=>r.json()),
-      ]);
-      const userById = {};
-      (users||[]).forEach(u => { userById[u.user_id] = u; });
-
-      (rosters||[]).forEach(r => {
-        const u = userById[r.owner_id] || {};
-        const sleeperUsername  = (u.username  || '').toLowerCase();
-        const sleeperDisplay   = (u.display_name || '').toLowerCase();
-
-        // Try matching by: exact username, exact display_name, or team_name contains
-        const capKey = Object.keys(DATA).find(k => {
-          const kl = k.toLowerCase();
-          const tl = (DATA[k].team_name || '').toLowerCase();
-          return kl === sleeperUsername
-              || kl === sleeperDisplay
-              || tl === sleeperDisplay
-              || tl === sleeperUsername;
-        });
-
-        if (capKey) {
-          rosterIdToTeam[String(r.roster_id)] = capKey;
-          console.log(`Auto-matched: roster ${r.roster_id} → ${capKey} (${u.display_name})`);
-        } else {
-          // Store by username as fallback so we can still show names
-          rosterIdToTeam[String(r.roster_id)] = sleeperUsername || `roster_${r.roster_id}`;
-        }
+      const snap = await db.ref(`leagues/${leagueId()}/usernameToRosterId`).once('value');
+      const mapping = snap.val() || {};
+      Object.entries(mapping).forEach(([teamKey, rid]) => {
+        rosterIdToTeam[String(rid)] = teamKey;
       });
-    } catch(e) { console.warn('loadRosterMapping auto-match:', e); }
+    } catch(e2) {}
   }
 }
 
@@ -597,8 +583,17 @@ function renderAvailList() {
     if (availPosFilter !== 'ALL' && rk.pos !== availPosFilter) return false;
     return true;
   });
+  if (!rookiePlayers.length) {
+    const cached = localStorage.getItem('sb_players');
+    if (!cached) {
+      list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px;">No player cache found.<br/>Visit the auction page first to load the player database.</div>';
+    } else {
+      list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px;">No rookies matched current filter.<br/>Try the All filter above.</div>';
+    }
+    return;
+  }
   if (!filtered.length) {
-    list.innerHTML = '<div style="padding:20px;text-align:center;color:var(--text3);">No rookies found.<br><small>Player cache may need refresh.</small></div>';
+    list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px;">No rookies match this position filter.</div>';
     return;
   }
   list.innerHTML = filtered.map(rk => {

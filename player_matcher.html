@@ -390,9 +390,9 @@ function renderTable() {
 
     const matchLabel = m.player_id ? `${m.first} ${m.last}` : '—';
 
-    // Alt dropdown for non-high matches
+    // Alt dropdown — always shown so user can fix any match
     let altSel = '';
-    if (m.conf !== 'high' && Object.keys(sleeperDb).length) {
+    if (Object.keys(sleeperDb).length) {
       const alts = Object.entries(sleeperDb)
         .map(([pid,p]) => {
           if (!p.first_name||!p.last_name) return null;
@@ -402,19 +402,20 @@ function renderTable() {
         })
         .filter(Boolean)
         .sort((a,b)=>b.s-a.s)
-        .slice(0,12);
-      const opts = `<option value="">— pick correct player —</option>` +
+        .slice(0,15);
+      const opts = `<option value="">— change match —</option>` +
         alts.map(a=>`<option value="${a.pid}" ${a.pid===m.player_id?'selected':''}>${a.name} (${a.pos}/${a.team||'FA'}) ${Math.round(a.s*100)}%</option>`).join('');
       altSel = `<select class="alt-sel" onchange="setMatch(${JSON.stringify(rp.name)},this.value)">${opts}</select>`;
     }
 
-    const actions = m.conf !== 'high' && m.player_id
-      ? `<button class="confirm-btn" onclick="confirmMatch(${JSON.stringify(rp.name)})">✓ Confirm</button>`
-        + `<button class="skip-btn" onclick="clearMatch(${JSON.stringify(rp.name)})">✗ Skip</button>`
-      : m.conf === 'high'
-      ? `<span style="font-size:11px;color:var(--green);">${m.fromFirebase?'From Firebase':'Auto ✓'}</span>
-         <button class="skip-btn" onclick="clearMatch(${JSON.stringify(rp.name)})">✗ Clear</button>`
-      : `<button class="skip-btn" onclick="clearMatch(${JSON.stringify(rp.name)})">✗ Skip</button>`;
+    const actions =
+      m.conf === 'high'
+      ? `<span style="font-size:11px;color:var(--green);">${m.fromFirebase?'From Firebase':'Auto ✓'}</span> `
+        + `<button class="skip-btn" onclick="clearMatch(${JSON.stringify(rp.name)})">✗ Clear</button>`
+      : m.player_id
+      ? `<button class="confirm-btn" onclick="confirmMatch(${JSON.stringify(rp.name)})">✓ Confirm</button> `
+        + `<button class="skip-btn" onclick="clearMatch(${JSON.stringify(rp.name)})">✗ Clear</button>`
+      : `<span style="font-size:11px;color:var(--text3);">No match</span>`;
 
     return `<tr>
       <td>${photo}</td>
@@ -450,7 +451,12 @@ function confirmMatch(name) {
 }
 
 function clearMatch(name) {
-  if (matches[name]) { matches[name].player_id=null; matches[name].conf='none'; }
+  if (matches[name]) {
+    matches[name].player_id = null;
+    matches[name].conf = 'none';
+    matches[name].score = 0;
+    matches[name].fromFirebase = false;
+  }
   updateStats(); renderTable(); renderOutput();
 }
 
