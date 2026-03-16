@@ -59,7 +59,7 @@ img.thumb{width:28px;height:28px;border-radius:50%;object-fit:cover;}
   • <em>Conservative</em>: years_exp === 0 only (current-season confirmed rookies)<br/>
   • <em>Moderate</em>: years_exp === 0 OR (null AND age ≤ 23) — catches pre-draft players<br/>
   • <em>Broad</em>: years_exp ≤ 1 AND age ≤ 24 — includes 2nd-year players still on taxi<br/><br/>
-  Sort by <strong>years_exp</strong> and look at the null/0 rows. The <strong>age</strong> and <strong>search_rank</strong> columns tell you which ones are legitimately draftable.
+  <strong>Tip:</strong> Check "Active players only" to filter out retired/cut players. Sort by <strong>years_exp</strong> and look at the null/0 rows. The <strong>age</strong> and <strong>search_rank</strong> columns tell you which ones are legitimately draftable.
 </div>
 
 <div class="filter-row">
@@ -94,6 +94,9 @@ img.thumb{width:28px;height:28px;border-radius:50%;object-fit:cover;}
   <label style="font-size:13px;color:var(--text3);display:flex;align-items:center;gap:6px;">
     <input type="checkbox" id="on-team" onchange="render()"/> On NFL team
   </label>
+  <label style="font-size:13px;color:var(--text3);display:flex;align-items:center;gap:6px;">
+    <input type="checkbox" id="active-only" onchange="render()"/> Active players only
+  </label>
 </div>
 
 <div class="stat-row" id="stat-row"></div>
@@ -108,7 +111,8 @@ img.thumb{width:28px;height:28px;border-radius:50%;object-fit:cover;}
       <th onclick="sortBy('team')">NFL Team ↕</th>
       <th onclick="sortBy('age')">Age ↕</th>
       <th onclick="sortBy('ye')">years_exp ↕</th>
-      <th onclick="sortBy('rank')">ADP Rank ↕</th>
+      <th onclick="sortBy('rank')">Search Rank ↕</th>
+      <th onclick="sortBy('active')">Active ↕</th>
       <th>Player ID</th>
     </tr>
   </thead>
@@ -151,6 +155,8 @@ async function loadPlayers() {
       ye:   p.years_exp != null ? Number(p.years_exp) : null,
       yeRaw: p.years_exp,
       rank: p.search_rank || null,
+      active: p.active === true,
+      status: p.status || '',
     }));
 
   btn.textContent = `✅ Loaded ${allPlayers.length.toLocaleString()} players`;
@@ -184,6 +190,8 @@ function getFiltered() {
     if (age === '26+'  && (p.age == null || p.age < 26)) return false;
     if (hasRank && !p.rank) return false;
     if (onTeam && !p.team) return false;
+    const activeOnly = document.getElementById('active-only').checked;
+    if (activeOnly && !p.active) return false;
     return true;
   });
 }
@@ -229,6 +237,9 @@ function render() {
       <td class="${ageClr}">${p.age??'—'}</td>
       <td><span class="pos-badge ${yeClass}">${yeLabel}</span></td>
       <td style="color:var(--text3);font-family:var(--font-mono);">${p.rank??'—'}</td>
+      <td>${p.active
+        ? '<span style="color:var(--green);font-size:11px;">✓ active</span>'
+        : '<span style="color:var(--text3);font-size:11px;">inactive</span>'}</td>
       <td style="font-family:var(--font-mono);font-size:11px;color:var(--text3);">${p.pid}</td>
     </tr>`;
   }).join('');
@@ -242,10 +253,10 @@ function render() {
 
 function downloadCSV() {
   const filtered = getFiltered();
-  const rows = [['player_id','name','pos','nfl_team','age','years_exp','adp_rank']];
+  const rows = [['player_id','name','pos','nfl_team','age','years_exp','search_rank','active','status']];
   filtered.forEach(p => {
     const yeLabel = (p.yeRaw === null || p.yeRaw === undefined) ? '' : String(p.ye);
-    rows.push([p.pid, p.name, p.pos, p.team||'', p.age??'', yeLabel, p.rank??'']);
+    rows.push([p.pid, p.name, p.pos, p.team||'', p.age??'', yeLabel, p.rank??'', p.active?'true':'false', p.status||'']);
   });
   const csv = rows.map(r => r.map(v => `"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
   const a = document.createElement('a');
