@@ -152,21 +152,32 @@ window.addEventListener('DOMContentLoaded',function(){
     <div class="topbar-logo">Sleeper<span>Bid</span></div>
     <div class="topbar-right">
       <div class="league-badge" id="league-name-badge">League</div>
-      <a href="rosters.html" class="btn btn-ghost btn-sm" title="Salary Cap & Rosters" style="text-decoration:none;">📊 Salary Cap</a>
-      <button class="btn btn-ghost btn-sm" onclick="App.enableNotifications()" title="Enable notifications">🔔</button>
-      <button class="btn btn-ghost btn-sm" onclick="toggleTheme()" id="theme-btn" title="Toggle dark/light mode">☀️</button>
+      <a href="rosters.html" class="topbar-icon-btn" title="Salary Cap & Rosters" style="text-decoration:none;">📊</a>
+      <button class="topbar-icon-btn" onclick="App.enableNotifications()" title="Enable notifications">🔔</button>
+      <button class="topbar-icon-btn" onclick="toggleTheme()" id="theme-btn" title="Toggle dark/light mode">☀️</button>
       <div class="avatar" id="user-avatar" title="Logged in user"></div>
-      <button class="btn btn-ghost btn-sm" onclick="App.logout()">Log out</button>
+      <button class="topbar-icon-btn" onclick="App.logout()" title="Log out">↩</button>
     </div>
   </div>
 
-  <div class="nav-tabs">
+  <div class="nav-tabs" id="nav-tabs-bar">
     <div class="nav-tab active" onclick="App.switchTab('auctions')"     data-tab="auctions">🏷 Active</div>
     <div class="nav-tab"        onclick="App.switchTab('free-agents')"  data-tab="free-agents">🔍 Free Agents</div>
     <div class="nav-tab"        onclick="App.switchTab('teams')"        data-tab="teams">🏆 Teams</div>
     <div class="nav-tab"        onclick="App.switchTab('history')"      data-tab="history">📋 History</div>
     <div class="nav-tab"        onclick="App.switchTab('activity')"     data-tab="activity">📡 Activity</div>
     <div class="nav-tab" id="commissioner-tab" onclick="App.switchTab('commissioner')" data-tab="commissioner" style="display:none">⚙️ Comm</div>
+  </div>
+
+  <!-- Mobile tab dropdown (shown on small screens instead of tab bar) -->
+  <div class="nav-dropdown-wrap" id="nav-dropdown-wrap">
+    <select class="nav-dropdown" id="nav-dropdown" onchange="App.switchTab(this.value)">
+      <option value="auctions">🏷 Active Auctions</option>
+      <option value="free-agents">🔍 Free Agents</option>
+      <option value="teams">🏆 Teams</option>
+      <option value="history">📋 History</option>
+      <option value="activity">📡 Activity</option>
+    </select>
   </div>
 
   <div class="main">
