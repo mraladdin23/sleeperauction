@@ -56,7 +56,8 @@ const App = (() => {
     get leagueId()  { return localStorage.getItem('sb_leagueId')  || ''; },
     set username(v) { localStorage.setItem('sb_username', v); },
     set leagueId(v) { localStorage.setItem('sb_leagueId', v); },
-    clear()         { localStorage.removeItem('sb_username'); localStorage.removeItem('sb_leagueId'); },
+    setUser(u)      { localStorage.setItem('sb_user', JSON.stringify(u)); },
+    clear()         { localStorage.removeItem('sb_username'); localStorage.removeItem('sb_leagueId'); localStorage.removeItem('sb_user'); },
   };
 
   // ── Dollar formatting ────────────────────────────────────
@@ -75,6 +76,7 @@ const App = (() => {
       UI.setLoading('Reconnecting…');
       try {
         state.user     = await Sleeper.fetchUser(session.username);
+        session.setUser(state.user);
         state.leagueId = session.leagueId;
         await initApp();
         return;
@@ -94,6 +96,7 @@ const App = (() => {
     try {
       state.user = await Sleeper.fetchUser(username);
       session.username = username;
+      session.setUser(state.user);
       if (session.leagueId) {
         state.leagueId = session.leagueId;
         await initApp();

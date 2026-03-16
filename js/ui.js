@@ -535,7 +535,7 @@ const UI = (() => {
           ${isMe ? '<span class="you-badge">You</span>' : ''}
         </div>
 
-        <div class="team-stats-grid" style="grid-template-columns: repeat(${hasRosterData ? 3 : 2}, 1fr);">
+        <div class="team-stats-grid">
           <div class="team-stat">
             <div class="team-stat-label">Balance</div>
             <div class="team-stat-val" style="color:var(--green);">${App.fmtFaab(baseFaab)}</div>
