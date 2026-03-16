@@ -895,13 +895,16 @@ async function fetchRookiePlayers() {
     _rookiePlayers = Object.entries(players)
       .filter(([,p]) => {
         if (!p.fantasy_positions?.some(pos => SKILL.has(pos))) return false;
-        const ye = Number(p.years_exp);
         const yeRaw = p.years_exp;
-        // Confirmed rookies (years_exp === 0) — always include
-        if (ye === 0 && yeRaw !== null && yeRaw !== undefined) return true;
-        // Pre-draft / offseason (years_exp null/undefined) — include if young or ranked
+        const ye = Number(yeRaw);
+        // Confirmed rookies (years_exp === 0): always include — active or not
+        // Sleeper only sets ye=0 for players actually drafted into the NFL this year
+        if (yeRaw !== null && yeRaw !== undefined && ye === 0) return true;
+        // Pre-draft / unsigned (years_exp null): include if active OR young (≤25) OR ranked
         if (yeRaw === null || yeRaw === undefined) {
-          return (p.age != null && p.age <= 25) || (p.search_rank && p.search_rank <= 900);
+          return p.active === true
+              || (p.age != null && p.age <= 25)
+              || (p.search_rank && p.search_rank <= 900);
         }
         return false;
       })
@@ -909,9 +912,10 @@ async function fetchRookiePlayers() {
         id,
         name: `${p.first_name} ${p.last_name}`,
         pos: p.fantasy_positions?.[0] || '',
-        nflTeam: p.team || 'FA',
+        nflTeam: (p.team && p.team !== 'FA') ? p.team : '—',
         adp: p.search_rank || 999,
-        age: p.birth_date ? getAge(p.birth_date) : null,
+        age: p.age != null ? p.age : null,
+        active: p.active === true,
         rostered: rostered.has(`${p.first_name} ${p.last_name}`.toLowerCase()),
         drafted: draftedNames.has(`${p.first_name} ${p.last_name}`.toLowerCase()),
       }))
