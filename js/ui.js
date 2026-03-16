@@ -19,8 +19,6 @@ const UI = (() => {
     document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name));
     const dd = document.getElementById('nav-dropdown');
     if (dd) dd.value = name;
-    // Initialize cap module on first visit
-    if (name === 'cap' && window.Cap) window.Cap.init();
   }
 
   // ── Avatar ───────────────────────────────────────────────
