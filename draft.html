@@ -151,6 +151,7 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
       </div>
       <div class="draft-controls">
         <button onclick="refreshDraft()" style="padding:7px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);font-size:12px;cursor:pointer;font-family:var(--font-body);">↻ Refresh</button>
+        <button id="assign-all-btn" onclick="assignAllCompleted()" style="display:none;padding:7px 14px;background:var(--green);color:#111;border:none;border-radius:var(--radius-sm);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body);margin-left:8px;">✓ Assign All Picks to Active Rosters</button>
       </div>
     </div>
 
@@ -186,6 +187,19 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
           </div>
           <div class="avail-list" id="avail-list">
             <div style="padding:20px;text-align:center;color:var(--text3);">Loading…</div>
+          </div>
+          <div id="assign-panel" style="display:none;border-top:1px solid var(--border);padding:12px;background:var(--surface2);">
+            <div style="font-size:12px;font-weight:600;margin-bottom:8px;" id="assign-panel-label">Assigning Pick —</div>
+            <select id="assign-player-sel" style="width:100%;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;margin-bottom:6px;">
+              <option value="">— select player —</option>
+            </select>
+            <select id="assign-team-sel" style="width:100%;padding:6px 8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;margin-bottom:8px;">
+              <option value="">— assign to team —</option>
+            </select>
+            <div style="display:flex;gap:6px;">
+              <button onclick="doAssignFromPanel()" class="pick-btn" style="flex:1;padding:7px;">✓ Assign to Active Roster</button>
+              <button onclick="cancelAssignPanel()" style="padding:7px 12px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text3);font-size:12px;cursor:pointer;font-family:var(--font-body);">Cancel</button>
+            </div>
           </div>
         </div>
       </div>
@@ -370,9 +384,20 @@ async function refreshDraft() {
       complete: `✅ Complete`,
     }[draftInfo.status] || draftInfo.status;
 
+    // Build slot owner debug string
+    const slotDebug = Object.entries(slotOwners).sort((a,b)=>Number(a[0])-Number(b[0]))
+      .map(([slot, key]) => `#${slot}→${DATA[key]?.team_name||key}`)
+      .join('  ');
     document.getElementById('draft-subtitle').textContent =
       `${statusLabel} · ${draftInfo.season || ''} · type: ${draftInfo.type} · ID: ${draftInfo.draft_id}`;
+    document.getElementById('draft-subtitle').title =
+      `Slot owners: ${slotDebug || '(none — slot_to_roster_id may be empty)'}\nrosterIdToTeam: ${JSON.stringify(rosterIdToTeam)}`;
 
+    // Show "Assign All" button when draft is complete and user is commissioner
+    const assignBtn = document.getElementById('assign-all-btn');
+    if (assignBtn && isComm() && (draftInfo.status === 'complete' || Object.keys(draftPicks).length > 0)) {
+      assignBtn.style.display = '';
+    }
     // Auto-save complete draft picks to rosters
     if (draftInfo.status === 'complete') {
       await autoSaveCompletedDraft(draftPicks);
@@ -431,17 +456,10 @@ async function loadRookiePlayers() {
     rookiePlayers = Object.entries(players)
       .filter(([,p]) => {
         if (!p.fantasy_positions?.some(pos => SKILL.has(pos))) return false;
-        const yeRaw = p.years_exp;
-        const ye = yeRaw != null ? Number(yeRaw) : null;
-        // ye===0: confirmed 2026 draft class rookie — always include
-        if (ye === 0) return true;
-        // ye===null: pre-draft entrant — include if active OR young (≤25) OR ranked
-        if (yeRaw === null || yeRaw === undefined) {
-          return p.active === true
-              || (p.age != null && p.age <= 25)
-              || (p.search_rank && p.search_rank <= 900);
-        }
-        return false;
+        // Only confirmed 2026 NFL draftees: years_exp===0 AND active===true
+        if (p.years_exp !== 0) return false;
+        if (p.active !== true) return false;
+        return true;
       })
       .map(([id, p]) => ({
         id,
@@ -477,6 +495,29 @@ async function loadRookiePlayers() {
   }
 }
 
+
+async function assignAllCompleted() {
+  const btn = document.getElementById('assign-all-btn');
+  if (btn) { btn.textContent = 'Saving…'; btn.disabled = true; }
+  // Re-fetch picks from Sleeper and save them all
+  if (draftInfo) {
+    const picks = await fetch(`https://api.sleeper.app/v1/draft/${draftInfo.draft_id}/picks`).then(r=>r.json());
+    const draftPicks = {};
+    if (Array.isArray(picks)) {
+      picks.forEach(pk => {
+        const slot = pk.draft_slot || pk.pick_no;
+        const key  = `${pk.round}-${slot}`;
+        const fn   = pk.metadata?.first_name || '';
+        const ln   = pk.metadata?.last_name  || '';
+        const name = (fn || ln) ? `${fn} ${ln}`.trim() : null;
+        if (name) draftPicks[key] = { player: name, sleeperPick: true, rosterId: pk.roster_id };
+      });
+    }
+    await autoSaveCompletedDraft(draftPicks);
+  }
+  if (btn) { btn.textContent = '✅ Done'; setTimeout(() => { btn.textContent = '✓ Assign All Picks to Active Rosters'; btn.disabled = false; }, 2000); }
+  renderBoard();
+}
 
 // Auto-save completed Sleeper draft picks to Firebase and roster data
 async function autoSaveCompletedDraft(draftPicks) {
@@ -576,25 +617,11 @@ function renderBoard() {
           ${isSleeper ? '<div class="pick-source">via Sleeper</div>' : ''}
           ${comm ? `<button class="pick-clear" onclick="clearPick('${key}')">✕ Clear</button>` : ''}`;
       } else if (comm) {
-        const teamOpts = Object.entries(DATA||{}).map(([k,t]) =>
-          `<option value="${k}"${ownerKey===k?' selected':''}>${t.team_name}</option>`).join('');
-        const available = rookiePlayers.filter(rk => !rk.taken).slice(0, 80);
-        const playerOpts = available.map(rk =>
-          `<option value="${rk.name}">${rk.name} · ${rk.pos}${rk.nflTeam!=='—'?' · '+rk.nflTeam:''}${rk.adp<999?' (#'+rk.adp+')':''}</option>`
-        ).join('');
-        html += `<div class="pick-inputs">
-          <select id="psel-${key}" class="pick-input" onchange="onPlayerSelect('${key}',this)">
-            <option value="">— select player —</option>
-            ${playerOpts}
-            <option value="__manual__">✏️ Type name…</option>
-          </select>
-          <input id="pman-${key}" class="pick-input" placeholder="Player name…" style="display:none;" />
-          <select id="tsel-${key}" class="pick-input">
-            <option value="">— assign to —</option>
-            ${teamOpts}
-          </select>
-          <button class="pick-btn" onclick="assignPick('${key}',${sal})">✓ Assign to Active</button>
-        </div>`;
+        // Click to select this pick for assignment via the bottom panel
+        html += `<button class="pick-btn" onclick="selectPickForAssign('${key}',${sal})"
+          style="margin-top:6px;width:100%;font-size:11px;padding:5px 8px;">
+          ✎ Assign Pick
+        </button>`;
       } else {
         html += `<div style="font-size:12px;color:var(--text3);margin-top:4px;">Open pick</div>`;
       }
@@ -676,14 +703,86 @@ function onPlayerSelect(key, sel) {
   if (manual) manual.style.display = sel.value === '__manual__' ? '' : 'none';
 }
 
-async function assignPick(key, salary) {
-  const pSel = document.getElementById(`psel-${key}`);
-  const pMan = document.getElementById(`pman-${key}`);
-  const tSel = document.getElementById(`tsel-${key}`);
-  if (!pSel || !tSel) return;
+// ── Single assign panel ───────────────────────────────────────
+let _assignKey = null;
+let _assignSal = null;
 
-  const pName  = pSel.value === '__manual__' ? (pMan?.value || '').trim() : pSel.value;
-  const teamKey = tSel.value;
+function selectPickForAssign(key, sal) {
+  _assignKey = key;
+  _assignSal = sal;
+
+  const panel = document.getElementById('assign-panel');
+  const label = document.getElementById('assign-panel-label');
+  const pSel  = document.getElementById('assign-player-sel');
+  const tSel  = document.getElementById('assign-team-sel');
+
+  // Label
+  const [r, p] = key.split('-');
+  label.textContent = `Assigning Pick ${r}.${String(p).padStart(2,'0')} · ${fmtM(sal)}`;
+
+  // Player options — available rookies only
+  const draftedNames = new Set(Object.values(board).map(b => (b.player||'').toLowerCase()));
+  const avail = rookiePlayers.filter(rk =>
+    !rk.taken && !draftedNames.has(rk.name.toLowerCase())
+  );
+  pSel.innerHTML = '<option value="">— select player —</option>' +
+    avail.map(rk =>
+      `<option value="${rk.name}">${rk.name} · ${rk.pos}${rk.nflTeam!=='—'?' · '+rk.nflTeam:''}${rk.adp<999?' (#'+rk.adp+')':''}</option>`
+    ).join('') +
+    '<option value="__manual__">✏️ Type name manually…</option>';
+
+  // Team options — pre-select slot owner if known
+  const ownerKey = slotOwners[String(p)] || '';
+  tSel.innerHTML = '<option value="">— assign to team —</option>' +
+    Object.entries(DATA||{}).map(([k,t]) =>
+      `<option value="${k}"${k===ownerKey?' selected':''}>${t.team_name}</option>`
+    ).join('');
+
+  panel.style.display = '';
+  // Scroll panel into view
+  panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+async function doAssignFromPanel() {
+  if (!_assignKey) return;
+  let playerName = document.getElementById('assign-player-sel').value;
+  const teamKey  = document.getElementById('assign-team-sel').value;
+
+  if (playerName === '__manual__') {
+    playerName = prompt('Enter player name:');
+    if (!playerName?.trim()) return;
+    playerName = playerName.trim();
+  }
+
+  if (!playerName) { alert('Select a player first.'); return; }
+  if (!teamKey)    { alert('Select a team first.'); return; }
+
+  await assignPick(_assignKey, _assignSal, playerName, teamKey);
+  cancelAssignPanel();
+}
+
+function cancelAssignPanel() {
+  _assignKey = null;
+  _assignSal = null;
+  document.getElementById('assign-panel').style.display = 'none';
+}
+
+
+async function assignPick(key, salary, suppliedPlayer, suppliedTeam) {
+  // Called either from old per-card selects OR from the new bottom panel
+  let pName, teamKey;
+
+  if (suppliedPlayer && suppliedTeam) {
+    pName   = suppliedPlayer;
+    teamKey = suppliedTeam;
+  } else {
+    const pSel = document.getElementById(`psel-${key}`);
+    const pMan = document.getElementById(`pman-${key}`);
+    const tSel = document.getElementById(`tsel-${key}`);
+    if (!pSel || !tSel) return;
+    pName   = pSel.value === '__manual__' ? (pMan?.value || '').trim() : pSel.value;
+    teamKey = tSel.value;
+  }
 
   if (!pName)   { alert('Select or enter a player name'); return; }
   if (!teamKey) { alert('Select an owner'); return; }
