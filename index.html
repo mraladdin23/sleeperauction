@@ -163,6 +163,7 @@ window.addEventListener('DOMContentLoaded',function(){
   <div class="nav-tabs" id="nav-tabs-bar">
     <div class="nav-tab active" onclick="App.switchTab('auctions')"     data-tab="auctions">🏷 Active</div>
     <div class="nav-tab"        onclick="App.switchTab('free-agents')"  data-tab="free-agents">🔍 Free Agents</div>
+    <div class="nav-tab"        onclick="App.switchTab('cap')"          data-tab="cap">💰 Salary Cap</div>
     <div class="nav-tab"        onclick="App.switchTab('teams')"        data-tab="teams">🏆 Teams</div>
     <div class="nav-tab"        onclick="App.switchTab('history')"      data-tab="history">📋 History</div>
     <div class="nav-tab"        onclick="App.switchTab('activity')"     data-tab="activity">📡 Activity</div>
@@ -174,6 +175,7 @@ window.addEventListener('DOMContentLoaded',function(){
     <select class="nav-dropdown" id="nav-dropdown" onchange="App.switchTab(this.value)">
       <option value="auctions">🏷 Active Auctions</option>
       <option value="free-agents">🔍 Free Agents</option>
+      <option value="cap">💰 Salary Cap</option>
       <option value="teams">🏆 Teams</option>
       <option value="history">📋 History</option>
       <option value="activity">📡 Activity</option>
@@ -345,7 +347,86 @@ window.addEventListener('DOMContentLoaded',function(){
   </div>
 </div>
 
-<!-- BID MODAL -->
+    <!-- SALARY CAP TAB -->
+    <div id="tab-cap" class="tab-content">
+      <div class="cap-sub-nav">
+        <div style="display:flex;border-bottom:1px solid var(--border);background:var(--surface);padding:0 20px;overflow-x:auto;" id="cap-tabs-bar">
+          <button class="nav-tab active" onclick="setCapTab('overview')"    data-captab="overview">Overview</button>
+          <button class="nav-tab"        onclick="setCapTab('allplayers')"  data-captab="allplayers">All Players</button>
+          <button class="nav-tab"        onclick="setCapTab('compare')"     data-captab="compare">Compare</button>
+          <button class="nav-tab"        onclick="setCapTab('toppaid')"     data-captab="toppaid">Top Paid</button>
+          <button class="nav-tab"        onclick="setCapTab('taxi')"        data-captab="taxi">🚕 Taxi</button>
+          <button class="nav-tab" id="cap-comm-tab" style="display:none;"  onclick="setCapTab('commish')" data-captab="commish">⚙️ Commish</button>
+        </div>
+        <!-- Mobile sub-nav dropdown -->
+        <div class="nav-dropdown-wrap" id="cap-dd-wrap">
+          <select class="nav-dropdown" id="cap-dd" onchange="setCapTab(this.value)">
+            <option value="overview">Overview</option>
+            <option value="allplayers">All Players</option>
+            <option value="compare">Compare</option>
+            <option value="toppaid">Top Paid</option>
+            <option value="taxi">🚕 Taxi</option>
+          </select>
+        </div>
+      </div>
+      <div class="main cap-main">
+        <div id="cap-loading" class="loading"><div class="spinner"></div><div>Loading cap data…</div></div>
+        <div style="font-size:11px;color:var(--text3);text-align:right;padding:4px 20px 0;" id="cap-last-upd"></div>
+        <div id="cap-app" style="display:none;">
+          <div id="tab-overview"></div>
+          <div id="tab-allplayers"  style="display:none;"></div>
+          <div id="tab-compare"     style="display:none;"></div>
+          <div id="tab-toppaid"     style="display:none;"></div>
+          <div id="tab-taxi"        style="display:none;"></div>
+          <div id="tab-commish"     style="display:none;"></div>
+        </div>
+        <!-- Inline team detail panel -->
+        <div id="team-panel" style="display:none;position:fixed;top:0;right:0;bottom:0;width:min(520px,100vw);background:var(--surface);border-left:1px solid var(--border);z-index:200;overflow-y:auto;box-shadow:-8px 0 32px rgba(0,0,0,.4);">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);background:var(--surface2);position:sticky;top:0;z-index:10;">
+            <span id="team-panel-title" style="font-size:15px;font-weight:600;"></span>
+            <button onclick="closeTeamPanel()" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:2px 6px;">✕</button>
+          </div>
+          <div id="team-panel-body" style="padding:20px;"></div>
+        </div>
+      </div>
+    </div>
+
+<!-- Edit / Add Player Modal (Cap) -->
+<div class="modal-overlay" id="edit-modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title">Edit Player</div>
+    <div class="modal-field">
+      <div class="modal-label">Player Name</div>
+      <input class="modal-input" id="modal-name" type="text" placeholder="First Last"/>
+    </div>
+    <div class="modal-field" id="modal-pos-field">
+      <div class="modal-label">Position</div>
+      <select class="modal-select" id="modal-pos">
+        <option value="QB">QB</option><option value="RB">RB</option>
+        <option value="WR">WR</option><option value="TE">TE</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Salary</div>
+      <input class="modal-input" id="modal-salary" type="number" min="100000" step="100000" placeholder="e.g. 5000000"/>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Enter full dollar amount (e.g. 5000000 = $5M)</div>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Roster Slot</div>
+      <select class="modal-select" id="modal-slot">
+        <option value="starters">Active Roster</option>
+        <option value="ir">IR (75% cap hit)</option>
+        <option value="taxi">Taxi (no cap hit)</option>
+      </select>
+    </div>
+    <div class="modal-err" id="modal-err"></div>
+    <div class="modal-footer">
+      <button class="btn-danger" id="modal-delete-btn" onclick="deletePlayer()" style="display:none;">🗑 Remove</button>
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="savePlayer()">Save</button>
+    </div>
+  </div>
+</div>
 <div id="bid-modal" class="modal-overlay" onclick="App.closeBidModalOutside(event)">
   <div class="modal">
     <div class="modal-header">
@@ -430,6 +511,22 @@ window.addEventListener('DOMContentLoaded',function(){
 <script src="js/auction.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/app.js"></script>
+<script src="js/cap.js"></script>
+<script>
+// Cap sub-tab switcher (global, called from cap tab buttons)
+function setCapTab(t) {
+  ['overview','allplayers','compare','toppaid','taxi','commish'].forEach(n => {
+    const el = document.getElementById('tab-' + n);
+    if (el) el.style.display = n === t ? '' : 'none';
+  });
+  document.querySelectorAll('[data-captab]').forEach(b =>
+    b.classList.toggle('active', b.dataset.captab === t)
+  );
+  const dd = document.getElementById('cap-dd');
+  if (dd) dd.value = t;
+  if (typeof renderTab === 'function') renderTab(t);
+}
+</script>
 
 <!-- Service Worker registration -->
 <script>
