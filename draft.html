@@ -377,15 +377,39 @@ async function refreshDraft() {
     }, null, 2));
     console.log('=== rosterIdToTeam ===', JSON.stringify(rosterIdToTeam));
 
-    // 2. slot_to_roster_id shows who CURRENTLY owns each slot (post-trade)
-    //    Keys are "1".."12", values are roster_id integers
-    if (draftInfo.slot_to_roster_id) {
+    // 2. Build slotOwners from slot_to_roster_id OR draft_order
+    //
+    // slot_to_roster_id: { "1": roster_id, ... } — set after commissioner locks order
+    // draft_order: { user_id: slot_number, ... } — set when draft is created
+    // We try slot_to_roster_id first, then fall back to draft_order
+
+    if (draftInfo.slot_to_roster_id && Object.keys(draftInfo.slot_to_roster_id).length) {
+      // Direct slot → roster_id mapping
       Object.entries(draftInfo.slot_to_roster_id).forEach(([slot, rid]) => {
         const teamKey = rosterIdToTeam[String(rid)];
-        // Use cap team key if matched, otherwise fall back to Sleeper display name
         slotOwners[String(slot)] = teamKey || rosterIdToDisplayName[String(rid)] || `roster_${rid}`;
         console.log(`Slot ${slot} → rid ${rid} → ${slotOwners[String(slot)]}`);
       });
+
+    } else if (draftInfo.draft_order && Object.keys(draftInfo.draft_order).length) {
+      // draft_order: { user_id: slot_number } — invert to slot → user_id
+      // Also need user_id → roster_id mapping
+      const userIdToRosterId = {};
+      try {
+        const rosters = await fetch(`https://api.sleeper.app/v1/league/${leagueId()}/rosters`).then(r=>r.json());
+        (rosters||[]).forEach(r => { userIdToRosterId[r.owner_id] = r.roster_id; });
+      } catch(e) { console.warn('Could not fetch rosters for draft_order mapping:', e); }
+
+      Object.entries(draftInfo.draft_order).forEach(([userId, slot]) => {
+        const rosterId = userIdToRosterId[userId];
+        const teamKey  = rosterId ? rosterIdToTeam[String(rosterId)] : null;
+        const dispName = rosterId ? rosterIdToDisplayName[String(rosterId)] : null;
+        slotOwners[String(slot)] = teamKey || dispName || userId;
+        console.log(`draft_order: user ${userId} → slot ${slot} → ${slotOwners[String(slot)]}`);
+      });
+
+    } else {
+      console.warn('No slot_to_roster_id or draft_order found — draft order not set in Sleeper yet');
     }
 
     // 3. Fetch actual picks made (empty array for pre_draft, populated otherwise)
