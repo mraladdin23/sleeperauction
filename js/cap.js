@@ -43,10 +43,10 @@ function subscribeRosters() {
     const cached = localStorage.getItem('sb_players');
     if (cached) {
       const players = JSON.parse(cached);
-      Object.values(players).forEach(p => {
+      Object.entries(players).forEach(([playerId, p]) => {
         if (p.first_name && p.last_name) {
           const key = `${p.first_name} ${p.last_name}`.toLowerCase();
-          PLAYER_LOOKUP[key] = { birth_date: p.birth_date || null };
+          PLAYER_LOOKUP[key] = { birth_date: p.birth_date || null, player_id: playerId, nfl_team: p.team || null, age: p.age || null, years_exp: p.years_exp != null ? p.years_exp : null };
         }
       });
     }
@@ -289,10 +289,24 @@ function renderRosters() {
         const hoBtn=comm?`<button class="act-btn" onclick="toggleHoldout('${key}','${p.name.replace(/'/g,"\\'")}')" title="${ho?'Remove holdout':'Flag holdout'}">${ho?'🔥':'🏳'}</button>`:'';
         const editBtn=comm?`<td class="act-cell">${hoBtn}<button class="act-btn" onclick="openEdit('${key}','starters',${p._idx})">✏️</button></td>`:'';
         return `<tr class="pr">
-          <td>${p.name}${ageBadge(p.name)}${hoBadge}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="width:32px;height:32px;border-radius:50%;background:${(POS_COLORS[p.pos]||'#888')}22;flex-shrink:0;overflow:hidden;">
+                ${PLAYER_LOOKUP[p.name.toLowerCase()]?.player_id
+                  ? `<img src="https://sleepercdn.com/content/nfl/players/thumb/${PLAYER_LOOKUP[p.name.toLowerCase()].player_id}.jpg" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'" />`
+                  : `<span style="display:flex;width:100%;height:100%;align-items:center;justify-content:center;font-size:11px;color:${POS_COLORS[p.pos]||'var(--text3)'};">${p.pos}</span>`}
+              </div>
+              <div>
+                <div>${p.name}${ageBadge(p.name)}${hoBadge}</div>
+                ${(PLAYER_LOOKUP[p.name.toLowerCase()]?.nfl_team)
+                  ? `<div style="font-size:11px;color:var(--text3);">${PLAYER_LOOKUP[p.name.toLowerCase()].nfl_team}</div>`
+                  : ''}
+              </div>
+            </div>
+          </td>
           <td>${badge(p.pos)}</td>
           <td class="sal-cell"><div>${fmtM(p.salary)}</div>
-            <div class="sal-bar"><div class="sal-bar-fill" style="width:${bw}%;background:${POS_COLORS[p.pos]||'var(--text3)'};"></div></div>
+            <div class="sal-bar"><div class="sal-bar-fill" style="width:${bw}%;background:${POS_COLORS[p.pos]||'var(--text3)'};" ></div></div>
           </td>${editBtn}</tr>`;
       }).join('');
     });
@@ -421,25 +435,61 @@ function renderAllPlayers() {
   filtered.sort((a,b)=>b.salary-a.salary);
   const totalSal = filtered.filter(p=>p.slot==='Active').reduce((s,p)=>s+p.salary,0);
   const chips = ['ALL','QB','RB','WR','TE'].map(p=>`<button class="ap-chip${apPosFilter===p?' active':''}" onclick="apSetPos('${p}')">${p==='ALL'?'All':p}</button>`).join('');
-  const rows = filtered.map((p,i)=>{
-    const posClr=POS_COLORS[p.pos]||'var(--text3)';
-    const slotBadge=p.slot==='IR'?`<span style="font-size:10px;background:rgba(255,77,106,.15);color:var(--red);padding:1px 5px;border-radius:3px;margin-left:5px;">IR</span>`:p.slot==='Taxi'?`<span style="font-size:10px;background:rgba(90,94,114,.25);color:var(--text3);padding:1px 5px;border-radius:3px;margin-left:5px;">Taxi</span>`:'';
-    const ho=(holdouts[p.teamKey]||{})[p.name];
-    const hoBadge=ho?`<span style="font-size:10px;background:rgba(255,201,77,.15);color:var(--yellow);border-radius:3px;padding:1px 5px;margin-left:5px;">🔥</span>`:'';
-    const wl = JSON.parse(localStorage.getItem('sb_cap_watchlist')||'{}');
+
+  const rows = filtered.map((p,i) => {
+    const posClr  = POS_COLORS[p.pos] || 'var(--text3)';
+    const lookup  = PLAYER_LOOKUP[p.name.toLowerCase()] || {};
+    const pid     = lookup.player_id;
+    const nflTeam = lookup.nfl_team || '';
+    const ho      = (holdouts[p.teamKey]||{})[p.name];
+    const wl      = JSON.parse(localStorage.getItem('sb_cap_watchlist')||'{}');
     const starred = !!wl[p.name];
-    return `<tr>
-      <td style="padding:8px 6px 8px 12px;width:28px;">
-        <button onclick="capToggleWatch(${JSON.stringify(p.name)})" style="background:none;border:none;cursor:pointer;font-size:13px;padding:0;line-height:1;color:${starred?'var(--yellow)':'var(--text3)'};">${starred?'⭐':'☆'}</button>
+
+    // slot badge
+    const slotClr = p.slot==='IR' ? 'var(--red)' : 'var(--text3)';
+    const slotBg  = p.slot==='IR' ? 'rgba(255,77,106,.12)' : 'rgba(90,94,114,.2)';
+    const slotBadge = p.slot !== 'Active'
+      ? `<span style="font-size:10px;background:${slotBg};color:${slotClr};padding:1px 5px;border-radius:3px;margin-left:4px;">${p.slot}</span>` : '';
+
+    // player photo (same CDN as auction page)
+    const photo = pid
+      ? `<img src="https://sleepercdn.com/content/nfl/players/thumb/${pid}.jpg"
+             style="width:100%;height:100%;object-fit:cover;border-radius:50%;"
+             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
+         <span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:12px;">${p.pos||'?'}</span>`
+      : `<span style="display:flex;width:100%;height:100%;align-items:center;justify-content:center;font-size:12px;">${p.pos||'?'}</span>`;
+
+    return `<tr style="border-bottom:1px solid rgba(46,48,64,.4);">
+      <td style="padding:8px 6px 8px 10px;width:28px;">
+        <button onclick="capToggleWatch(${JSON.stringify(p.name)})"
+          style="background:none;border:none;cursor:pointer;font-size:13px;padding:0;line-height:1;color:${starred?'var(--yellow)':'var(--text3)'};">${starred?'⭐':'☆'}</button>
       </td>
-      <td style="font-size:13px;padding:8px 8px 8px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:0;">
-        <span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);margin-right:5px;">${i+1}</span>${p.name}${ageBadge(p.name)}${hoBadge}${slotBadge}
+      <td style="padding:8px 8px 8px 4px;">
+        <div style="display:flex;align-items:center;gap:9px;">
+          <div style="width:36px;height:36px;border-radius:50%;background:${posClr}22;flex-shrink:0;overflow:hidden;">${photo}</div>
+          <div style="min-width:0;">
+            <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;">
+              ${p.name}${ageBadge(p.name)}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:4px;">🔥</span>':''}
+            </div>
+            <div style="font-size:11px;color:var(--text3);margin-top:1px;display:flex;align-items:center;gap:4px;">
+              <span style="background:${posClr}22;color:${posClr};padding:1px 5px;border-radius:3px;font-size:10px;font-weight:600;">${p.pos||'—'}</span>
+              ${nflTeam ? `<span>${nflTeam}</span>` : ''}
+              ${slotBadge}
+            </div>
+          </div>
+        </div>
       </td>
-      <td style="padding:8px 6px;white-space:nowrap;">${p.pos&&p.pos!=='—'?`<span class="pos-badge" style="background:${posClr}22;color:${posClr};">${p.pos}</span>`:'<span style="color:var(--text3);font-size:11px;">—</span>'}</td>
-      <td style="padding:8px 10px;white-space:nowrap;"><span onclick="openTeamPanel('${p.teamKey}')" style="color:var(--text2);cursor:pointer;font-size:12px;">${p.teamName} <span style="color:var(--accent2);font-size:10px;">↗</span></span></td>
-      <td style="text-align:right;font-family:var(--font-mono);font-size:13px;padding:8px 14px;white-space:nowrap;color:${p.slot==='Taxi'?'var(--text3)':p.slot==='IR'?'var(--text2)':'var(--text)'};">${fmtM(p.salary)}${p.rawSal?`<span style="color:var(--text3);font-size:10px;margin-left:4px;">(${fmtM(p.rawSal)})</span>`:''}</td>
+      <td style="padding:8px 8px;white-space:nowrap;">
+        <span onclick="openTeamPanel('${p.teamKey}')"
+          style="color:var(--text2);cursor:pointer;font-size:12px;">${p.teamName} <span style="color:var(--accent2);font-size:10px;">↗</span></span>
+      </td>
+      <td style="text-align:right;font-family:var(--font-mono);font-size:13px;padding:8px 14px;white-space:nowrap;
+        color:${p.slot==='Taxi'?'var(--text3)':p.slot==='IR'?'var(--text2)':'var(--text)'};">
+        ${fmtM(p.salary)}${p.rawSal?`<span style="color:var(--text3);font-size:10px;margin-left:3px;">(${fmtM(p.rawSal)})</span>`:''}
+      </td>
     </tr>`;
   }).join('');
+
   el.innerHTML = `<div style="padding:16px 0 8px;">
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 4px 12px;">
       <div style="display:flex;gap:6px;">${chips}</div>
@@ -455,15 +505,18 @@ function renderAllPlayers() {
         <span style="font-size:14px;font-weight:600;">${apPosFilter==='ALL'?'All Rostered Players':apPosFilter+' Players'}${apSearch?' · "'+apSearch+'"':''}</span>
         <span style="font-size:12px;color:var(--text3);">${filtered.length} players${apPosFilter!=='ALL'&&!apSearch?' · '+fmtM(totalSal)+' total cap':''}</span>
       </div>
-      ${filtered.length?`<table style="width:100%;border-collapse:collapse;table-layout:fixed;">
-        <colgroup><col style="width:32px"/><col style="width:auto"/><col style="width:44px"/><col style="width:130px"/><col style="width:95px"/></colgroup>
-        <thead><tr style="border-bottom:1px solid var(--border);">
-        <th style="font-size:10px;color:var(--text3);padding:7px 6px;text-align:left;font-weight:500;">⭐</th>
-        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 8px 7px 0;text-align:left;font-weight:500;">Player</th>
-        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 6px;text-align:left;font-weight:500;">Pos</th>
-        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 10px;text-align:left;font-weight:500;">Owner</th>
-        <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 14px;text-align:right;font-weight:500;">Salary ▼</th>
-      </tr></thead><tbody>${rows}</tbody></table>`:`<div style="padding:40px;text-align:center;color:var(--text3);">No players found matching "${apSearch}"</div>`}
+      ${filtered.length
+        ? `<table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+            <colgroup><col style="width:28px"/><col/><col style="width:130px"/><col style="width:95px"/></colgroup>
+            <thead><tr style="border-bottom:1px solid var(--border);">
+              <th style="font-size:10px;color:var(--text3);padding:7px 6px;text-align:left;">⭐</th>
+              <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 4px;text-align:left;font-weight:500;">Player</th>
+              <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 8px;text-align:left;font-weight:500;">Owner</th>
+              <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 14px;text-align:right;font-weight:500;">Salary ▼</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>`
+        : `<div style="padding:40px;text-align:center;color:var(--text3);">No players found matching "${apSearch}"</div>`}
     </div>
   </div>`;
 }
@@ -794,14 +847,15 @@ async function fetchRookiePlayers() {
     _rookiePlayers = Object.entries(players)
       .filter(([,p]) => {
         if (!p.fantasy_positions?.some(pos => SKILL.has(pos))) return false;
-        const ye = p.years_exp;
-        // Accept confirmed rookies (ye===0) OR pre-draft entrants (ye===null/undefined)
-        if (ye !== 0 && ye !== null && ye !== undefined) return false;
-        // Use Sleeper's age field directly — rookies are under 24
-        // Also accept anyone with a search_rank (ADP) under 700 regardless of age
-        const youngEnough = p.age != null ? p.age <= 24 : true;
-        const hasRank = p.search_rank && p.search_rank <= 700;
-        return youngEnough || hasRank;
+        const ye = Number(p.years_exp);
+        const yeRaw = p.years_exp;
+        // Confirmed rookies (years_exp === 0) — always include
+        if (ye === 0 && yeRaw !== null && yeRaw !== undefined) return true;
+        // Pre-draft / offseason (years_exp null/undefined) — include if young or ranked
+        if (yeRaw === null || yeRaw === undefined) {
+          return (p.age != null && p.age <= 25) || (p.search_rank && p.search_rank <= 900);
+        }
+        return false;
       })
       .map(([id, p]) => ({
         id,
