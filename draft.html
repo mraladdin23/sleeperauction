@@ -269,15 +269,51 @@ let slotOwners = {};   // draft slot number (string) → teamKey
 let rosterIdToTeam = {};  // Sleeper roster_id (string) → our teamKey
 
 async function loadRosterMapping() {
-  // Load usernameToRosterId: teamKey → roster_id
+  rosterIdToTeam = {};
   try {
+    // Primary: load saved mapping from Firebase (teamKey → roster_id)
     const snap = await db.ref(`leagues/${leagueId()}/usernameToRosterId`).once('value');
     const mapping = snap.val() || {};
-    rosterIdToTeam = {};
     Object.entries(mapping).forEach(([teamKey, rid]) => {
       rosterIdToTeam[String(rid)] = teamKey;
     });
-  } catch(e) { console.warn('loadRosterMapping:', e); }
+  } catch(e) { console.warn('loadRosterMapping firebase:', e); }
+
+  // If Firebase mapping is empty, try auto-matching via Sleeper API
+  if (Object.keys(rosterIdToTeam).length === 0 && DATA && leagueId()) {
+    try {
+      const [rosters, users] = await Promise.all([
+        fetch(`https://api.sleeper.app/v1/league/${leagueId()}/rosters`).then(r=>r.json()),
+        fetch(`https://api.sleeper.app/v1/league/${leagueId()}/users`).then(r=>r.json()),
+      ]);
+      const userById = {};
+      (users||[]).forEach(u => { userById[u.user_id] = u; });
+
+      (rosters||[]).forEach(r => {
+        const u = userById[r.owner_id] || {};
+        const sleeperUsername  = (u.username  || '').toLowerCase();
+        const sleeperDisplay   = (u.display_name || '').toLowerCase();
+
+        // Try matching by: exact username, exact display_name, or team_name contains
+        const capKey = Object.keys(DATA).find(k => {
+          const kl = k.toLowerCase();
+          const tl = (DATA[k].team_name || '').toLowerCase();
+          return kl === sleeperUsername
+              || kl === sleeperDisplay
+              || tl === sleeperDisplay
+              || tl === sleeperUsername;
+        });
+
+        if (capKey) {
+          rosterIdToTeam[String(r.roster_id)] = capKey;
+          console.log(`Auto-matched: roster ${r.roster_id} → ${capKey} (${u.display_name})`);
+        } else {
+          // Store by username as fallback so we can still show names
+          rosterIdToTeam[String(r.roster_id)] = sleeperUsername || `roster_${r.roster_id}`;
+        }
+      });
+    } catch(e) { console.warn('loadRosterMapping auto-match:', e); }
+  }
 }
 
 async function refreshDraft() {
@@ -388,16 +424,17 @@ async function loadRookiePlayers() {
 
     rookiePlayers = Object.entries(players)
       .filter(([,p]) => {
-        // Must be a skill position
         if (!p.fantasy_positions?.some(pos => SKILL.has(pos))) return false;
-        // Accept years_exp 0 (in-season rookie) or null/undefined (pre-draft)
-        const ye = p.years_exp;
-        if (ye !== 0 && ye !== null && ye !== undefined) return false;
-        // Use Sleeper's age field: rookies are 24 or younger
-        // Also keep anyone with search_rank ≤ 700 regardless of age
-        const youngEnough = p.age != null ? p.age <= 24 : true;
-        const hasRank = p.search_rank && p.search_rank <= 700;
-        return youngEnough || hasRank;
+        const ye = Number(p.years_exp);  // normalize: "0" or 0 both become 0
+        const yeRaw = p.years_exp;
+        // Confirmed rookies (years_exp exactly 0) — always include
+        if (ye === 0 && yeRaw !== null && yeRaw !== undefined) return true;
+        // Pre-draft / offseason entrants (years_exp null or undefined)
+        if (yeRaw === null || yeRaw === undefined) {
+          // Include if age ≤ 25 OR has a meaningful ADP (≤ 900)
+          return (p.age != null && p.age <= 25) || (p.search_rank && p.search_rank <= 900);
+        }
+        return false;
       })
       .map(([id, p]) => ({
         id,
