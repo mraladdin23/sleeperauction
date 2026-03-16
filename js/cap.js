@@ -553,10 +553,10 @@ function renderAllPlayers() {
     filtered.sort((a, b) => {
       const pa = (stats[PLAYER_LOOKUP[a.name.toLowerCase()]?.player_id||'']?.pts_ppr ?? -1);
       const pb = (stats[PLAYER_LOOKUP[b.name.toLowerCase()]?.player_id||'']?.pts_ppr ?? -1);
-      return dir * (pb - pa);
+      return -dir * (pb - pa);
     });
   } else {
-    filtered.sort((a, b) => dir * (b.salary - a.salary));
+    filtered.sort((a, b) => -dir * (b.salary - a.salary));
   }
 
   const stats    = apStatsMap || {};
