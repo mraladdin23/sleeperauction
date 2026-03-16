@@ -317,9 +317,9 @@ async function init() {
 }
 
 // ── State for draft board ─────────────────────────────────────
-// slotOwners: { "1": teamKey, "2": teamKey, ... } — who owns each draft slot
-// (pre-draft uses slot_to_roster_id from draft object; in_progress/complete uses picks)
-let slotOwners = {};   // draft slot number (string) → teamKey
+// slotOwners: { "r-p": teamKey } — who owns each round-pick combo
+// e.g. "1-1", "2-3" etc. Allows traded picks to differ by round.
+let slotOwners = {};   // "round-pick" → teamKey
 let rosterIdToTeam        = {};  // Sleeper roster_id (string) → our teamKey
 let rosterIdToDisplayName = {};  // Sleeper roster_id (string) → display name (fallback)
 
@@ -398,11 +398,18 @@ async function refreshDraft() {
     // We try slot_to_roster_id first, then fall back to draft_order
 
     if (draftInfo.slot_to_roster_id && Object.keys(draftInfo.slot_to_roster_id).length) {
-      // Direct slot → roster_id mapping
+      // Expand slot → roster_id to all round-pick combos
+      const ROUNDS_N = draftInfo.settings?.rounds || 4;
+      const TEAMS_N  = draftInfo.settings?.teams  || 12;
+      const isSnakeS = draftInfo.settings?.reversal_round > 0 || draftInfo.type === 'snake';
       Object.entries(draftInfo.slot_to_roster_id).forEach(([slot, rid]) => {
-        const teamKey = rosterIdToTeam[String(rid)];
-        slotOwners[String(slot)] = teamKey || rosterIdToDisplayName[String(rid)] || `roster_${rid}`;
-        console.log(`Slot ${slot} → rid ${rid} → ${slotOwners[String(slot)]}`);
+        const teamKey = rosterIdToTeam[String(rid)] || rosterIdToDisplayName[String(rid)] || `roster_${rid}`;
+        for (let r = 1; r <= ROUNDS_N; r++) {
+          // For snake, even rounds reverse: slot 1 picks last
+          const pick = (isSnakeS && r % 2 === 0) ? String(TEAMS_N + 1 - Number(slot)) : String(slot);
+          slotOwners[`${r}-${pick}`] = teamKey;
+        }
+        console.log(`Slot ${slot} → ${teamKey}`);
       });
 
     } else if (draftInfo.draft_order && Object.keys(draftInfo.draft_order).length) {
@@ -414,12 +421,19 @@ async function refreshDraft() {
         (rosters||[]).forEach(r => { userIdToRosterId[r.owner_id] = r.roster_id; });
       } catch(e) { console.warn('Could not fetch rosters for draft_order mapping:', e); }
 
+      const ROUNDS_D = draftInfo.settings?.rounds || 4;
+      const TEAMS_D  = draftInfo.settings?.teams  || 12;
+      const isSnakeD = draftInfo.settings?.reversal_round > 0 || draftInfo.type === 'snake';
       Object.entries(draftInfo.draft_order).forEach(([userId, slot]) => {
         const rosterId = userIdToRosterId[userId];
         const teamKey  = rosterId ? rosterIdToTeam[String(rosterId)] : null;
         const dispName = rosterId ? rosterIdToDisplayName[String(rosterId)] : null;
-        slotOwners[String(slot)] = teamKey || dispName || userId;
-        console.log(`draft_order: user ${userId} → slot ${slot} → ${slotOwners[String(slot)]}`);
+        const val = teamKey || dispName || userId;
+        for (let r = 1; r <= ROUNDS_D; r++) {
+          const pick = (isSnakeD && r % 2 === 0) ? String(TEAMS_D + 1 - Number(slot)) : String(slot);
+          slotOwners[`${r}-${pick}`] = val;
+        }
+        console.log(`draft_order: user ${userId} → slot ${slot} → ${val}`);
       });
 
     } else {
@@ -466,8 +480,9 @@ async function refreshDraft() {
     }[draftInfo.status] || draftInfo.status;
 
     // Build slot owner debug string
-    const slotDebug = Object.entries(slotOwners).sort((a,b)=>Number(a[0])-Number(b[0]))
-      .map(([slot, key]) => `${slot}:${DATA[key]?.team_name || key}`).join(' · ');
+    const slotDebug = Object.entries(slotOwners)
+      .sort((a,b) => { const [ar,ap]=a[0].split('-').map(Number); const [br,bp]=b[0].split('-').map(Number); return ar!==br?ar-br:ap-bp; })
+      .map(([key, val]) => `${key}:${DATA[val]?.team_name||val}`).join(' · ');
     document.getElementById('draft-subtitle').textContent =
       `${statusLabel} · ${draftInfo.season || ''} · type: ${draftInfo.type} · ID: ${draftInfo.draft_id}`;
     document.getElementById('draft-subtitle').title =
@@ -673,15 +688,8 @@ function renderBoard() {
       const assigned = !!pick.player;
       // Who currently OWNS this slot (after trades), from slot_to_roster_id
       // For snake drafts, even rounds reverse the pick order
-      const isDraftSnake = draftInfo?.settings?.reversal_round > 0 || draftInfo?.type === 'snake';
-      const PICKS_PER_ROUND = draftInfo?.settings?.teams || 12;
-      let slotForRound;
-      if (isDraftSnake && r % 2 === 0) {
-        slotForRound = String(PICKS_PER_ROUND + 1 - p);  // reversed
-      } else {
-        slotForRound = String(p);
-      }
-      const ownerKey  = slotOwners[slotForRound] || null;
+      // Look up owner by round-pick key directly
+      const ownerKey  = slotOwners[`${r}-${p}`] || null;
       const ownerName = ownerKey ? (DATA[ownerKey]?.team_name || ownerKey) : null;
       const isSleeper = pick.sleeperPick && !pick.team;
       const assignedTeamKey  = pick.team || null;
@@ -806,11 +814,8 @@ function onAssignRoundOrSlotChange() {
     return;
   }
 
-  // Figure out which slot owns this pick (accounting for snake)
-  const TEAMS = draftInfo?.settings?.teams || 12;
-  const isSnake = draftInfo?.settings?.reversal_round > 0 || draftInfo?.type === 'snake';
-  const slotNum = (isSnake && Number(r) % 2 === 0) ? String(TEAMS + 1 - Number(p)) : String(p);
-  const ownerKey = slotOwners[slotNum] || null;
+  // Look up owner by round-pick key directly
+  const ownerKey = slotOwners[`${r}-${p}`] || null;
   const ownerName = ownerKey ? (DATA[ownerKey]?.team_name || ownerKey) : null;
 
   // Show who owns the pick
@@ -956,25 +961,28 @@ function switchDraftTab(tab) {
 
 // ── Pick order editor ─────────────────────────────────────────
 function renderOrderPanel() {
-  const TEAMS = draftInfo?.settings?.teams || 12;
+  const ROUNDS = draftInfo?.settings?.rounds || 4;
+  const TEAMS  = draftInfo?.settings?.teams  || 12;
   const container = document.getElementById('order-rows');
   if (!container) return;
 
   const selStyle = 'padding:4px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-body);font-size:11px;outline:none;flex:1;';
 
-  // One row per slot (1–12). slotOwners["1"].."12" = who owns that slot.
-  // Snake reversal is handled at render time; here we just edit the base slot order.
-  let rows = '<div style="font-size:10px;color:var(--text3);margin-bottom:8px;">Each slot maps to the same pick position in every round (snake reversal applied automatically).</div>';
-  for (let p = 1; p <= TEAMS; p++) {
-    const owner = slotOwners[String(p)] || '';
-    const teamOpts = '<option value="">— owner —</option>' +
-      Object.entries(DATA||{}).map(([k,t]) =>
-        `<option value="${k}"${k===owner?' selected':''}>${t.team_name}</option>`
-      ).join('');
-    rows += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;">
-      <span style="font-size:11px;font-family:var(--font-mono);color:var(--text3);min-width:44px;">Slot ${p}</span>
-      <select data-slot="${p}" style="${selStyle}">${teamOpts}</select>
-    </div>`;
+  let rows = '';
+  for (let r = 1; r <= ROUNDS; r++) {
+    rows += `<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:var(--text3);letter-spacing:.4px;padding:8px 0 4px;${r>1?'border-top:1px solid var(--border);margin-top:4px;':''}">Round ${r}</div>`;
+    for (let p = 1; p <= TEAMS; p++) {
+      const key   = r + '-' + p;
+      const owner = slotOwners[key] || '';
+      const teamOpts = '<option value="">— owner —</option>' +
+        Object.entries(DATA||{}).map(([k,t]) =>
+          '<option value="' + k + '"' + (k===owner?' selected':'') + '>' + t.team_name + '</option>'
+        ).join('');
+      rows += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+        '<span style="font-size:11px;font-family:var(--font-mono);color:var(--text3);min-width:36px;">' + r + '.' + String(p).padStart(2,'0') + '</span>' +
+        '<select data-key="' + key + '" style="' + selStyle + '">' + teamOpts + '</select>' +
+        '</div>';
+    }
   }
   container.innerHTML = rows;
 }
@@ -983,11 +991,11 @@ async function savePickOrder(btn) {
   btn.disabled = true;
   btn.textContent = 'Saving…';
 
-  // Read each slot select and update slotOwners
-  document.querySelectorAll('#order-rows select[data-slot]').forEach(sel => {
-    const slot = sel.dataset.slot;
+  // Read each round-pick select and update slotOwners
+  document.querySelectorAll('#order-rows select[data-key]').forEach(sel => {
+    const key = sel.dataset.key;
     const teamKey = sel.value;
-    if (slot && teamKey) slotOwners[slot] = teamKey;
+    if (key && teamKey) slotOwners[key] = teamKey;
   });
 
   // Save to Firebase
@@ -1008,11 +1016,10 @@ async function savePickOrder(btn) {
 
 function showSlotData() {
   const rows = Object.entries(slotOwners)
-    .sort((a,b) => Number(a[0]) - Number(b[0]))
-    .map(([slot, key]) => {
-      const teamName = DATA[key]?.team_name || key;
-      const rid = Object.entries(rosterIdToTeam).find(([,k])=>k===key)?.[0] || '?';
-      return `Slot ${slot}: ${teamName} (key="${key}", roster_id=${rid})`;
+    .sort((a,b) => { const [ar,ap]=a[0].split('-').map(Number); const [br,bp]=b[0].split('-').map(Number); return ar!==br?ar-br:ap-bp; })
+    .map(([key, val]) => {
+      const teamName = DATA[val]?.team_name || val;
+      return `Pick ${key}: ${teamName}`;
     });
   const rMap = Object.entries(rosterIdToTeam)
     .map(([rid, key]) => `  rid ${rid} → "${key}" (${DATA[key]?.team_name||'NOT IN DATA'})`).join('\n');
