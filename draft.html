@@ -167,7 +167,15 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
       <div>
         <div class="available-panel" id="avail-panel">
           <div class="avail-header">
-            <div class="avail-title">Available Rookies <span id="avail-debug" style="font-size:10px;color:var(--text3);font-weight:400;"></span></div>
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <div class="avail-title">Available Rookies <span id="avail-debug" style="font-size:10px;color:var(--text3);font-weight:400;"></span></div>
+            </div>
+            <div style="position:relative;margin-bottom:8px;">
+              <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:12px;">🔍</span>
+              <input id="avail-search-input" type="text" placeholder="Search players…"
+                style="width:100%;padding:5px 8px 5px 26px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:12px;font-family:var(--font-body);outline:none;"
+                oninput="availSearch=this.value.toLowerCase().trim();renderAvailList();" />
+            </div>
             <div class="avail-pos-chips">
               <div class="avail-chip active" onclick="setAvailPos('ALL',this)">All</div>
               <div class="avail-chip" onclick="setAvailPos('QB',this)">QB</div>
@@ -247,6 +255,7 @@ let DATA = null;            // roster data
 let board = {};             // { 'r-p': { player, team, salary, sleeperPick } }
 let rookiePlayers = [];     // available rookie list
 let availPosFilter = 'ALL';
+let availSearch = '';
 let draftInfo = null;
 
 // ── Load everything ───────────────────────────────────────────
@@ -446,6 +455,7 @@ async function loadRookiePlayers() {
         taken: draftedNames.has(`${p.first_name} ${p.last_name}`.trim().toLowerCase())
             || rostered.has(`${p.first_name} ${p.last_name}`.trim().toLowerCase()),
       }))
+      .filter(rk => rk.name && rk.name.trim().length > 1)  // remove blank / single-char names
       .sort((a, b) => a.adp - b.adp);
 
     const ye0  = rookiePlayers.filter(r => r.ye === 0).length;
@@ -601,42 +611,62 @@ function renderBoard() {
 function renderAvailList() {
   const draftedNames = new Set(Object.values(board).map(p => (p.player||'').toLowerCase()));
   const list = document.getElementById('avail-list');
-  const filtered = rookiePlayers.filter(rk => {
+
+  if (!rookiePlayers.length) {
+    list.innerHTML = localStorage.getItem('sb_players')
+      ? '<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px;">No rookies found. Try refreshing.</div>'
+      : '<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px;">Loading player database…</div>';
+    return;
+  }
+
+  // Filter: exclude taken/already-drafted, apply pos + search filters
+  let filtered = rookiePlayers.filter(rk => {
+    if (rk.taken || draftedNames.has(rk.name.toLowerCase())) return false;
     if (availPosFilter !== 'ALL' && rk.pos !== availPosFilter) return false;
+    if (availSearch && !rk.name.toLowerCase().includes(availSearch)) return false;
     return true;
   });
-  if (!rookiePlayers.length) {
-    const cached = localStorage.getItem('sb_players');
-    if (!cached) {
-      list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px;">No player cache found.<br/>Visit the auction page first to load the player database.</div>';
-    } else {
-      list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px;">No rookies matched current filter.<br/>Try the All filter above.</div>';
-    }
-    return;
-  }
+
+  // Sort: by search_rank if available, otherwise alphabetical by name
+  filtered.sort((a, b) => {
+    const ar = a.adp < 999 ? a.adp : null;
+    const br = b.adp < 999 ? b.adp : null;
+    if (ar !== null && br !== null) return ar - br;
+    if (ar !== null) return -1;  // ranked players first
+    if (br !== null) return 1;
+    return a.name.localeCompare(b.name);  // alphabetical for unranked
+  });
+
   if (!filtered.length) {
-    list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px;">No rookies match this position filter.</div>';
+    list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px;">'
+      + (availSearch ? 'No players match "' + availSearch + '"' : 'No available rookies at this position.') + '</div>';
     return;
   }
-  list.innerHTML = filtered.map(rk => {
-    const taken = rk.taken || draftedNames.has(rk.name.toLowerCase());
-    return `<div class="avail-player ${taken ? 'taken' : ''}">
+
+  list.innerHTML = filtered.map(rk =>
+    `<div class="avail-player">
       <div>
         <div class="avail-player-name">
           <span class="pb pb-${rk.pos}">${rk.pos}</span>
           <span style="margin-left:5px;">${rk.name}</span>
         </div>
-        <div class="avail-player-sub">${rk.nflTeam}${taken ? ' · drafted' : ''}</div>
+        <div class="avail-player-sub">${rk.nflTeam !== '—' ? rk.nflTeam : 'Unsigned'}</div>
       </div>
       <div class="avail-adp">${rk.adp < 999 ? '#'+rk.adp : '—'}</div>
-    </div>`;
-  }).join('');
+    </div>`
+  ).join('');
 }
 
 function setAvailPos(pos, el) {
   availPosFilter = pos;
   document.querySelectorAll('.avail-chip').forEach(c => c.classList.remove('active'));
   el.classList.add('active');
+  renderAvailList();
+}
+function clearAvailSearch() {
+  availSearch = '';
+  const inp = document.getElementById('avail-search-input');
+  if (inp) inp.value = '';
   renderAvailList();
 }
 
