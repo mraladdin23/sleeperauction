@@ -189,6 +189,16 @@ const App = (() => {
       };
     });
 
+    // Write username -> roster_id map so cap.js can sync rosterSizes
+    try {
+      const usernameMap = {};
+      users.forEach(u => {
+        const r = rosters.find(r => r.owner_id === u.user_id);
+        if (r && u.username) usernameMap[u.username.toLowerCase()] = r.roster_id;
+      });
+      await db.ref(`leagues/${state.leagueId}/usernameToRosterId`).set(usernameMap);
+    } catch(e) { /* non-fatal */ }
+
     UI.setLoading('Loading 2025 stats…');
     let rawStats = {};
     try { rawStats = await Sleeper.fetchStats(2025); } catch (e) { /* non-fatal */ }

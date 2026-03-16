@@ -51,6 +51,8 @@ function subscribeRosters() {
       }
     }
     renderTab(tab);
+    // Keep auction page open-spot counts in sync
+    syncRosterSizes();
   });
 }
 
@@ -70,6 +72,26 @@ async function saveToFirebase() {
       + (t.ir||[]).reduce((s,p)=>s+Math.round(p.salary*.75),0);
   });
   await rosterRef().set(DATA);
+  // Sync rosterSizes so auction page open-spot counts stay accurate
+  await syncRosterSizes();
+}
+
+async function syncRosterSizes() {
+  if (!leagueId()) return;
+  try {
+    const mapSnap = await db.ref(`leagues/${leagueId()}/usernameToRosterId`).once('value');
+    const map = mapSnap.val();
+    if (!map) return; // auction page hasn't run yet - nothing to sync
+    const sizes = {};
+    Object.entries(DATA).forEach(([uname, t]) => {
+      const rosterId = map[uname.toLowerCase()];
+      if (rosterId == null) return;
+      // Count active starters + IR (taxi doesn't count toward 25-man)
+      const count = (t.starters||[]).length + (t.ir||[]).filter(p=>p.name).length;
+      sizes[rosterId] = count;
+    });
+    await db.ref(`leagues/${leagueId()}/rosterSizes`).set(sizes);
+  } catch(e) { console.warn('rosterSizes sync failed:', e); }
 }
 
 const fmtM    = n => n>=1e6?'$'+(n/1e6).toFixed(1)+'M':n>=1e3?'$'+(n/1e3).toFixed(0)+'K':'$'+n;
