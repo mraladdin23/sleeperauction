@@ -167,7 +167,7 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
       <div>
         <div class="available-panel" id="avail-panel">
           <div class="avail-header">
-            <div class="avail-title">Available Rookies</div>
+            <div class="avail-title">Available Rookies <span id="avail-debug" style="font-size:10px;color:var(--text3);font-weight:400;"></span></div>
             <div class="avail-pos-chips">
               <div class="avail-chip active" onclick="setAvailPos('ALL',this)">All</div>
               <div class="avail-chip" onclick="setAvailPos('QB',this)">QB</div>
@@ -396,8 +396,19 @@ async function refreshDraft() {
 
 async function loadRookiePlayers() {
   try {
-    const cached = localStorage.getItem('sb_players');
-    if (!cached) { rookiePlayers = []; renderAvailList(); return; }
+    let cached = localStorage.getItem('sb_players');
+    if (!cached) {
+      // Auto-fetch player database if not cached
+      const dbg = document.getElementById('avail-debug');
+      if (dbg) dbg.textContent = '(downloading player DB…)';
+      try {
+        const r = await fetch('https://api.sleeper.app/v1/players/nfl');
+        cached = await r.text();
+        try { localStorage.setItem('sb_players', cached); } catch(e) {}
+      } catch(e) {
+        rookiePlayers = []; renderAvailList(); return;
+      }
+    }
     const players = JSON.parse(cached);
     const SKILL = new Set(['QB','RB','WR','TE']);
     const draftedNames = new Set(Object.values(board).map(p => (p.player||'').toLowerCase()));
@@ -412,11 +423,10 @@ async function loadRookiePlayers() {
       .filter(([,p]) => {
         if (!p.fantasy_positions?.some(pos => SKILL.has(pos))) return false;
         const yeRaw = p.years_exp;
-        const ye = Number(yeRaw);
-        // Confirmed rookies (years_exp === 0): always include regardless of team/age/rank
-        // Sleeper only sets ye=0 for players actually drafted into the NFL this year
-        if (yeRaw !== null && yeRaw !== undefined && ye === 0) return true;
-        // Pre-draft / unsigned (years_exp null): include if active OR young (≤25) OR ranked
+        const ye = yeRaw != null ? Number(yeRaw) : null;
+        // ye===0: confirmed 2026 draft class rookie — always include
+        if (ye === 0) return true;
+        // ye===null: pre-draft entrant — include if active OR young (≤25) OR ranked
         if (yeRaw === null || yeRaw === undefined) {
           return p.active === true
               || (p.age != null && p.age <= 25)
@@ -432,17 +442,29 @@ async function loadRookiePlayers() {
         adp: p.search_rank || 999,
         active: p.active === true,
         age: p.age || null,
+        ye: p.years_exp != null ? Number(p.years_exp) : null,
         taken: draftedNames.has(`${p.first_name} ${p.last_name}`.trim().toLowerCase())
             || rostered.has(`${p.first_name} ${p.last_name}`.trim().toLowerCase()),
       }))
       .sort((a, b) => a.adp - b.adp);
 
-    console.log(`Loaded ${rookiePlayers.length} rookie players`);
+    const ye0  = rookiePlayers.filter(r => r.ye === 0).length;
+    const ye1  = rookiePlayers.filter(r => r.ye === 1).length;
+    const yeN  = rookiePlayers.filter(r => r.ye === null).length;
+    console.log(`Loaded ${rookiePlayers.length} rookie players (ye=0: ${ye0}, ye=1: ${ye1}, ye=null: ${yeN})`);
   } catch(e) {
     console.warn('loadRookiePlayers:', e);
     rookiePlayers = [];
   }
   renderAvailList();
+  // Show debug stats in panel header
+  const dbg = document.getElementById('avail-debug');
+  if (dbg) {
+    const ye0c  = rookiePlayers.filter(r => r.ye === 0).length;
+    const ye1c  = rookiePlayers.filter(r => r.ye === 1).length;
+    const total = rookiePlayers.length;
+    dbg.textContent = `(${total} total · ${ye0c} confirmed · ${ye1c} 2nd yr)`;
+  }
 }
 
 
