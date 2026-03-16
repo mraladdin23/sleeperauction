@@ -280,13 +280,23 @@ const App = (() => {
   function updateCommissionerTab() {
     const tab = document.getElementById('commissioner-tab');
     if (tab) tab.style.display = state.isCommissioner ? '' : 'none';
-    // Keep mobile dropdown in sync
+    // Cap module comm tab
+    const capCommTab = document.getElementById('cap-comm-tab');
+    if (capCommTab) capCommTab.style.display = state.isCommissioner ? '' : 'none';
+    // Keep mobile dropdowns in sync
     const dd = document.getElementById('nav-dropdown');
     if (dd && state.isCommissioner && !dd.querySelector('option[value="commissioner"]')) {
       const opt = document.createElement('option');
       opt.value = 'commissioner';
       opt.textContent = '⚙️ Commissioner';
       dd.appendChild(opt);
+    }
+    const capDd = document.getElementById('cap-dd');
+    if (capDd && state.isCommissioner && !capDd.querySelector('option[value="commish"]')) {
+      const opt = document.createElement('option');
+      opt.value = 'commish';
+      opt.textContent = '⚙️ Commish';
+      capDd.appendChild(opt);
     }
   }
 
