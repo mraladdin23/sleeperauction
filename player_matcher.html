@@ -53,6 +53,8 @@ td{padding:7px 12px;vertical-align:middle;}
   <button class="btn-secondary" onclick="copyJson()">📋 Copy JSON</button>
 </div>
 
+<div id="debug-panel" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:var(--text3);font-family:var(--font-mono);"><span id="debug-info"></span></div>
+
 <div class="stats" id="stats-row"></div>
 
 <div class="filter-bar">
@@ -126,14 +128,41 @@ function similarity(a, b) {
 
 // ── Load & match ─────────────────────────────────────────────
 async function loadAndMatch() {
-  const raw = localStorage.getItem('sb_players');
-  if (!raw) {
-    alert('No Sleeper player cache found!\n\nPlease visit the auction page (index.html) first so it downloads the player database, then come back here.');
-    return;
-  }
-  sleeperPlayers = JSON.parse(raw);
   const btn = document.querySelector('.btn-primary');
-  btn.textContent = 'Matching…';
+
+  // Debug: show origin and localStorage state
+  const origin = window.location.origin;
+  const allKeys = Object.keys(localStorage);
+  const hasSbPlayers = allKeys.includes('sb_players');
+  const sbSize = hasSbPlayers ? Math.round(localStorage.getItem('sb_players').length / 1024) + 'KB' : 'missing';
+
+  document.getElementById('debug-info').innerHTML =
+    `<strong>Origin:</strong> ${origin} &nbsp;|&nbsp; ` +
+    `<strong>localStorage keys:</strong> ${allKeys.length > 0 ? allKeys.join(', ') : '(empty)'} &nbsp;|&nbsp; ` +
+    `<strong>sb_players:</strong> ${sbSize}`;
+  document.getElementById('debug-panel').style.display = '';
+
+  let raw = localStorage.getItem('sb_players');
+
+  if (!raw) {
+    // Try fetching directly from Sleeper API
+    btn.textContent = '⬇️ Downloading players (~10MB)…';
+    try {
+      const resp = await fetch('https://api.sleeper.app/v1/players/nfl');
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      raw = await resp.text();
+      try { localStorage.setItem('sb_players', raw); } catch(e) { /* storage full */ }
+    } catch(e) {
+      btn.textContent = '🔄 Load & Auto-Match';
+      document.getElementById('debug-info').innerHTML +=
+        `<br/><span style="color:var(--red)">Failed to fetch from Sleeper API: ${e.message}. ` +
+        `Make sure this page is served from your github.io site (not opened as a local file).</span>`;
+      return;
+    }
+  }
+
+  btn.textContent = 'Parsing & matching…';
+  sleeperPlayers = JSON.parse(raw);
 
   // Build name→id index for fast lookup
   const nameIndex = {};
