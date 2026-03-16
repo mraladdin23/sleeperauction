@@ -16,15 +16,24 @@ body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-si
 .topbar{display:flex;align-items:center;justify-content:space-between;padding:0 20px;height:54px;background:rgba(22,24,32,.95);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;backdrop-filter:blur(12px);}
 .topbar-logo{font-family:var(--font-display);font-size:22px;letter-spacing:1px;}
 .topbar-logo span{color:var(--accent);}
-.topbar-right{display:flex;align-items:center;gap:8px;}
-.tbtn{font-size:13px;color:var(--text2);text-decoration:none;padding:6px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);background:none;cursor:pointer;transition:all .15s;font-family:var(--font-body);}
-.tbtn:hover{color:var(--text);border-color:var(--border2);}
+.topbar-right{display:flex;align-items:center;gap:4px;}
+.tibtn{background:none;border:none;cursor:pointer;font-size:18px;padding:6px 8px;border-radius:var(--radius-sm);color:var(--text2);display:flex;align-items:center;justify-content:center;transition:background .15s;line-height:1;text-decoration:none;font-family:var(--font-body);}
+.tibtn:hover{background:var(--surface2);}
 .last-upd{font-size:11px;color:var(--text3);}
 
 .nav-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface);padding:0 20px;overflow-x:auto;}
 .nav-tab{padding:12px 18px;font-size:14px;font-weight:500;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--font-body);}
 .nav-tab.active{color:var(--accent2);border-bottom-color:var(--accent);}
 .nav-tab:hover:not(.active){color:var(--text);}
+.nav-dd-wrap{display:none;}
+.nav-dd{width:100%;padding:10px 14px;background:var(--surface2);border:none;border-bottom:1px solid var(--border);color:var(--text);font-family:var(--font-body);font-size:14px;font-weight:500;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239296a8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
+@media(max-width:600px){
+  .topbar{padding:0 12px;height:50px;}
+  .topbar-logo{font-size:19px;}
+  .last-upd{display:none;}
+  .nav-tabs{display:none;}
+  .nav-dd-wrap{display:block;}
+}
 
 .main{padding:20px;max-width:1500px;margin:0 auto;}
 
@@ -180,7 +189,7 @@ body.light-mode .sec-row td{background:rgba(200,205,225,.4);}
 
 @media print{
   body{background:#fff!important;color:#000!important;}
-  .topbar,.nav-tabs,.roster-controls,.search-wrap,.act-btn,.add-slot-btn,.promo-btn,.undo-btn,.modal-overlay{display:none!important;}
+  .topbar,.nav-tabs,.nav-dd-wrap,.roster-controls,.search-wrap,.act-btn,.add-slot-btn,.promo-btn,.undo-btn,.modal-overlay{display:none!important;}
   .main{padding:0!important;}
   .det-card,.taxi-card,.ov-card,.tp-section{break-inside:avoid;}
   .cap-bar-fill,.sal-bar-fill,.tp-sal-bar-fill{print-color-adjust:exact;-webkit-print-color-adjust:exact;}
@@ -196,19 +205,29 @@ body.light-mode .sec-row td{background:rgba(200,205,225,.4);}
   </div>
   <div class="topbar-right">
     <span class="last-upd" id="last-upd"></span>
-    <button class="tbtn" onclick="window.print()">🖨</button>
-    <button class="tbtn" id="theme-btn" onclick="toggleTheme()">☀️</button>
-    <a href="index.html" class="tbtn">🏈 Auctions</a>
+    <button class="tibtn" onclick="window.print()" title="Print">🖨</button>
+    <button class="tibtn" id="theme-btn" onclick="toggleTheme()" title="Toggle theme">☀️</button>
+    <a href="index.html" class="tibtn" title="Auctions">🏈</a>
   </div>
 </div>
 
-<div class="nav-tabs">
-  <button class="nav-tab active" onclick="setTab('overview')">Overview</button>
-  <button class="nav-tab" onclick="setTab('allplayers')">All Players</button>
-  <button class="nav-tab" onclick="setTab('compare')">Compare</button>
-  <button class="nav-tab" onclick="setTab('toppaid')">Top Paid</button>
-  <button class="nav-tab" onclick="setTab('taxi')">🚕 Taxi</button>
-  <button class="nav-tab" id="comm-tab" style="display:none;" onclick="setTab('commish')">⚙️ Commish</button>
+<div class="nav-tabs" id="nav-tabs-bar">
+  <button class="nav-tab active" onclick="setTab('overview')" data-tab="overview">Overview</button>
+  <button class="nav-tab" onclick="setTab('allplayers')" data-tab="allplayers">All Players</button>
+  <button class="nav-tab" onclick="setTab('compare')" data-tab="compare">Compare</button>
+  <button class="nav-tab" onclick="setTab('toppaid')" data-tab="toppaid">Top Paid</button>
+  <button class="nav-tab" onclick="setTab('taxi')" data-tab="taxi">🚕 Taxi</button>
+  <button class="nav-tab" id="comm-tab" style="display:none;" onclick="setTab('commish')" data-tab="commish">⚙️ Commish</button>
+</div>
+
+<div class="nav-dd-wrap" id="nav-dd-wrap">
+  <select class="nav-dd" id="nav-dd" onchange="setTab(this.value)">
+    <option value="overview">Overview</option>
+    <option value="allplayers">All Players</option>
+    <option value="compare">Compare</option>
+    <option value="toppaid">Top Paid</option>
+    <option value="taxi">🚕 Taxi</option>
+  </select>
 </div>
 
 <div class="main">
@@ -319,7 +338,16 @@ function subscribeRosters() {
     }
     document.getElementById('loading').style.display = 'none';
     document.getElementById('app').style.display = '';
-    if (isComm()) document.getElementById('comm-tab').style.display = '';
+    if (isComm()) {
+      document.getElementById('comm-tab').style.display = '';
+      const dd = document.getElementById('nav-dd');
+      if (dd && !dd.querySelector('option[value="commish"]')) {
+        const opt = document.createElement('option');
+        opt.value = 'commish';
+        opt.textContent = '⚙️ Commish';
+        dd.appendChild(opt);
+      }
+    }
     renderTab(tab);
   });
 }
@@ -354,9 +382,11 @@ function setTab(t) {
   ['overview','allplayers','compare','toppaid','taxi','commish'].forEach(n => {
     document.getElementById('tab-'+n).style.display = n===t?'':'none';
   });
-  document.querySelectorAll('.nav-tab').forEach((b,i) =>
-    b.classList.toggle('active', ['overview','allplayers','compare','toppaid','taxi','commish'][i]===t)
+  document.querySelectorAll('.nav-tab').forEach(b =>
+    b.classList.toggle('active', b.dataset.tab === t)
   );
+  const dd = document.getElementById('nav-dd');
+  if (dd) dd.value = t;
   renderTab(t);
 }
 function renderTab(t) {
