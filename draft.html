@@ -70,6 +70,8 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
 .pick-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 12px;transition:border-color .15s;min-height:90px;}
 .pick-card.assigned{border-color:rgba(124,92,252,.5);background:rgba(124,92,252,.04);}
 .pick-card.sleeper-pick{border-color:rgba(24,224,122,.3);}
+.pick-card.has-owner{border-color:rgba(0,212,255,.2);}
+.pick-owner{font-size:11px;color:var(--cyan);margin-bottom:4px;font-weight:500;}
 .pick-num{font-size:11px;font-weight:600;color:var(--accent2);margin-bottom:5px;display:flex;align-items:center;justify-content:space-between;}
 .pick-sal{font-family:var(--font-mono);font-size:11px;color:var(--text3);}
 .pick-player{font-size:13px;font-weight:500;line-height:1.3;margin-bottom:3px;}
@@ -260,73 +262,111 @@ async function init() {
   await refreshDraft();
 }
 
+// ── State for draft board ─────────────────────────────────────
+// slotOwners: { "1": teamKey, "2": teamKey, ... } — who owns each draft slot
+// (pre-draft uses slot_to_roster_id from draft object; in_progress/complete uses picks)
+let slotOwners = {};   // draft slot number (string) → teamKey
+let rosterIdToTeam = {};  // Sleeper roster_id (string) → our teamKey
+
+async function loadRosterMapping() {
+  // Load usernameToRosterId: teamKey → roster_id
+  try {
+    const snap = await db.ref(`leagues/${leagueId()}/usernameToRosterId`).once('value');
+    const mapping = snap.val() || {};
+    rosterIdToTeam = {};
+    Object.entries(mapping).forEach(([teamKey, rid]) => {
+      rosterIdToTeam[String(rid)] = teamKey;
+    });
+  } catch(e) { console.warn('loadRosterMapping:', e); }
+}
+
 async function refreshDraft() {
   document.getElementById('board-container').innerHTML =
     '<div class="loading"><div class="spinner"></div><div style="margin-top:10px;">Loading board…</div></div>';
 
-  // 1. Load Sleeper draft
-  let sleeperPicks = {};
+  // Load roster mapping first so we can display team names
+  await loadRosterMapping();
+
+  let draftPicks = {};    // key "r-slot" → { player, sleeperPick, rosterId }
+  slotOwners = {};        // slot# → teamKey (from slot_to_roster_id)
+
   try {
+    // 1. GET all drafts for this league
     const drafts = await fetch(`https://api.sleeper.app/v1/league/${leagueId()}/drafts`).then(r=>r.json());
-    if (drafts?.length) {
-      // Prefer rookie/linear; never use startup
-      const d = drafts.find(d => d.type === 'rookie' || d.type === 'linear')
+    if (!drafts?.length) throw new Error('no drafts');
+
+    // Prefer rookie/linear type over startup
+    draftInfo = drafts.find(d => d.type === 'rookie' || d.type === 'linear')
              || drafts.find(d => d.type !== 'startup')
              || drafts[drafts.length - 1];
-      if (d) {
-        draftInfo = d;
 
-        // Store slot→team mapping for showing which team owns which pick
-        if (d.slot_to_roster_id) window._draftSlotToRoster = d.slot_to_roster_id;
+    if (!draftInfo) throw new Error('no suitable draft');
 
-        if (d.status === 'complete' || d.status === 'in_progress') {
-          // Fetch actual picks made
-          const picks = await fetch(`https://api.sleeper.app/v1/draft/${d.draft_id}/picks`).then(r=>r.json());
-          if (Array.isArray(picks) && picks.length) {
-            picks.forEach(pk => {
-              const slot = pk.draft_slot || pk.pick_no;
-              const key  = `${pk.round}-${slot}`;
-              const fn   = pk.metadata?.first_name || '';
-              const ln   = pk.metadata?.last_name  || '';
-              const name = (fn || ln) ? `${fn} ${ln}`.trim() : null;
-              if (name) {
-                // Map roster_id to our DATA teamKey via usernameToRosterId
-                sleeperPicks[key] = { player: name, sleeperPick: true, rosterId: pk.roster_id };
-              }
-            });
-
-            // If draft is complete, map roster IDs to teamKeys and auto-save to Firebase
-            if (d.status === 'complete') {
-              await autoSaveCompletedDraft(sleeperPicks, d);
-            }
-          }
-        }
-
-        const statusLabel = d.status === 'pre_draft' ? 'scheduled (pre-draft)' : d.status;
-        document.getElementById('draft-subtitle').textContent =
-          `Sleeper draft · status: ${statusLabel} · ${d.season || ''} · type: ${d.type} · ID: ${d.draft_id}`;
-      }
-    } else {
-      document.getElementById('draft-subtitle').textContent = 'No Sleeper draft found — using manual entry mode';
+    // 2. slot_to_roster_id shows who CURRENTLY owns each slot (post-trade)
+    //    Keys are "1".."12", values are roster_id integers
+    if (draftInfo.slot_to_roster_id) {
+      Object.entries(draftInfo.slot_to_roster_id).forEach(([slot, rid]) => {
+        const teamKey = rosterIdToTeam[String(rid)];
+        slotOwners[String(slot)] = teamKey || `roster_${rid}`;
+      });
     }
+
+    // 3. Fetch actual picks made (empty array for pre_draft, populated otherwise)
+    const picks = await fetch(`https://api.sleeper.app/v1/draft/${draftInfo.draft_id}/picks`).then(r=>r.json());
+    if (Array.isArray(picks)) {
+      picks.forEach(pk => {
+        // draft_slot = position within round (1-12), round = round number
+        const slot = pk.draft_slot || pk.pick_no;
+        const key  = `${pk.round}-${slot}`;
+        const fn   = pk.metadata?.first_name || '';
+        const ln   = pk.metadata?.last_name  || '';
+        const name = (fn || ln) ? `${fn} ${ln}`.trim() : null;
+        if (name) {
+          draftPicks[key] = {
+            player: name,
+            sleeperPick: true,
+            rosterId: pk.roster_id,
+            // Who actually made this pick (may differ from slot owner if traded)
+            pickedByTeam: rosterIdToTeam[String(pk.roster_id)] || null,
+          };
+        }
+      });
+    }
+
+    const statusLabel = {
+      pre_draft: `📅 Scheduled — pick order is set`,
+      in_progress: `🔴 LIVE`,
+      complete: `✅ Complete`,
+    }[draftInfo.status] || draftInfo.status;
+
+    document.getElementById('draft-subtitle').textContent =
+      `${statusLabel} · ${draftInfo.season || ''} · type: ${draftInfo.type} · ID: ${draftInfo.draft_id}`;
+
+    // Auto-save complete draft picks to rosters
+    if (draftInfo.status === 'complete') {
+      await autoSaveCompletedDraft(draftPicks);
+    }
+
   } catch(e) {
-    console.warn('Draft fetch error:', e);
-    document.getElementById('draft-subtitle').textContent = 'Could not load Sleeper draft — manual entry mode';
+    console.warn('Draft load error:', e);
+    document.getElementById('draft-subtitle').textContent =
+      'Could not load Sleeper draft — check league ID. Manual entry mode active.';
   }
 
-  // 2. Load manual/saved board from Firebase (overrides Sleeper picks)
+  // 4. Load manual/saved board from Firebase (overrides Sleeper)
   let savedBoard = {};
   try {
     const snap = await db.ref(`leagues/${leagueId()}/rookieDraft`).once('value');
     savedBoard = snap.val() || {};
   } catch(e) {}
 
-  board = { ...sleeperPicks, ...savedBoard };
+  // Merge: Sleeper picks first, Firebase manual picks override
+  board = { ...draftPicks, ...savedBoard };
 
-  // 3. Load available rookies
+  // 5. Load available rookies
   await loadRookiePlayers();
 
-  // 4. Render
+  // 6. Render
   renderBoard();
   document.getElementById('loading').style.display = 'none';
   document.getElementById('app').style.display = '';
@@ -345,33 +385,43 @@ async function loadRookiePlayers() {
         if (p.name) rostered.add(p.name.toLowerCase());
       });
     });
+
     rookiePlayers = Object.entries(players)
       .filter(([,p]) => {
+        // Must be a skill position
         if (!p.fantasy_positions?.some(pos => SKILL.has(pos))) return false;
+        // Accept years_exp 0 (in-season rookie) or null/undefined (pre-draft)
         const ye = p.years_exp;
-        // years_exp 0 = rookie (in-season); null/undefined = pre-draft / offseason entrant
         if (ye !== 0 && ye !== null && ye !== undefined) return false;
-        // For confirmed rookies (ye===0) include anyone with a reasonable rank
-        if (ye === 0) return (p.search_rank && p.search_rank <= 800) || p.team;
-        // For pre-draft (ye===null) require ADP rank — they're always FA until signed
-        return p.search_rank && p.search_rank <= 800;
+        // Use Sleeper's age field: rookies are 24 or younger
+        // Also keep anyone with search_rank ≤ 700 regardless of age
+        const youngEnough = p.age != null ? p.age <= 24 : true;
+        const hasRank = p.search_rank && p.search_rank <= 700;
+        return youngEnough || hasRank;
       })
       .map(([id, p]) => ({
         id,
         name: `${p.first_name} ${p.last_name}`.trim(),
         pos:  p.fantasy_positions?.find(pos => SKILL.has(pos)) || '',
-        nflTeam: p.team && p.team !== 'FA' ? p.team : '—',
+        nflTeam: (p.team && p.team !== 'FA') ? p.team : '—',
         adp: p.search_rank || 999,
+        age: p.age || null,
         taken: draftedNames.has(`${p.first_name} ${p.last_name}`.trim().toLowerCase())
             || rostered.has(`${p.first_name} ${p.last_name}`.trim().toLowerCase()),
       }))
       .sort((a, b) => a.adp - b.adp);
-  } catch(e) { rookiePlayers = []; }
+
+    console.log(`Loaded ${rookiePlayers.length} rookie players`);
+  } catch(e) {
+    console.warn('loadRookiePlayers:', e);
+    rookiePlayers = [];
+  }
   renderAvailList();
 }
 
+
 // Auto-save completed Sleeper draft picks to Firebase and roster data
-async function autoSaveCompletedDraft(sleeperPicks, draftData) {
+async function autoSaveCompletedDraft(draftPicks) {
   try {
     // Load roster ID → teamKey mapping
     const mapSnap = await db.ref(`leagues/${leagueId()}/usernameToRosterId`).once('value');
@@ -384,7 +434,7 @@ async function autoSaveCompletedDraft(sleeperPicks, draftData) {
     const existingBoard = boardSnap.val() || {};
 
     let changed = false;
-    for (const [key, pick] of Object.entries(sleeperPicks)) {
+    for (const [key, pick] of Object.entries(draftPicks)) {
       if (existingBoard[key]) continue; // already saved manually, skip
       const teamKey = rosterIdToTeam[pick.rosterId];
       if (!teamKey || !DATA[teamKey]) continue;
@@ -437,30 +487,42 @@ function renderBoard() {
       const sal = rookieSal(r, p);
       const pick = board[key] || {};
       const assigned = !!pick.player;
-      const teamName = pick.team ? (DATA[pick.team]?.team_name || pick.team) : '';
-      const isSleeper = pick.sleeperPick && !pick.team; // auto from Sleeper only
+      // Who currently OWNS this slot (after trades), from slot_to_roster_id
+      const ownerKey  = slotOwners[String(p)] || null;
+      const ownerName = ownerKey ? (DATA[ownerKey]?.team_name || ownerKey) : null;
+      const isSleeper = pick.sleeperPick && !pick.team;
+      const assignedTeamKey  = pick.team || null;
+      const assignedTeamName = assignedTeamKey ? (DATA[assignedTeamKey]?.team_name || assignedTeamKey) : '';
+      const isOverCap = assignedTeamKey && DATA[assignedTeamKey]?.cap_spent > CAP;
 
-      html += `<div class="pick-card ${assigned ? (isSleeper ? 'sleeper-pick' : 'assigned') : ''}">
+      const cardCls = assigned
+        ? (pick.team ? 'assigned' : 'sleeper-pick')
+        : (ownerKey ? 'has-owner' : '');
+
+      html += `<div class="pick-card ${cardCls}">
         <div class="pick-num">
-          <span>Pick ${r}.${p < 10 ? '0'+p : p}</span>
+          <span>Pick ${r}.${String(p).padStart(2,'0')}</span>
           <span class="pick-sal">${fmtM(sal)}</span>
         </div>`;
 
+      // Always show who owns this slot (from draft order / trades)
+      if (ownerName && !assigned) {
+        html += `<div class="pick-owner">${ownerName}</div>`;
+      }
+
       if (assigned) {
-        const pickTeamKey = pick.team;
-        const isOverCap = pickTeamKey && DATA[pickTeamKey] && DATA[pickTeamKey].cap_spent > CAP;
         html += `<div class="pick-player">${pick.player}</div>
-          ${teamName ? `<div class="pick-team" style="${isOverCap ? 'color:var(--red);font-weight:600;' : ''}">${teamName}${isOverCap ? ' ⚠️ OVER CAP' : ''}</div>` : ''}
-          ${isSleeper ? `<div class="pick-source">via Sleeper</div>` : ''}
+          <div class="pick-team" style="${isOverCap?'color:var(--red);font-weight:600;':''}">
+            ${assignedTeamName || ownerName || ''}${isOverCap?' ⚠️ OVER CAP':''}
+          </div>
+          ${isSleeper ? '<div class="pick-source">via Sleeper</div>' : ''}
           ${comm ? `<button class="pick-clear" onclick="clearPick('${key}')">✕ Clear</button>` : ''}`;
       } else if (comm) {
-        // Team dropdown options
-        const teamOpts = Object.entries(DATA || {}).map(([k,t]) =>
-          `<option value="${k}">${t.team_name}</option>`).join('');
-        // Player dropdown - top available by ADP
-        const available = rookiePlayers.filter(rk => !rk.taken).slice(0, 60);
+        const teamOpts = Object.entries(DATA||{}).map(([k,t]) =>
+          `<option value="${k}"${ownerKey===k?' selected':''}>${t.team_name}</option>`).join('');
+        const available = rookiePlayers.filter(rk => !rk.taken).slice(0, 80);
         const playerOpts = available.map(rk =>
-          `<option value="${rk.name}">${rk.name} · ${rk.pos} · ${rk.nflTeam}${rk.adp < 999 ? ' ('+rk.adp+')' : ''}</option>`
+          `<option value="${rk.name}">${rk.name} · ${rk.pos}${rk.nflTeam!=='—'?' · '+rk.nflTeam:''}${rk.adp<999?' (#'+rk.adp+')':''}</option>`
         ).join('');
         html += `<div class="pick-inputs">
           <select id="psel-${key}" class="pick-input" onchange="onPlayerSelect('${key}',this)">
@@ -468,12 +530,12 @@ function renderBoard() {
             ${playerOpts}
             <option value="__manual__">✏️ Type name…</option>
           </select>
-          <input id="pman-${key}" class="pick-input" placeholder="Player name" style="display:none;" />
+          <input id="pman-${key}" class="pick-input" placeholder="Player name…" style="display:none;" />
           <select id="tsel-${key}" class="pick-input">
-            <option value="">— owner —</option>
+            <option value="">— assign to —</option>
             ${teamOpts}
           </select>
-          <button class="pick-btn" onclick="assignPick('${key}',${sal})">Assign to Taxi</button>
+          <button class="pick-btn" onclick="assignPick('${key}',${sal})">✓ Assign to Active</button>
         </div>`;
       } else {
         html += `<div style="font-size:12px;color:var(--text3);margin-top:4px;">Open pick</div>`;
