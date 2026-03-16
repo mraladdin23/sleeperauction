@@ -455,19 +455,45 @@ function renderRosters() {
 let apPosFilter = 'ALL';
 let apSearch = '';
 
+// ── ALL PLAYERS TAB ───────────────────────────────────────────
+// Keep search state + stats cache at module level so search input 
+// doesn't get destroyed on each keystroke
+let apStatsMap = null;  // player_id -> stats, lazy-loaded
+
+async function loadApStats() {
+  if (apStatsMap) return apStatsMap;
+  // Try localStorage cache first (same key used by auction page)
+  try {
+    const cached = localStorage.getItem('sb_stats_2025');
+    if (cached) { apStatsMap = JSON.parse(cached); return apStatsMap; }
+  } catch(e) {}
+  // Fetch from Sleeper
+  try {
+    const r = await fetch('https://api.sleeper.app/v1/stats/nfl/regular/2025?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE');
+    apStatsMap = await r.json();
+    try { localStorage.setItem('sb_stats_2025', JSON.stringify(apStatsMap)); } catch(e) {}
+  } catch(e) { apStatsMap = {}; }
+  return apStatsMap;
+}
+
 function renderAllPlayers() {
   const el = document.getElementById('tab-allplayers');
+
+  // Build flat player list
   let players = [];
   Object.entries(DATA).forEach(([key, t]) => {
     (t.starters||[]).forEach(p => players.push({name:p.name,pos:p.pos,salary:p.salary,slot:'Active',teamName:t.team_name,teamKey:key}));
     (t.ir||[]).forEach(p => { if(p.name) players.push({name:p.name,pos:p.pos||'—',salary:Math.round(p.salary*.75),rawSal:p.salary,slot:'IR',teamName:t.team_name,teamKey:key}); });
     (t.taxi||[]).forEach(p => { if(p.name) players.push({name:p.name,pos:p.pos||'—',salary:p.salary,slot:'Taxi',teamName:t.team_name,teamKey:key}); });
   });
+
   let filtered = apPosFilter==='ALL' ? players : players.filter(p=>p.pos===apPosFilter);
   if (apSearch) filtered = filtered.filter(p=>p.name.toLowerCase().includes(apSearch));
   filtered.sort((a,b)=>b.salary-a.salary);
   const totalSal = filtered.filter(p=>p.slot==='Active').reduce((s,p)=>s+p.salary,0);
   const chips = ['ALL','QB','RB','WR','TE'].map(p=>`<button class="ap-chip${apPosFilter===p?' active':''}" onclick="apSetPos('${p}')">${p==='ALL'?'All':p}</button>`).join('');
+
+  const stats = apStatsMap || {};
 
   const rows = filtered.map((p,i) => {
     const posClr  = POS_COLORS[p.pos] || 'var(--text3)';
@@ -478,82 +504,124 @@ function renderAllPlayers() {
     const wl      = JSON.parse(localStorage.getItem('sb_cap_watchlist')||'{}');
     const starred = !!wl[p.name];
 
-    // slot badge
-    const slotClr = p.slot==='IR' ? 'var(--red)' : 'var(--text3)';
-    const slotBg  = p.slot==='IR' ? 'rgba(255,77,106,.12)' : 'rgba(90,94,114,.2)';
+    // Stats line — same fields as auction FA tab
+    const raw = pid ? (stats[pid] || {}) : {};
+    const statBits = [];
+    if (raw.pass_yd) statBits.push(`${Math.round(raw.pass_yd)} PaYd`);
+    if (raw.pass_td) statBits.push(`${raw.pass_td} PaTD`);
+    if (raw.rush_yd) statBits.push(`${Math.round(raw.rush_yd)} RuYd`);
+    if (raw.rush_td) statBits.push(`${raw.rush_td} RuTD`);
+    if (raw.rec)     statBits.push(`${raw.rec} Rec`);
+    if (raw.rec_yd)  statBits.push(`${Math.round(raw.rec_yd)} ReYd`);
+    if (raw.rec_td)  statBits.push(`${raw.rec_td} ReTD`);
+    const pts = raw.pts_ppr != null ? raw.pts_ppr.toFixed(1) : null;
+
+    // Slot badge
     const slotBadge = p.slot !== 'Active'
-      ? `<span style="font-size:10px;background:${slotBg};color:${slotClr};padding:1px 5px;border-radius:3px;margin-left:4px;">${p.slot}</span>` : '';
+      ? `<span style="font-size:10px;background:${p.slot==='IR'?'rgba(255,77,106,.12)':'rgba(90,94,114,.2)'};color:${p.slot==='IR'?'var(--red)':'var(--text3)'};padding:1px 5px;border-radius:3px;margin-left:4px;">${p.slot}</span>` : '';
 
-    // player photo (same CDN as auction page)
+    // Photo
     const photo = pid
-      ? `<img src="https://sleepercdn.com/content/nfl/players/thumb/${pid}.jpg"
-             style="width:100%;height:100%;object-fit:cover;border-radius:50%;"
-             onerror="this.style.display='none';this.nextElementSibling.style.display='flex'" />
-         <span style="display:none;width:100%;height:100%;align-items:center;justify-content:center;font-size:12px;">${p.pos||'?'}</span>`
-      : `<span style="display:flex;width:100%;height:100%;align-items:center;justify-content:center;font-size:12px;">${p.pos||'?'}</span>`;
+      ? `<img src="https://sleepercdn.com/content/nfl/players/thumb/${pid}.jpg" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.style.display='none'" />`
+      : `<span style="display:flex;width:100%;height:100%;align-items:center;justify-content:center;font-size:10px;color:${posClr};">${p.pos||'?'}</span>`;
 
-    return `<tr style="border-bottom:1px solid rgba(46,48,64,.4);">
-      <td style="padding:8px 6px 8px 10px;width:28px;">
-        <button onclick="capToggleWatch(${JSON.stringify(p.name)})"
-          style="background:none;border:none;cursor:pointer;font-size:13px;padding:0;line-height:1;color:${starred?'var(--yellow)':'var(--text3)'};">${starred?'⭐':'☆'}</button>
+    return `<tr style="border-bottom:1px solid rgba(46,48,64,.3);">
+      <td style="padding:5px 4px 5px 10px;width:24px;">
+        <button onclick="capToggleWatch(this)" data-pname="${p.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;')}"
+          style="background:none;border:none;cursor:pointer;font-size:12px;padding:0;line-height:1;color:${starred?'var(--yellow)':'var(--text3)'};">${starred?'⭐':'☆'}</button>
       </td>
-      <td style="padding:8px 8px 8px 4px;">
-        <div style="display:flex;align-items:center;gap:9px;">
-          <div style="width:36px;height:36px;border-radius:50%;background:${posClr}22;flex-shrink:0;overflow:hidden;">${photo}</div>
+      <td style="padding:5px 6px 5px 2px;">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:28px;height:28px;border-radius:50%;background:${posClr}22;flex-shrink:0;overflow:hidden;">${photo}</div>
           <div style="min-width:0;">
-            <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px;">
-              ${p.name}${ageBadge(p.name)}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:4px;">🔥</span>':''}
+            <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:170px;">
+              ${p.name}${ageBadge(p.name)}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:3px;">🔥</span>':''}${slotBadge}
             </div>
-            <div style="font-size:11px;color:var(--text3);margin-top:1px;display:flex;align-items:center;gap:4px;">
-              <span style="background:${posClr}22;color:${posClr};padding:1px 5px;border-radius:3px;font-size:10px;font-weight:600;">${p.pos||'—'}</span>
-              ${nflTeam ? `<span>${nflTeam}</span>` : ''}
-              ${slotBadge}
+            <div style="font-size:10px;color:var(--text3);margin-top:1px;display:flex;align-items:center;gap:4px;flex-wrap:wrap;">
+              <span style="background:${posClr}22;color:${posClr};padding:0 4px;border-radius:3px;font-weight:600;">${p.pos||'—'}</span>
+              ${nflTeam?`<span>${nflTeam}</span>`:''}
+              ${statBits.length?`<span style="color:var(--text3);">${statBits.join(' · ')}</span>`:''}
             </div>
           </div>
         </div>
       </td>
-      <td style="padding:8px 8px;white-space:nowrap;">
-        <span onclick="openTeamPanel('${p.teamKey}')"
-          style="color:var(--text2);cursor:pointer;font-size:12px;">${p.teamName} <span style="color:var(--accent2);font-size:10px;">↗</span></span>
+      <td style="padding:5px 8px;font-size:12px;color:var(--text2);white-space:nowrap;">
+        <span onclick="openTeamPanel('${p.teamKey}')" style="cursor:pointer;">${p.teamName} <span style="color:var(--accent2);font-size:10px;">↗</span></span>
       </td>
-      <td style="text-align:right;font-family:var(--font-mono);font-size:13px;padding:8px 14px;white-space:nowrap;
-        color:${p.slot==='Taxi'?'var(--text3)':p.slot==='IR'?'var(--text2)':'var(--text)'};">
-        ${fmtM(p.salary)}${p.rawSal?`<span style="color:var(--text3);font-size:10px;margin-left:3px;">(${fmtM(p.rawSal)})</span>`:''}
+      <td style="text-align:right;font-family:var(--font-mono);font-size:12px;padding:5px 12px;white-space:nowrap;color:${p.slot==='Taxi'?'var(--text3)':p.slot==='IR'?'var(--text2)':'var(--text)'};">
+        ${fmtM(p.salary)}${p.rawSal?`<br/><span style="color:var(--text3);font-size:10px;">${fmtM(p.rawSal)}</span>`:''}
+        ${pts?`<br/><span style="color:var(--green);font-size:10px;">${pts}pts</span>`:''}
       </td>
     </tr>`;
   }).join('');
 
-  el.innerHTML = `<div style="padding:16px 0 8px;">
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 4px 12px;">
-      <div style="display:flex;gap:6px;">${chips}</div>
-      <div style="flex:1;min-width:180px;display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 12px;">
-        <span style="color:var(--text3);">🔍</span>
-        <input id="ap-search-input" type="text" placeholder="Search players…" value="${apSearch.replace(/"/g,'&quot;')}"
-          style="background:none;border:none;outline:none;color:var(--text);font-size:13px;font-family:var(--font-body);width:100%;"
-          oninput="apSearch=this.value.toLowerCase().trim();renderAllPlayers();document.getElementById('ap-search-input').focus();" />
+  // Render the static shell (search input OUTSIDE the rows div so it isn't rebuilt)
+  // Only build the shell once; subsequent calls just update the rows + count
+  if (!document.getElementById('ap-rows')) {
+    el.innerHTML = `<div style="padding:16px 0 8px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:0 4px 10px;">
+        <div style="display:flex;gap:6px;" id="ap-chips"></div>
+        <div style="flex:1;min-width:160px;display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:6px 10px;">
+          <span style="color:var(--text3);font-size:13px;">🔍</span>
+          <input id="ap-search-input" type="text" placeholder="Search players…"
+            style="background:none;border:none;outline:none;color:var(--text);font-size:13px;font-family:var(--font-body);width:100%;"
+            oninput="apSearch=this.value.toLowerCase().trim();apRenderRows();" />
+        </div>
       </div>
-    </div>
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
-      <div style="padding:11px 16px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">
-        <span style="font-size:14px;font-weight:600;">${apPosFilter==='ALL'?'All Rostered Players':apPosFilter+' Players'}${apSearch?' · "'+apSearch+'"':''}</span>
-        <span style="font-size:12px;color:var(--text3);">${filtered.length} players${apPosFilter!=='ALL'&&!apSearch?' · '+fmtM(totalSal)+' total cap':''}</span>
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+        <div style="padding:9px 14px;border-bottom:1px solid var(--border);background:var(--surface2);display:flex;align-items:center;justify-content:space-between;">
+          <span id="ap-title" style="font-size:14px;font-weight:600;"></span>
+          <span id="ap-count" style="font-size:12px;color:var(--text3);"></span>
+        </div>
+        <table style="width:100%;border-collapse:collapse;table-layout:fixed;">
+          <colgroup><col style="width:24px"/><col/><col style="width:120px"/><col style="width:80px"/></colgroup>
+          <thead><tr style="border-bottom:1px solid var(--border);">
+            <th style="padding:6px 4px;"></th>
+            <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:6px 2px;text-align:left;font-weight:500;">Player</th>
+            <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:6px 8px;text-align:left;font-weight:500;">Owner</th>
+            <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:6px 12px;text-align:right;font-weight:500;">Salary</th>
+          </tr></thead>
+          <tbody id="ap-rows"></tbody>
+        </table>
+        <div id="ap-empty" style="display:none;padding:30px;text-align:center;color:var(--text3);">No players found.</div>
       </div>
-      ${filtered.length
-        ? `<table style="width:100%;border-collapse:collapse;table-layout:fixed;">
-            <colgroup><col style="width:28px"/><col/><col style="width:130px"/><col style="width:95px"/></colgroup>
-            <thead><tr style="border-bottom:1px solid var(--border);">
-              <th style="font-size:10px;color:var(--text3);padding:7px 6px;text-align:left;">⭐</th>
-              <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 4px;text-align:left;font-weight:500;">Player</th>
-              <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 8px;text-align:left;font-weight:500;">Owner</th>
-              <th style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 14px;text-align:right;font-weight:500;">Salary ▼</th>
-            </tr></thead>
-            <tbody>${rows}</tbody>
-          </table>`
-        : `<div style="padding:40px;text-align:center;color:var(--text3);">No players found matching "${apSearch}"</div>`}
-    </div>
-  </div>`;
+    </div>`;
+  }
+
+  // Update chips
+  document.getElementById('ap-chips').innerHTML = chips;
+
+  // Update rows without touching the input
+  document.getElementById('ap-title').textContent =
+    (apPosFilter==='ALL'?'All Rostered Players':apPosFilter+' Players') + (apSearch?` · "${apSearch}"` : '');
+  document.getElementById('ap-count').textContent =
+    filtered.length + ' players' + (apPosFilter!=='ALL'&&!apSearch?' · '+fmtM(totalSal)+' total cap':'');
+  document.getElementById('ap-rows').innerHTML = rows;
+  document.getElementById('ap-empty').style.display = filtered.length ? 'none' : '';
+
+  // Load stats in background and re-render rows when ready
+  if (!apStatsMap) {
+    loadApStats().then(() => { if (tab === 'allplayers') apRenderRows(); });
+  }
 }
+
+// Re-render just the rows (called by search oninput — doesn't rebuild the input)
+function apRenderRows() {
+  renderAllPlayers();
+}
+
 function apSetPos(pos) { apPosFilter = pos; renderAllPlayers(); }
+
+// Watchlist toggle now uses data-pname to avoid quote issues
+function capToggleWatch(nameOrBtn) {
+  const name = typeof nameOrBtn === 'string' ? nameOrBtn : nameOrBtn.getAttribute('data-pname');
+  if (!name) return;
+  const wl = JSON.parse(localStorage.getItem('sb_cap_watchlist')||'{}');
+  if (wl[name]) delete wl[name]; else wl[name] = Date.now();
+  localStorage.setItem('sb_cap_watchlist', JSON.stringify(wl));
+  if (tab === 'allplayers') apRenderRows();
+  if (tab === 'watchlist')  renderWatchlist();
+}
 
 // ── INLINE TEAM PANEL ────────────────────────────────────────
 function openTeamPanel(key) {
@@ -569,12 +637,42 @@ function openTeamPanel(key) {
     if(!players.length)return;
     const tot=players.reduce((s,p)=>s+p.salary,0);
     rHTML+=`<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);padding:10px 0 4px;border-top:1px solid var(--border);margin-top:6px;">${pos} · ${fmtM(tot)}</div>`;
-    rHTML+=players.map(p=>{const ho=teamHO[p.name];const bw=Math.round(p.salary/maxSal*100);return`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;"><div style="font-size:13px;">${p.name}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:5px;">🔥</span>':''}</div><div style="font-family:var(--font-mono);font-size:12px;">${fmtM(p.salary)}</div></div>`;}).join('');
+    rHTML+=players.map(p=>{
+    const ho=teamHO[p.name];
+    const lk=PLAYER_LOOKUP[p.name.toLowerCase()]||{};
+    const pid=lk.player_id;
+    const posClr=POS_COLORS[p.pos]||'#888';
+    const photo=pid
+      ?`<img src="https://sleepercdn.com/content/nfl/players/thumb/${pid}.jpg" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display='none'" />`
+      :`<div style="width:26px;height:26px;border-radius:50%;background:${posClr}22;flex-shrink:0;"></div>`;
+    return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;gap:8px;">
+      ${photo}
+      <div style="flex:1;font-size:13px;">${p.name}${ageBadge(p.name)}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:4px;">🔥</span>':''}</div>
+      <div style="font-family:var(--font-mono);font-size:12px;flex-shrink:0;">${fmtM(p.salary)}</div>
+    </div>`;
+  }).join('');
   });
   const taxiArr=(t.taxi||[]).filter(p=>p.name);
   if(taxiArr.length){
     rHTML+=`<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);padding:10px 0 4px;border-top:1px solid var(--border);margin-top:6px;">Taxi · no cap hit</div>`;
-    rHTML+=taxiArr.sort((a,b)=>b.salary-a.salary).map(p=>{const promo=teamPromos[p.name];const pc=POS_COLORS[p.pos]||'';return`<div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;"><div style="font-size:13px;color:var(--text3);">${p.name}${p.pos&&p.pos!=='—'?`<span style="font-size:10px;background:${pc}22;color:${pc||'var(--text3)'};padding:1px 5px;border-radius:3px;margin-left:5px;">${p.pos}</span>`:''}${promo?'<span style="font-size:10px;color:var(--green);margin-left:5px;">⬆️</span>':''}</div><div style="font-family:var(--font-mono);font-size:12px;color:var(--text3);">${fmtM(p.salary)}</div></div>`;}).join('');
+    rHTML+=taxiArr.sort((a,b)=>b.salary-a.salary).map(p=>{
+    const promo=teamPromos[p.name];
+    const pc=POS_COLORS[p.pos]||'var(--text3)';
+    const lk=PLAYER_LOOKUP[p.name.toLowerCase()]||{};
+    const yeStored=p.years_exp!=null?Number(p.years_exp):null;
+    const yeLookup=lk.years_exp!=null?Number(lk.years_exp):null;
+    const ye=yeStored??yeLookup;
+    let gradBadge='';
+    if(ye!=null){
+      if(ye>=3) gradBadge='<span style="font-size:10px;background:rgba(255,77,106,.15);color:var(--red);border-radius:3px;padding:0 4px;margin-left:4px;">🚨Yr'+ye+'</span>';
+      else if(ye===2) gradBadge='<span style="font-size:10px;background:rgba(255,201,77,.15);color:var(--yellow);border-radius:3px;padding:0 4px;margin-left:4px;">⚠️Yr2</span>';
+      else gradBadge='<span style="font-size:10px;color:var(--text3);margin-left:4px;">Yr'+ye+'</span>';
+    }
+    return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;gap:8px;">
+      <div style="flex:1;font-size:13px;color:var(--text3);">${p.name}${ageBadge(p.name)}${gradBadge}${p.pos&&p.pos!=='—'?`<span style="font-size:10px;background:${pc}22;color:${pc};padding:0 4px;border-radius:3px;margin-left:4px;">${p.pos}</span>`:''}${promo?'<span style="font-size:10px;color:var(--green);margin-left:4px;">⬆️</span>':''}</div>
+      <div style="font-family:var(--font-mono);font-size:12px;color:var(--text3);flex-shrink:0;">${fmtM(p.salary)}</div>
+    </div>`;
+  }).join('');
   }
   document.getElementById('team-panel-title').textContent=t.team_name;
   document.getElementById('team-panel-body').innerHTML=`
@@ -842,10 +940,6 @@ function capRemoveWatch(name) {
   delete wl[name];
   localStorage.setItem('sb_cap_watchlist', JSON.stringify(wl));
   renderTab(tab);
-}
-function capToggleWatch(name) {
-  const wl = JSON.parse(localStorage.getItem('sb_cap_watchlist') || '{}');
-  if (wl[name]) capRemoveWatch(name); else capAddWatch(name);
 }
 
 
