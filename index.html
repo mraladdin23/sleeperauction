@@ -245,6 +245,11 @@ window.addEventListener('DOMContentLoaded',function(){
           style="padding:5px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:12px;font-family:var(--font-body);outline:none;cursor:pointer;">
           <option value="">All NFL Teams</option>
         </select>
+        <div style="display:flex;gap:0;margin-left:auto;">
+          <button id="fa-yr-2023" onclick="App.setStatYear(2023)" class="btn btn-ghost btn-sm" style="border-radius:var(--radius-sm) 0 0 var(--radius-sm);border-right:none;">2023</button>
+          <button id="fa-yr-2024" onclick="App.setStatYear(2024)" class="btn btn-ghost btn-sm" style="border-radius:0;border-right:none;">2024</button>
+          <button id="fa-yr-2025" onclick="App.setStatYear(2025)" class="btn btn-ghost btn-sm" style="border-radius:0 var(--radius-sm) var(--radius-sm) 0;background:var(--accent);color:#fff;border-color:var(--accent);">2025</button>
+        </div>
       </div>
       <div id="fa-pagination-top"></div>
       <div style="overflow-x:auto;">
