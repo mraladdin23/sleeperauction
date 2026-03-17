@@ -184,7 +184,8 @@ const badge   = pos => `<span class="pos-badge pb-${pos}">${pos}</span>`;
 function setTab(t) {
   tab = t;
   ['overview','allplayers','compare','toppaid','taxi','watchlist','rookiedraft','commish'].forEach(n => {
-    const el = document.getElementById('tab-'+n);
+    // In SPA, cap tabs are prefixed cap-tab-; fall back to tab- for standalone
+    const el = document.getElementById('cap-tab-'+n) || document.getElementById('tab-'+n);
     if (el) el.style.display = n===t?'':'none';
   });
   const scope = document.getElementById('view-roster') || document;
