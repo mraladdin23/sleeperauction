@@ -395,7 +395,7 @@ function initHomeView() {
   loadActivityFeed();
 }
 
-async async function loadActivityFeed() {
+async function loadActivityFeed() {
   const el = document.getElementById('home-activity-feed');
   if (!el || !window.db) return;
   const lid = localStorage.getItem('sb_leagueId');
