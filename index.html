@@ -134,7 +134,7 @@ body.light-mode .login-card{box-shadow:0 4px 24px rgba(0,0,0,.08);}
 .tp-salary{font-family:var(--font-mono);font-size:13px;font-weight:600;flex-shrink:0;}
 .tp-sal-bar-bg{height:3px;background:var(--surface3);border-radius:99px;overflow:hidden;margin-top:2px;}
 .tp-sal-bar-fill{height:100%;border-radius:99px;}
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:300;align-items:center;justify-content:center;padding:20px;}
+#view-roster .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:300;align-items:center;justify-content:center;padding:20px;}
 .modal-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;max-width:480px;width:100%;}
 .modal-title{font-size:16px;font-weight:600;margin-bottom:16px;}
 .modal-field{margin-bottom:14px;}
@@ -395,7 +395,7 @@ function initHomeView() {
   loadActivityFeed();
 }
 
-async function loadActivityFeed() {
+async async function loadActivityFeed() {
   const el = document.getElementById('home-activity-feed');
   if (!el || !window.db) return;
   const lid = localStorage.getItem('sb_leagueId');
