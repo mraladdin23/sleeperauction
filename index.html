@@ -464,17 +464,17 @@ window.addEventListener('sb:ready', function() {
 
 // ── Auction view HTML ─────────────────────────────────────────
 function buildAuctionHTML() {
-  const selStyle = 'padding:5px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:12px;font-family:var(--font-body);outline:none;cursor:pointer;';
-  return `
-  <div class="nav-tabs" id="nav-tabs-bar">
-    <div class="nav-tab active" onclick="App.switchTab('auctions')"    data-tab="auctions">🏷 Active</div>
-    <div class="nav-tab"       onclick="App.switchTab('free-agents')" data-tab="free-agents">🔍 Free Agents</div>
-    <div class="nav-tab"       onclick="App.switchTab('watchlist')"   data-tab="watchlist">⭐ Watchlist</div>
-    <div class="nav-tab"       onclick="App.switchTab('teams')"       data-tab="teams">🏆 Teams</div>
-    <div class="nav-tab"       onclick="App.switchTab('history')"     data-tab="history">📋 History</div>
-    <div class="nav-tab"       onclick="App.switchTab('activity')"    data-tab="activity">📡 Activity</div>
+  return `<div class="nav-tabs" id="nav-tabs-bar">
+    <div class="nav-tab active" onclick="App.switchTab('auctions')"     data-tab="auctions">🏷 Active</div>
+    <div class="nav-tab"        onclick="App.switchTab('free-agents')"  data-tab="free-agents">🔍 Free Agents</div>
+    <div class="nav-tab"        onclick="App.switchTab('watchlist')"    data-tab="watchlist">⭐ Watchlist</div>
+    <div class="nav-tab"        onclick="App.switchTab('teams')"        data-tab="teams">🏆 Teams</div>
+    <div class="nav-tab"        onclick="App.switchTab('history')"      data-tab="history">📋 History</div>
+    <div class="nav-tab"        onclick="App.switchTab('activity')"     data-tab="activity">📡 Activity</div>
     <div class="nav-tab" id="commissioner-tab" onclick="App.switchTab('commissioner')" data-tab="commissioner" style="display:none">⚙️ Comm</div>
   </div>
+
+  <!-- Mobile tab dropdown -->
   <div class="nav-dropdown-wrap" id="nav-dropdown-wrap">
     <select class="nav-dropdown" id="nav-dropdown" onchange="App.switchTab(this.value)">
       <option value="auctions">🏷 Active Auctions</option>
@@ -485,9 +485,31 @@ function buildAuctionHTML() {
       <option value="activity">📡 Activity</option>
     </select>
   </div>
+
   <div class="main">
-    <div id="tab-auctions"      class="tab-content"></div>
-    <div id="tab-free-agents"   class="tab-content" style="display:none;">
+
+    <!-- AUCTIONS TAB -->
+    <div id="tab-auctions" class="tab-content active">
+      <div class="section-header">
+        <div class="section-title">Active Auctions</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <span class="section-count" id="auction-count">0 live</span>
+          <button class="btn btn-ghost btn-sm" onclick="App.refreshAll()">↻ Refresh</button>
+        </div>
+      </div>
+      <div id="auctions-grid" class="auction-grid"></div>
+
+      <div style="margin-top:28px;">
+        <div class="section-header">
+          <div class="section-title">Completed Auctions</div>
+          <span class="section-count" id="completed-count">0</span>
+        </div>
+        <div id="completed-grid" class="auction-grid"></div>
+      </div>
+    </div>
+
+    <!-- FREE AGENTS TAB -->
+    <div id="tab-free-agents" class="tab-content">
       <div class="section-header">
         <div class="section-title">Free Agents</div>
         <div style="display:flex;gap:8px;align-items:center;">
@@ -507,7 +529,8 @@ function buildAuctionHTML() {
           <div class="filter-chip" onclick="App.setFilter('WR',this)">WR</div>
           <div class="filter-chip" onclick="App.setFilter('TE',this)">TE</div>
         </div>
-        <select id="fa-nfl-team-filter" onchange="App.renderFreeAgents(true)" style="${selStyle}">
+        <select id="fa-nfl-team-filter" onchange="App.renderFreeAgents(true)"
+          style="padding:5px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:12px;font-family:var(--font-body);outline:none;cursor:pointer;">
           <option value="">All NFL Teams</option>
         </select>
         <div style="display:flex;gap:0;margin-left:auto;">
@@ -519,191 +542,280 @@ function buildAuctionHTML() {
       <div id="fa-pagination-top"></div>
       <div style="overflow-x:auto;">
         <table class="fa-table">
-          <thead><tr>
-            <th onclick="App.faSort('name')" style="cursor:pointer;" id="fa-th-name">Player <span id="fa-sort-name"></span></th>
-            <th onclick="App.faSort('team')" style="cursor:pointer;" id="fa-th-team">Team <span id="fa-sort-team"></span></th>
-            <th onclick="App.faSort('bye')"  style="cursor:pointer;" id="fa-th-bye">Bye <span id="fa-sort-bye"></span></th>
-            <th onclick="App.faSort('pts')"  style="cursor:pointer;" id="fa-th-pts">Pts (2025) <span id="fa-sort-pts">▼</span></th>
-            <th style="text-align:right">Action</th>
-          </tr></thead>
+          <thead>
+            <tr>
+              <th onclick="App.faSort('name')" style="cursor:pointer;" id="fa-th-name">Player <span id="fa-sort-name"></span></th>
+              <th onclick="App.faSort('team')" style="cursor:pointer;" id="fa-th-team">Team <span id="fa-sort-team"></span></th>
+              <th onclick="App.faSort('bye')"  style="cursor:pointer;" id="fa-th-bye">Bye <span id="fa-sort-bye"></span></th>
+              <th onclick="App.faSort('pts')"  style="cursor:pointer;" id="fa-th-pts">Pts (2025) <span id="fa-sort-pts">▼</span></th>
+              <th style="text-align:right">Action</th>
+            </tr>
+          </thead>
           <tbody id="fa-tbody"></tbody>
         </table>
       </div>
       <div id="fa-pagination"></div>
     </div>
-    <div id="tab-watchlist"     class="tab-content" style="display:none;"></div>
-    <div id="tab-teams"         class="tab-content" style="display:none;"></div>
-    <div id="tab-history"       class="tab-content" style="display:none;"></div>
-    <div id="tab-activity"      class="tab-content" style="display:none;"></div>
-    <div id="tab-commissioner"  class="tab-content" style="display:none;"></div>
-  </div>
 
-  <!-- Nom modal -->
-  <div id="nom-modal" class="modal-overlay" onclick="App.closeNomModalOutside(event)">
-    <div class="modal">
-      <div class="modal-header">
-        <div class="modal-title">Nominate Player</div>
-        <div class="modal-close" onclick="App.closeNomModal()">&#x2715;</div>
+    <!-- WATCHLIST TAB -->
+    <div id="tab-watchlist" class="tab-content">
+      <div class="section-header">
+        <div class="section-title">⭐ Watchlist</div>
+        <span class="section-count" id="wl-count">0 players</span>
       </div>
-      <div class="modal-body">
-        <div id="nom-player-info" class="info-box" style="display:flex;align-items:center;gap:12px;margin-bottom:16px;"></div>
-        <div id="nom-team-row" style="display:none;margin-bottom:12px;">
-          <label class="input-label">Nominating On Behalf Of</label>
-          <select id="nom-team-select" style="font-size:14px;padding:9px 12px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;cursor:pointer;"></select>
+      <div id="watchlist-grid" class="auction-grid"></div>
+    </div>
+
+    <!-- TEAMS TAB -->
+    <div id="tab-teams" class="tab-content">
+      <div class="section-header">
+        <div class="section-title">Teams & FAAB</div>
+        <button class="btn btn-ghost btn-sm" onclick="App.refreshAll()">↻ Refresh</button>
+      </div>
+      <div id="teams-grid" class="teams-grid"></div>
+    </div>
+
+    <!-- HISTORY TAB -->
+    <div id="tab-history" class="tab-content">
+      <div class="section-header">
+        <div class="section-title">Auction History</div>
+        <button class="btn btn-ghost btn-sm" onclick="App.refreshAll()">↻</button>
+      </div>
+      <div class="hist-filters">
+        <input class="hist-search-inline" type="text" id="hist-search" placeholder="🔍 Search player…" oninput="App.filterHistory()"/>
+        <select id="hist-team-filter" onchange="App.filterHistory()">
+          <option value="all">All Teams</option>
+        </select>
+        <select id="hist-pos-filter" onchange="App.filterHistory()">
+          <option value="all">All Positions</option>
+          <option value="QB">QB</option>
+          <option value="RB">RB</option>
+          <option value="WR">WR</option>
+          <option value="TE">TE</option>
+        </select>
+        <select id="hist-status-filter" onchange="App.filterHistory()">
+          <option value="all">All Statuses</option>
+          <option value="claimed">Claimed</option>
+          <option value="expired">Expired</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div id="history-list" class="history-list"></div>
+    </div>
+
+    <!-- ACTIVITY FEED TAB -->
+    <div id="tab-activity" class="tab-content">
+      <div class="section-header">
+        <div class="section-title">League Activity</div>
+        <span style="font-size:12px;color:var(--text3);">Live · last 50 events</span>
+      </div>
+      <div id="activity-feed-list" class="history-list"></div>
+    </div>
+
+    <!-- COMMISSIONER TAB -->
+    <div id="tab-commissioner" class="tab-content">
+      <div class="section-header">
+        <div class="section-title">Commissioner Tools</div>
+        <span class="comm-badge">Admin</span>
+      </div>
+      <div style="display:grid;gap:14px;max-width:680px;">
+
+        <div class="card-panel">
+          <div style="font-weight:600;margin-bottom:4px;">All Auctions</div>
+          <div style="font-size:13px;color:var(--text3);margin-bottom:12px;">Cancel or delete active auctions. Use ✅ Claim on expired auctions to deduct FAAB and notify the winner.</div>
+          <div id="comm-all-auctions"><div style="color:var(--text3);font-size:13px;">No auctions yet.</div></div>
         </div>
-        <div class="faab-bar">
-          <span class="faab-bar-label">Available FAAB</span>
-          <span class="faab-bar-value" id="nom-faab">$0</span>
+
+        <div class="card-panel">
+          <div style="font-weight:600;margin-bottom:6px;">Roster Sizes — All Teams</div>
+          <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Enter how many players are currently on each team's roster (excluding taxi). Open spots = 25 minus that number, minus auctions they're currently winning.</div>
+          <div id="comm-roster-bulk"></div>
+          <button class="btn btn-primary btn-sm" style="margin-top:12px;" onclick="App.commSetAllRosterSizes()">Save Roster Sizes</button>
         </div>
-        <div class="input-group">
-          <label class="input-label">Opening Max Bid</label>
-          <div style="position:relative;">
-            <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-family:var(--font-mono);font-size:16px;pointer-events:none;">$</span>
-            <input type="number" id="nom-bid-input" min="100000" step="100000" value="100000"
-              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:22px;padding:10px 14px 10px 28px;outline:none;" />
+
+        <div class="card-panel">
+          <div style="font-weight:600;margin-bottom:6px;">Set FAAB Balances — All Teams</div>
+          <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Enter full dollar amounts (e.g. 112300000 = $112.3M). Use this at season start or to correct balances.</div>
+          <div id="comm-faab-bulk"></div>
+          <button class="btn btn-primary btn-sm" style="margin-top:12px;" onclick="App.commSetAllFaab()">Save All Balances</button>
+        </div>
+
+        <div class="card-panel">
+          <div style="font-weight:600;margin-bottom:6px;">Quick Single Override</div>
+          <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Quickly adjust one team's balance (full dollar amount).</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
+            <div style="flex:1;min-width:160px;">
+              <label class="input-label">Team</label>
+              <select id="comm-team-select" style="font-size:14px;padding:9px 12px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;cursor:pointer;"></select>
+            </div>
+            <div style="width:160px;">
+              <label class="input-label">New FAAB ($)</label>
+              <div style="position:relative;">
+                <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-family:var(--font-mono);">$</span>
+                <input type="number" id="comm-faab-val" min="0" style="padding:9px 12px 9px 24px;font-family:var(--font-mono);font-size:14px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;" />
+              </div>
+            </div>
+            <button class="btn btn-primary btn-sm" onclick="App.commOverrideFaab()">Update</button>
           </div>
-          <div class="input-hint" id="nom-hint">Minimum $100,000. Bids in $100K increments. Auction runs 8 hours.</div>
         </div>
-        <div id="nom-error" class="hidden" style="color:var(--red);font-size:13px;margin-top:8px;"></div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="App.closeNomModal()">Cancel</button>
-        <button class="btn btn-primary" onclick="App.submitNomination()">Start Auction &#x2192;</button>
+
+        <div class="card-panel">
+          <div style="font-weight:600;margin-bottom:6px;">Reset All Auction Data</div>
+          <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Clears ALL auction history from Firebase. Cannot be undone.</div>
+          <button class="btn btn-sm" style="background:var(--red-dim);color:var(--red);border:1px solid rgba(255,77,106,0.25);" onclick="App.confirmReset()">Reset All Auction Data</button>
+        </div>
+
       </div>
     </div>
-  </div>
 
-  <!-- Bid modal -->
-  <div id="bid-modal" class="modal-overlay" onclick="App.closeBidModalOutside(event)">
-    <div class="modal">
-      <div class="modal-header">
-        <div class="modal-title">Place Bid</div>
-        <div class="modal-close" onclick="App.closeBidModal()">&#x2715;</div>
+  </div>
+</div>
+<!-- NOMINATE MODAL -->
+<div id="nom-modal" class="modal-overlay" onclick="App.closeNomModalOutside(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div class="modal-title">Nominate Player</div>
+      <div class="modal-close" onclick="App.closeNomModal()">✕</div>
+    </div>
+    <div class="modal-body">
+      <div id="nom-player-info" class="info-box" style="display:flex;align-items:center;gap:12px;margin-bottom:16px;"></div>
+      <div id="nom-team-row" style="display:none;margin-bottom:12px;">
+        <label class="input-label">Nominating On Behalf Of</label>
+        <select id="nom-team-select" style="font-size:14px;padding:9px 12px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;cursor:pointer;"></select>
       </div>
-      <div class="modal-body">
-        <div id="bid-modal-player-info" class="info-box" style="display:flex;align-items:center;gap:12px;margin-bottom:12px;"></div>
-        <div id="bid-current-info" style="font-size:12px;color:var(--text3);margin-bottom:12px;padding:8px 12px;background:var(--surface2);border-radius:var(--radius-sm);"></div>
-        <div class="faab-bar">
-          <span class="faab-bar-label">Your Available FAAB</span>
-          <span class="faab-bar-value" id="bid-modal-faab">$0</span>
-        </div>
-        <div class="input-group">
-          <label class="input-label">Your Max Bid</label>
-          <div style="position:relative;">
-            <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-family:var(--font-mono);font-size:16px;pointer-events:none;">$</span>
-            <input type="number" id="bid-amount-input" min="100000" step="100000"
-              oninput="App.updateBidHint()"
-              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:22px;padding:10px 14px 10px 28px;outline:none;" />
-          </div>
-          <div id="bid-hint" class="input-hint" style="margin-top:6px;font-size:12px;color:var(--text3);"></div>
-        </div>
-        <div id="cap-impact-preview" style="font-size:12px;color:var(--text3);margin-top:8px;"></div>
-        <div id="bid-stat-breakdown"></div>
-        <div style="margin-top:14px;">
-          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Bid History</div>
-          <div id="bid-history-list" style="max-height:140px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);"></div>
-        </div>
+      <div class="faab-bar">
+        <span class="faab-bar-label">Available FAAB</span>
+        <span class="faab-bar-value" id="nom-faab">$0</span>
       </div>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="App.closeBidModal()">Cancel</button>
-        <button class="btn btn-primary" id="bid-submit-btn" onclick="App.submitBid()">Place Max Bid</button>
+      <div class="input-group">
+        <label class="input-label">Opening Max Bid</label>
+        <div style="position:relative;">
+          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-family:var(--font-mono);font-size:16px;pointer-events:none;">$</span>
+          <input type="number" id="nom-bid-input" min="100000" step="100000" value="100000" placeholder="100000"
+            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:22px;padding:10px 14px 10px 28px;outline:none;" />
+        </div>
+        <div class="input-hint" id="nom-hint">Minimum $100,000. Bids in $100K increments. Auction runs 8 hours.</div>
       </div>
+      <div id="nom-error" class="hidden" style="color:var(--red);font-size:13px;margin-top:8px;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="App.closeNomModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="App.submitNomination()">Start Auction →</button>
     </div>
   </div>
+</div>
 
-  <!-- Toast container -->
-  <div class="toast-container" id="toast-container"></div>`;
+<!-- TOAST CONTAINER -->
+<div class="toast-container" id="toast-container"></div>`;
 }
-
-// ── Roster view HTML — exact same structure cap.js expects ────
 function buildRosterHTML() {
-  return `
-  <div class="nav-tabs" id="cap-nav-tabs-bar">
-    <button class="nav-tab active" onclick="setTab('overview')"   data-tab="overview">Overview</button>
-    <button class="nav-tab"        onclick="setTab('allplayers')" data-tab="allplayers">All Players</button>
-    <button class="nav-tab"        onclick="setTab('compare')"    data-tab="compare">Compare</button>
-    <button class="nav-tab"        onclick="setTab('toppaid')"    data-tab="toppaid">Top Paid</button>
-    <button class="nav-tab"        onclick="setTab('taxi')"       data-tab="taxi">🚕 Taxi</button>
-    <button class="nav-tab"        onclick="setTab('watchlist')"  data-tab="watchlist">⭐ Watchlist</button>
-    <button class="nav-tab" id="comm-tab" style="display:none;" onclick="setTab('commish')" data-tab="commish">⚙️ Commish</button>
+  return `<div class="nav-tabs" id="cap-nav-tabs-bar">
+  <button class="nav-tab active" onclick="setTab('overview')"   data-tab="overview">Overview</button>
+  <button class="nav-tab" onclick="setTab('allplayers')"        data-tab="allplayers">All Players</button>
+  <button class="nav-tab" onclick="setTab('compare')"           data-tab="compare">Compare</button>
+  <button class="nav-tab" onclick="setTab('toppaid')"           data-tab="toppaid">Top Paid</button>
+  <button class="nav-tab" onclick="setTab('taxi')"              data-tab="taxi">🚕 Taxi</button>
+  <button class="nav-tab" onclick="setTab('watchlist')"         data-tab="watchlist">⭐ Watchlist</button>
+  <button class="nav-tab" id="comm-tab" style="display:none;" onclick="setTab('commish')" data-tab="commish">⚙️ Commish</button>
+</div>
+<div class="nav-dd-wrap">
+  <select class="nav-dd" id="nav-dd" onchange="setTab(this.value)">
+    <option value="overview">Overview</option>
+    <option value="allplayers">All Players</option>
+    <option value="compare">Compare</option>
+    <option value="toppaid">Top Paid</option>
+    <option value="taxi">🚕 Taxi</option>
+    <option value="watchlist">⭐ Watchlist</option>
+  </select>
+</div>
+
+<div class="main">
+  <div id="loading" class="loading"><div class="spinner"></div><div>Connecting…</div></div>
+  <div id="cap-app" style="display:none;">
+    <div id="tab-overview"></div>
+    <div id="tab-allplayers"  style="display:none;"></div>
+    <div id="tab-compare"     style="display:none;"></div>
+    <div id="tab-toppaid"     style="display:none;"></div>
+    <div id="tab-taxi"        style="display:none;"></div>
+    <div id="cap-tab-watchlist"   style="display:none;"></div>
+    <div id="tab-rookiedraft" style="display:none;"></div>
+    <div id="tab-commish"     style="display:none;"></div>
   </div>
-  <div class="nav-dd-wrap">
-    <select class="nav-dd" id="nav-dd" onchange="setTab(this.value)">
-      <option value="overview">Overview</option>
-      <option value="allplayers">All Players</option>
-      <option value="compare">Compare</option>
-      <option value="toppaid">Top Paid</option>
-      <option value="taxi">🚕 Taxi</option>
-      <option value="watchlist">⭐ Watchlist</option>
-    </select>
-  </div>
-  <div class="main">
-    <div id="cap-loading" class="loading"><div class="spinner"></div><div>Connecting…</div></div>
-    <div id="cap-app" style="display:none;">
-      <div id="tab-overview"></div>
-      <div id="tab-allplayers"  style="display:none;"></div>
-      <div id="tab-compare"     style="display:none;"></div>
-      <div id="tab-toppaid"     style="display:none;"></div>
-      <div id="tab-taxi"        style="display:none;"></div>
-      <div id="cap-tab-watchlist"   style="display:none;"></div>
-      <div id="tab-rookiedraft" style="display:none;"></div>
-      <div id="tab-commish"     style="display:none;"></div>
+
+  <!-- Inline team detail panel -->
+  <div id="team-panel" style="display:none;position:fixed;top:0;right:0;bottom:0;width:min(520px,100vw);background:var(--surface);border-left:1px solid var(--border);z-index:200;overflow-y:auto;box-shadow:-8px 0 32px rgba(0,0,0,.4);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);background:var(--surface2);position:sticky;top:0;z-index:10;">
+      <span id="team-panel-title" style="font-size:15px;font-weight:600;"></span>
+      <button onclick="closeTeamPanel()" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:2px 6px;">✕</button>
     </div>
-    <div id="team-panel" style="display:none;position:fixed;top:0;right:0;bottom:0;width:min(520px,100vw);background:var(--surface);border-left:1px solid var(--border);z-index:200;overflow-y:auto;box-shadow:-8px 0 32px rgba(0,0,0,.4);">
-      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);background:var(--surface2);position:sticky;top:0;z-index:10;">
-        <span id="team-panel-title" style="font-size:15px;font-weight:600;"></span>
-        <button onclick="closeTeamPanel()" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:2px 6px;">✕</button>
-      </div>
-      <div id="team-panel-body" style="padding:20px;"></div>
+    <div id="team-panel-body" style="padding:20px;"></div>
+  </div>
+</div>
+
+<!-- Edit / Add Player Modal -->
+<div class="modal-overlay" id="edit-modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title">Edit Player</div>
+    <div class="modal-field">
+      <div class="modal-label">Player Name</div>
+      <input class="modal-input" id="modal-name" type="text" placeholder="First Last"/>
+    </div>
+    <div class="modal-field" id="modal-pos-field">
+      <div class="modal-label">Position</div>
+      <select class="modal-select" id="modal-pos">
+        <option value="QB">QB</option><option value="RB">RB</option>
+        <option value="WR">WR</option><option value="TE">TE</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Salary</div>
+      <input class="modal-input" id="modal-salary" type="number" min="100000" step="100000" placeholder="e.g. 5000000"/>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Enter full dollar amount (e.g. 5000000 = $5M)</div>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Roster Slot</div>
+      <select class="modal-select" id="modal-slot" onchange="document.getElementById('modal-yeexp-row').style.display=this.value==='taxi'?'':'none';">
+        <option value="starters">Active Roster</option>
+        <option value="ir">IR (75% cap hit)</option>
+        <option value="taxi">Taxi (no cap hit)</option>
+      </select>
+    </div>
+    <div class="modal-field" id="modal-yeexp-row" style="display:none;">
+      <div class="modal-label">Years Experience (taxi graduation)</div>
+      <select class="modal-select" id="modal-yeexp">
+        <option value="">— not set —</option>
+        <option value="0">0 — rookie year</option>
+        <option value="1">1 — second year</option>
+        <option value="2">2 — last year (must promote next)</option>
+        <option value="3">3 — must promote now</option>
+      </select>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Set this so graduation warnings appear on the Taxi tab.</div>
+    </div>
+    <div class="modal-err" id="modal-err"></div>
+    <div class="modal-footer">
+      <button class="btn-danger" id="modal-delete-btn" onclick="deletePlayer()" style="display:none;">🗑 Remove</button>
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="savePlayer()">Save</button>
     </div>
   </div>
-  <div class="modal-overlay" id="edit-modal" onclick="if(event.target===this)closeModal()">
-    <div class="modal-box">
-      <div class="modal-title" id="modal-title">Edit Player</div>
-      <div class="modal-field">
-        <div class="modal-label">Player Name</div>
-        <input class="modal-input" id="modal-name" type="text" placeholder="First Last"/>
-      </div>
-      <div class="modal-field" id="modal-pos-field">
-        <div class="modal-label">Position</div>
-        <select class="modal-select" id="modal-pos">
-          <option value="QB">QB</option><option value="RB">RB</option>
-          <option value="WR">WR</option><option value="TE">TE</option>
-        </select>
-      </div>
-      <div class="modal-field">
-        <div class="modal-label">Salary</div>
-        <input class="modal-input" id="modal-salary" type="number" min="100000" step="100000" placeholder="e.g. 5000000"/>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Enter full dollar amount (e.g. 5000000 = $5M)</div>
-      </div>
-      <div class="modal-field">
-        <div class="modal-label">Roster Slot</div>
-        <select class="modal-select" id="modal-slot" onchange="document.getElementById('modal-yeexp-row').style.display=this.value==='taxi'?'':'none';">
-          <option value="starters">Active Roster</option>
-          <option value="ir">IR (75% cap hit)</option>
-          <option value="taxi">Taxi (no cap hit)</option>
-        </select>
-      </div>
-      <div class="modal-field" id="modal-yeexp-row" style="display:none;">
-        <div class="modal-label">Years Experience (taxi graduation)</div>
-        <select class="modal-select" id="modal-yeexp">
-          <option value="">— not set —</option>
-          <option value="0">0 — rookie year</option>
-          <option value="1">1 — second year</option>
-          <option value="2">2 — last year (must promote next)</option>
-          <option value="3">3 — must promote now</option>
-        </select>
-      </div>
-      <div class="modal-err" id="modal-err"></div>
-      <div class="modal-footer">
-        <button class="btn-danger" id="modal-delete-btn" onclick="deletePlayer()" style="display:none;">🗑 Remove</button>
-        <button class="btn-cancel" onclick="closeModal()">Cancel</button>
-        <button class="btn-save" onclick="savePlayer()">Save</button>
-      </div>
-    </div>
-  </div>
-  <span id="last-upd" style="display:none;"></span>`;
+</div>`;
 }
+
+
+
+// ── App ready event (fired by app.js after login) ─────────────
+window.addEventListener('sb:ready', function() {
+  const badge = document.getElementById('league-name-badge');
+  const name  = localStorage.getItem('sb_leagueName') || '';
+  if (badge && name) badge.textContent = name;
+
+  const hash = location.hash.replace('#','') || 'home';
+  navigateTo(hash);
+});
+
+// ── Auction view HTML ─────────────────────────────────────────
+
+
 </script>
 
 <script>
