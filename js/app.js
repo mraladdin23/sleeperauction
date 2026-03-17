@@ -165,6 +165,7 @@ const App = (() => {
     ]);
 
     state.leagueName      = league.name;
+    localStorage.setItem('sb_leagueName', league.name);
     state.leagueSettings  = league;
     state.scoringSettings = league.scoring_settings || {};
     state.rosterPositions = league.roster_positions || [];
@@ -211,7 +212,7 @@ const App = (() => {
         const p = players[id];
         if (rostered.has(id)) return false;
         if (!p.fantasy_positions?.some(pos => SKILL_POSITIONS.has(pos))) return false;
-        // Keep if on an NFL roster OR scored any points in 2025
+        // Keep if on an NFL roster OR scored any points in 2025 (most recent completed season)
         const hasTeam  = p.team && p.team !== 'FA';
         const hasPts   = (state.statsMap[id]?.pts_ppr ?? 0) > 0;
         return hasTeam || hasPts;
@@ -234,6 +235,7 @@ const App = (() => {
 
     UI.showScreen('app');
     UI.renderPauseBanner();
+    window.dispatchEvent(new Event('sb:ready'));
 
     // ── Firebase subscriptions ───────────────────────────
     Auction.subscribe(state.leagueId, auctions => {
@@ -633,7 +635,7 @@ const App = (() => {
 
     const customPts = computeCustomPts(auction.playerId);
     const ptsHtml   = customPts !== null
-      ? `<span style="font-size:11px;color:var(--text3);margin-top:4px;display:block;">2025 fantasy pts: <strong style="color:var(--accent2);">${customPts.toFixed(1)}</strong></span>`
+      ? `<span style="font-size:11px;color:var(--text3);margin-top:4px;display:block;">2025 pts: <strong style="color:var(--accent2);">${customPts.toFixed(1)}</strong></span>`
       : '';
 
     document.getElementById('bid-modal-player-info').innerHTML = `

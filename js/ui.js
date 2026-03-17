@@ -15,8 +15,10 @@ const UI = (() => {
   function setLoading(msg) { document.getElementById('loading-text').textContent = msg; }
   // ── Tabs ─────────────────────────────────────────────────
   function switchTab(name) {
-    document.querySelectorAll('.nav-tab:not([data-captab])').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
-    document.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name));
+    // Scope to auction view in SPA mode to avoid interfering with cap/draft tab-content divs
+    const scope = document.getElementById('view-auction') || document;
+    scope.querySelectorAll('.nav-tab:not([data-captab])').forEach(t => t.classList.toggle('active', t.dataset.tab === name));
+    scope.querySelectorAll('.tab-content').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name));
     const dd = document.getElementById('nav-dropdown');
     if (dd) dd.value = name;
   }
@@ -65,7 +67,8 @@ const UI = (() => {
       const h          = Math.floor(msLeft / 3600000);
       const m          = Math.floor((msLeft % 3600000) / 60000);
       banner.innerHTML = `🌙 Auctions are paused overnight (12am–8am CT). Timers resume in <strong>${h}h ${m}m</strong>.`;
-      document.querySelector('.nav-tabs').insertAdjacentElement('afterend', banner);
+      const navTabs = document.querySelector('.nav-tabs');
+      if (navTabs) navTabs.insertAdjacentElement('afterend', banner);
     } else if (!paused && existing) {
       existing.remove();
     }
@@ -123,6 +126,7 @@ const UI = (() => {
     });
     setUrgencyGlow(anyUrgent);
 
+    if (!document.getElementById('auctions-grid')) return;
     document.getElementById('auction-count').innerHTML =
       `<span class="live-dot"></span>${active.length} live`;
     document.getElementById('completed-count').textContent = completed.length;
@@ -339,7 +343,7 @@ const UI = (() => {
     if (!rows.length) { el.innerHTML = ''; return; }
 
     el.innerHTML = `
-      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;margin-top:14px;">2025 Season Stats</div>
+      <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px;margin-top:14px;">2025 Season Stats (completed)</div>
       <div class="stat-breakdown">${rows.join('')}</div>`;
   }
 
@@ -506,6 +510,7 @@ const UI = (() => {
     const { state } = App;
     const now           = Date.now();
     const grid          = document.getElementById('teams-grid');
+    if (!grid) return;
     const activeAuctions = state.auctions.filter(a => !a.processed && !a.cancelled && a.expiresAt > now);
     const rosterSizes   = state.rosterSizes || {};
     const hasRosterData = Object.keys(rosterSizes).length > 0;

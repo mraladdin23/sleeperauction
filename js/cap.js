@@ -87,8 +87,8 @@ function subscribeRosters() {
       DATA = JSON.parse(JSON.stringify(FALLBACK));
       document.getElementById('last-upd').textContent = 'Built-in data';
     }
-    document.getElementById('loading').style.display = 'none';
-    document.getElementById('app').style.display = '';
+    (document.getElementById('cap-loading') || document.getElementById('loading')).style.display = 'none';
+    (document.getElementById('cap-app') || document.getElementById('app')).style.display = '';
     if (isComm()) {
       document.getElementById('comm-tab').style.display = '';
       const dd = document.getElementById('nav-dd');
@@ -108,8 +108,8 @@ function subscribeRosters() {
 function initWithFallback() {
   DATA = JSON.parse(JSON.stringify(FALLBACK));
   document.getElementById('last-upd').textContent = 'Built-in data';
-  document.getElementById('loading').style.display = 'none';
-  document.getElementById('app').style.display = '';
+  (document.getElementById('cap-loading') || document.getElementById('loading')).style.display = 'none';
+  (document.getElementById('cap-app') || document.getElementById('app')).style.display = '';
   if (isComm()) document.getElementById('comm-tab').style.display = '';
   renderTab(tab);
 }
@@ -184,9 +184,11 @@ const badge   = pos => `<span class="pos-badge pb-${pos}">${pos}</span>`;
 function setTab(t) {
   tab = t;
   ['overview','allplayers','compare','toppaid','taxi','watchlist','rookiedraft','commish'].forEach(n => {
-    document.getElementById('tab-'+n).style.display = n===t?'':'none';
+    const el = document.getElementById('tab-'+n);
+    if (el) el.style.display = n===t?'':'none';
   });
-  document.querySelectorAll('.nav-tab').forEach(b =>
+  const scope = document.getElementById('view-roster') || document;
+  scope.querySelectorAll('.nav-tab').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === t)
   );
   const dd = document.getElementById('nav-dd');
@@ -926,7 +928,7 @@ function renderTaxi() {
 
 // ── WATCHLIST TAB ─────────────────────────────────────────────
 function renderWatchlist() {
-  const el = document.getElementById('tab-watchlist');
+  const el = (document.getElementById('cap-tab-watchlist') || document.getElementById('tab-watchlist'));
   const wl = JSON.parse(localStorage.getItem('sb_cap_watchlist') || '{}');
   const ids = Object.keys(wl);
   if (!ids.length) {
@@ -1807,8 +1809,18 @@ async function deletePlayer(){
   await saveToFirebase();
 }
 
-document.getElementById('edit-modal').addEventListener('click',e=>{
-  });
+// Works whether loaded as standalone page or injected into SPA
+function capInit() {
+  const modal = document.getElementById('edit-modal');
+  if (modal) modal.addEventListener('click', e => {});
+  subscribeRosters();
+}
 
-
-subscribeRosters();
+if (document.getElementById('edit-modal')) {
+  // Standalone rosters.html — DOM already ready
+  capInit();
+} else {
+  // SPA injection — wait for the roster view HTML to be in the DOM
+  // index.html calls capInit() after injecting buildRosterHTML()
+  window._capInitPending = true;
+}

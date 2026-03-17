@@ -1,13 +1,9 @@
-// ─────────────────────────────────────────────────────────────
-//  AUCTION ENGINE  (Firebase-backed, real-time)
-// ─────────────────────────────────────────────────────────────
-
 const Auction = (() => {
 
   const DURATION_MS    = 8 * 60 * 60 * 1000; // 8 active hours
   const MIN_BID        = 100_000;             // $100K minimum bid
 
-  // ── Overnight pause window (Central Time) ───────────────
+  // \u2500\u2500 Overnight pause window (Central Time) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   const PAUSE_START_HOUR = 0;   // midnight Central
   const PAUSE_END_HOUR   = 8;   // 8am Central
 
@@ -39,15 +35,16 @@ const Auction = (() => {
     return now + DURATION_MS;
   }
 
-  // ── Firebase paths ──────────────────────────────────────
+  // \u2500\u2500 Firebase paths \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   function auctionsRef(leagueId)       { return db.ref(`leagues/${leagueId}/auctions`); }
   function auctionRef(leagueId, id)    { return db.ref(`leagues/${leagueId}/auctions/${id}`); }
   function faabOverridesRef(leagueId)  { return db.ref(`leagues/${leagueId}/faabOverrides`); }
   function rosterSizesRef(leagueId)    { return db.ref(`leagues/${leagueId}/rosterSizes`); }
   function activityFeedRef(leagueId)   { return db.ref(`leagues/${leagueId}/activityFeed`); }
   function watchlistRef(leagueId, uid) { return db.ref(`leagues/${leagueId}/watchlists/${uid}`); }
+  function passesRef(leagueId, auctionId) { return db.ref(`leagues/${leagueId}/auctions/${auctionId}/passes`); }
 
-  // ── Subscribe to live auction updates ───────────────────
+  // \u2500\u2500 Subscribe to live auction updates \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   function subscribe(leagueId, callback) {
     auctionsRef(leagueId).on('value', snap => {
       const data = snap.val() || {};
@@ -82,7 +79,7 @@ const Auction = (() => {
     await rosterSizesRef(leagueId).update({ [rosterId]: size });
   }
 
-  // ── Watchlist ────────────────────────────────────────────
+  // \u2500\u2500 Watchlist \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   async function addWatch(leagueId, uid, playerId) {
     await watchlistRef(leagueId, uid).update({ [playerId]: true });
   }
@@ -90,7 +87,7 @@ const Auction = (() => {
     await watchlistRef(leagueId, uid).child(playerId).remove();
   }
 
-  // ── Activity feed ────────────────────────────────────────
+  // \u2500\u2500 Activity feed \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   async function logActivity(leagueId, event) {
     const id  = 'act_' + Date.now() + '_' + Math.random().toString(36).substr(2,4);
     await activityFeedRef(leagueId).child(id).set({
@@ -98,7 +95,7 @@ const Auction = (() => {
     });
   }
 
-  // ── Create a new auction (nomination) ───────────────────
+  // \u2500\u2500 Create a new auction (nomination) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   async function nominate(leagueId, playerId, rosterId, maxBid, teamName, playerName) {
     const id  = 'auc_' + Date.now() + '_' + Math.random().toString(36).substr(2, 6);
     const now = Date.now();
@@ -124,7 +121,7 @@ const Auction = (() => {
     return auction;
   }
 
-  // ── Place / update a bid ─────────────────────────────────
+  // \u2500\u2500 Place / update a bid \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   async function placeBid(leagueId, auctionId, rosterId, maxBid, teamName, playerName, playerId) {
     const ref    = auctionRef(leagueId, auctionId);
     const result = await ref.transaction(current => {
@@ -135,7 +132,7 @@ const Auction = (() => {
       current.expiresAt = nextExpiry(Date.now());
       return current;
     });
-    if (!result.committed) throw new Error('Bid failed — please try again.');
+    if (!result.committed) throw new Error('Bid failed \u2014 please try again.');
     await logActivity(leagueId, {
       type: 'bid',
       auctionId,
@@ -148,7 +145,7 @@ const Auction = (() => {
     return result.snapshot.val();
   }
 
-  // ── Cancel an auction (commissioner only) ────────────────
+  // \u2500\u2500 Cancel an auction (commissioner only) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   async function cancelAuction(leagueId, auctionId, playerName, commName) {
     await auctionRef(leagueId, auctionId).update({ cancelled: true });
     await logActivity(leagueId, {
@@ -159,12 +156,12 @@ const Auction = (() => {
     });
   }
 
-  // ── Delete an auction entirely (commissioner only) ───────
+  // \u2500\u2500 Delete an auction entirely (commissioner only) \u2500\u2500\u2500\u2500\u2500\u2500\u2500
   async function deleteAuction(leagueId, auctionId) {
     await auctionRef(leagueId, auctionId).remove();
   }
 
-  // ── Claim / process (commissioner) ───────────────────────
+  // \u2500\u2500 Claim / process (commissioner) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   async function claimAuction(leagueId, auctionId, winnerRosterId, winnerTeamName, amount, playerName, playerId) {
     await auctionRef(leagueId, auctionId).update({ processed: true, claimedAt: Date.now() });
     await logActivity(leagueId, {
@@ -178,12 +175,12 @@ const Auction = (() => {
     });
   }
 
-  // ── Mark auction as processed (legacy alias) ─────────────
+  // \u2500\u2500 Mark auction as processed (legacy alias) \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   async function markProcessed(leagueId, auctionId) {
     await auctionRef(leagueId, auctionId).update({ processed: true });
   }
 
-  // ── FAAB overrides ───────────────────────────────────────
+  // \u2500\u2500 FAAB overrides \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   async function setFaabOverride(leagueId, rosterId, value) {
     await faabOverridesRef(leagueId).update({ [rosterId]: value });
   }
@@ -192,12 +189,12 @@ const Auction = (() => {
     await faabOverridesRef(leagueId).child(String(rosterId)).remove();
   }
 
-  // ── Reset ALL data ───────────────────────────────────────
+  // \u2500\u2500 Reset ALL data \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   async function resetAll(leagueId) {
     await db.ref(`leagues/${leagueId}`).remove();
   }
 
-  // ── Proxy bid computation ────────────────────────────────
+  // \u2500\u2500 Proxy bid computation \u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500
   function computeLeadingBid(auction) {
     const bids = Array.isArray(auction.bids)
       ? auction.bids : Object.values(auction.bids || {});
@@ -241,49 +238,27 @@ const Auction = (() => {
       .reduce((sum, a) => sum + getMyMaxBid(a, rosterId), 0);
   }
 
-  function passesRef(leagueId, auctionId) {
-    return db.ref(`leagues/${leagueId}/auctions/${auctionId}/passes`);
-  }
 
-  // ── Pass on an auction ───────────────────────────────────
-  // Records this roster's "not interested" vote.
-  // If all non-nominating, non-bidding teams have passed → auto-close.
   async function passAuction(leagueId, auctionId, rosterId, allRosterIds, teamName, playerName) {
-    // Record the pass
     await passesRef(leagueId, auctionId).update({ [rosterId]: Date.now() });
-
     await logActivity(leagueId, {
-      type: 'pass',
-      auctionId,
+      type: 'pass', auctionId,
       playerName: playerName || '',
       rosterId,
       teamName: teamName || `Team ${rosterId}`,
     });
-
-    // Check if all others have passed — if so, close immediately
     const snap    = await auctionRef(leagueId, auctionId).once('value');
     const auction = snap.val();
     if (!auction || auction.cancelled || auction.processed) return false;
-
-    const passes    = Object.keys(auction.passes || {}).map(Number);
-    const bids      = Array.isArray(auction.bids) ? auction.bids : Object.values(auction.bids || {});
-    const bidders   = new Set(bids.map(b => b.rosterId));
-    const nominator = auction.nominatedBy;
-
-    // Everyone who must pass = all teams except nominator and anyone who has bid
-    const mustPass = allRosterIds.filter(id => id !== nominator && !bidders.has(id));
+    const passes  = Object.keys(auction.passes || {}).map(Number);
+    const bids    = Array.isArray(auction.bids) ? auction.bids : Object.values(auction.bids || {});
+    const bidders = new Set(bids.map(b => b.rosterId));
+    const mustPass = allRosterIds.filter(id => id !== auction.nominatedBy && !bidders.has(id));
     const allPassed = mustPass.every(id => passes.includes(id));
-
     if (allPassed) {
-      // Auto-close: expire it now
       await auctionRef(leagueId, auctionId).update({ expiresAt: Date.now() - 1, autoClosedByPasses: true });
-      await logActivity(leagueId, {
-        type: 'autoclose',
-        auctionId,
-        playerName: playerName || '',
-        teamName: 'System',
-      });
-      return true; // closed
+      await logActivity(leagueId, { type: 'autoclose', auctionId, playerName: playerName || '', teamName: 'System' });
+      return true;
     }
     return false;
   }
@@ -298,7 +273,7 @@ const Auction = (() => {
     setRosterSize,
     addWatch, removeWatch,
     logActivity,
-    passAuction,
     computeLeadingBid, getMyMaxBid, getCommittedFaab,
+    passAuction,
   };
 })();
