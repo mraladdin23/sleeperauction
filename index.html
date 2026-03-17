@@ -432,11 +432,9 @@ function initAuctionView() {
   }
   container.innerHTML = buildAuctionHTML();
   viewsLoaded.auction = true;
-  // Render immediately with whatever state we have
+  // State is already populated from Firebase subscriptions (sb:ready waits for first callback)
   if (window.App?.renderAll) App.renderAll();
   if (window.App?.switchTab) App.switchTab('auctions');
-  // Also trigger a fresh load in case state is stale
-  if (window.App?.loadFreeAgents) App.loadFreeAgents();
 }
 
 // ── Roster/cap view ───────────────────────────────────────────
