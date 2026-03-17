@@ -30,20 +30,25 @@ const Sleeper = (() => {
   }
 
   async function fetchPlayers() {
+    // Cache for 24h — the full NFL player list is ~10MB
     const cached   = localStorage.getItem('sb_players');
     const cachedAt = localStorage.getItem('sb_players_at');
     const age      = cachedAt ? Date.now() - parseInt(cachedAt) : Infinity;
 
-    if (cached && age < 24 * 60 * 60 * 1000) return JSON.parse(cached);
+    if (cached && age < 24 * 60 * 60 * 1000) {
+      return JSON.parse(cached);
+    }
 
     UI.setLoading('Loading player database (one-time, ~10MB)…');
     const r = await fetch('https://api.sleeper.app/v1/players/nfl');
     if (!r.ok) throw new Error('Could not load players');
     const data = await r.json();
+
     try {
       localStorage.setItem('sb_players', JSON.stringify(data));
       localStorage.setItem('sb_players_at', Date.now().toString());
-    } catch (e) { /* storage full */ }
+    } catch (e) { /* storage full – that's fine, just won't cache */ }
+
     return data;
   }
 
@@ -52,49 +57,48 @@ const Sleeper = (() => {
     localStorage.removeItem('sb_players_at');
   }
 
-  // Fetch raw per-player season stats (cached 24h)
+
   async function fetchStats(season) {
-    const key   = `sb_stats_${season}`;
-    const keyAt = `sb_stats_${season}_at`;
+    const key    = `sb_stats_${season}`;
+    const keyAt  = `sb_stats_${season}_at`;
     const cached   = localStorage.getItem(key);
     const cachedAt = localStorage.getItem(keyAt);
     const age      = cachedAt ? Date.now() - parseInt(cachedAt) : Infinity;
+    // Stats for completed seasons cache for 7 days; current season 6h
+    const maxAge   = season < new Date().getFullYear() ? 7*24*60*60*1000 : 6*60*60*1000;
 
-    if (cached && age < 24 * 60 * 60 * 1000) return JSON.parse(cached);
+    if (cached && age < maxAge) {
+      return JSON.parse(cached);
+    }
 
-    UI.setLoading(`Loading ${season} season stats…`);
-    // Fetch all weeks and aggregate — Sleeper aggregated endpoint
-    const r = await fetch(`${BASE}/stats/nfl/regular/${season}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE`);
-    if (!r.ok) return {};
+    const r = await fetch(
+      `https://api.sleeper.app/v1/stats/nfl/regular/${season}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE`
+    );
+    if (!r.ok) throw new Error('Could not load stats');
     const data = await r.json();
     try {
-      localStorage.setItem(key, JSON.stringify(data));
+      localStorage.setItem(key,   JSON.stringify(data));
       localStorage.setItem(keyAt, Date.now().toString());
-    } catch (e) { /* storage full */ }
+    } catch(e) {}
     return data;
   }
 
-  // ── Calculate fantasy points from raw stats using league scoring ──
-  // scoringSettings comes from league.scoring_settings (Sleeper format)
-  // rawStats is a single player's season stat object
   function calculatePoints(rawStats, scoringSettings) {
-    if (!rawStats || !scoringSettings) return null;
+    if (!rawStats || !scoringSettings) return 0;
     let pts = 0;
-
-    // Map of Sleeper stat keys → scoring setting keys (they mostly match)
-    // Sleeper uses the same key names in scoring_settings as in player stats
-    for (const [key, val] of Object.entries(rawStats)) {
-      if (typeof val !== 'number') continue;
-      const multiplier = scoringSettings[key];
-      if (multiplier) pts += val * multiplier;
+    const map = {
+      pass_yd: 'pass_yd', pass_td: 'pass_td', pass_int: 'pass_int',
+      rush_yd: 'rush_yd', rush_td: 'rush_td',
+      rec: 'rec', rec_yd: 'rec_yd', rec_td: 'rec_td',
+      bonus_rec_te: 'bonus_rec_te', fum_lost: 'fum_lost',
+    };
+    for (const [stat, key] of Object.entries(map)) {
+      if (rawStats[stat] !== undefined && scoringSettings[key] !== undefined) {
+        pts += rawStats[stat] * scoringSettings[key];
+      }
     }
-
-    return Math.round(pts * 10) / 10;
+    return pts;
   }
 
-  return {
-    fetchUser, fetchLeague, fetchRosters, fetchLeagueUsers,
-    fetchPlayers, fetchStats, invalidatePlayerCache,
-    calculatePoints,
-  };
+  return { fetchUser, fetchLeague, fetchRosters, fetchLeagueUsers, fetchPlayers, fetchStats, calculatePoints, invalidatePlayerCache };
 })();

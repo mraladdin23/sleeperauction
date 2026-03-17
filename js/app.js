@@ -157,12 +157,34 @@ const App = (() => {
     UI.showScreen('loading');
     UI.setLoading('Loading league…');
 
-    const [league, rosters, users, players] = await Promise.all([
-      Sleeper.fetchLeague(state.leagueId),
-      Sleeper.fetchRosters(state.leagueId),
-      Sleeper.fetchLeagueUsers(state.leagueId),
-      Sleeper.fetchPlayers(),
-    ]);
+    // Try to load league/roster/user data from Firebase cache first (avoids Sleeper API on every boot)
+    // Falls back to Sleeper API and updates the cache
+    let league, rosters, users, players;
+    const cacheRef  = db.ref(`leagues/${state.leagueId}/sleeperCache`);
+    const cacheSnap = await cacheRef.once('value');
+    const cache     = cacheSnap.val();
+    const cacheAge  = cache?.cachedAt ? Date.now() - cache.cachedAt : Infinity;
+    const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
+    if (cache && cacheAge < CACHE_TTL) {
+      // Use cached data — no Sleeper API call needed
+      league = cache.league;
+      rosters = cache.rosters;
+      users   = cache.users;
+      UI.setLoading('Loading player database…');
+      players = await Sleeper.fetchPlayers(); // players use localStorage cache
+    } else {
+      // Fetch fresh from Sleeper and update Firebase cache
+      UI.setLoading('Syncing league data…');
+      [league, rosters, users, players] = await Promise.all([
+        Sleeper.fetchLeague(state.leagueId),
+        Sleeper.fetchRosters(state.leagueId),
+        Sleeper.fetchLeagueUsers(state.leagueId),
+        Sleeper.fetchPlayers(),
+      ]);
+      // Save to Firebase cache (non-blocking)
+      cacheRef.set({ league, rosters, users, cachedAt: Date.now() }).catch(() => {});
+    }
 
     state.leagueName      = league.name;
     localStorage.setItem('sb_leagueName', league.name);
