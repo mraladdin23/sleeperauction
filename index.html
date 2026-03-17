@@ -340,9 +340,7 @@ window.addEventListener('DOMContentLoaded',function(){
 <script src="js/auction.js"></script>
 <script src="js/ui.js"></script>
 <script src="js/app.js"></script>
-<!-- Pre-load view scripts so navigation is instant (no async load on click) -->
-<script src="js/cap.js"></script>
-<script src="js/draft.js"></script>
+
 
 <script>
 // ── Router ────────────────────────────────────────────────────
@@ -445,14 +443,20 @@ function initAuctionView() {
 function initRosterView() {
   const container = document.getElementById('view-roster');
   if (viewsLoaded.roster) {
-    // Already loaded — re-render current tab
-    if (window.setTab && window.tab) setTab(window.tab);
+    if (window.setTab) setTab(window.tab || 'overview');
     return;
   }
-  // cap.js is pre-loaded — inject DOM then call capInit directly
   container.innerHTML = buildRosterHTML();
   viewsLoaded.roster = true;
-  if (window.capInit) capInit();
+  if (window.capInit) {
+    // Already loaded from a previous session
+    capInit();
+  } else {
+    const s = document.createElement('script');
+    s.src = 'js/cap.js';
+    s.onload = () => { if (window.capInit) capInit(); };
+    document.head.appendChild(s);
+  }
 }
 
 // ── Draft view ────────────────────────────────────────────────
@@ -462,10 +466,17 @@ function initDraftView() {
     if (window.refreshDraft) refreshDraft();
     return;
   }
-  // draft.js is pre-loaded — inject DOM then call draftInit directly
   container.innerHTML = buildDraftHTML();
   viewsLoaded.draft = true;
-  if (window.draftInit) draftInit();
+  if (window.draftInit) {
+    // Already loaded from a previous session
+    draftInit();
+  } else {
+    const s = document.createElement('script');
+    s.src = 'js/draft.js';
+    s.onload = () => { if (window.draftInit) draftInit(); };
+    document.head.appendChild(s);
+  }
 }
 
 // ── Draft view HTML + CSS ─────────────────────────────────────
