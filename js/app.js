@@ -156,25 +156,31 @@ const App = (() => {
   async function initApp() {
     UI.showScreen('loading');
     UI.setLoading('Loading league…');
-
+    try {
     // Try to load league/roster/user data from Firebase cache first (avoids Sleeper API on every boot)
     // Falls back to Sleeper API and updates the cache
     let league, rosters, users, players;
-    const cacheRef  = db.ref(`leagues/${state.leagueId}/sleeperCache`);
-    const cacheSnap = await cacheRef.once('value');
-    const cache     = cacheSnap.val();
-    const cacheAge  = cache?.cachedAt ? Date.now() - cache.cachedAt : Infinity;
-    const CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+    // Try Firebase cache with 4s timeout — fall back to Sleeper API if slow/unavailable
+    const CACHE_TTL = 15 * 60 * 1000;
+    let cache = null;
+    try {
+      const cacheRef  = db.ref(`leagues/${state.leagueId}/sleeperCache`);
+      const cacheSnap = await Promise.race([
+        cacheRef.once('value'),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('cache timeout')), 4000)),
+      ]);
+      const raw = cacheSnap.val();
+      const age = raw?.cachedAt ? Date.now() - raw.cachedAt : Infinity;
+      if (raw && age < CACHE_TTL) cache = raw;
+    } catch(e) { /* cache miss or timeout — fetch from Sleeper */ }
 
-    if (cache && cacheAge < CACHE_TTL) {
-      // Use cached data — no Sleeper API call needed
-      league = cache.league;
+    if (cache) {
+      league  = cache.league;
       rosters = cache.rosters;
       users   = cache.users;
       UI.setLoading('Loading player database…');
-      players = await Sleeper.fetchPlayers(); // players use localStorage cache
+      players = await Sleeper.fetchPlayers();
     } else {
-      // Fetch fresh from Sleeper and update Firebase cache
       UI.setLoading('Syncing league data…');
       [league, rosters, users, players] = await Promise.all([
         Sleeper.fetchLeague(state.leagueId),
@@ -182,8 +188,11 @@ const App = (() => {
         Sleeper.fetchLeagueUsers(state.leagueId),
         Sleeper.fetchPlayers(),
       ]);
-      // Save to Firebase cache (non-blocking)
-      cacheRef.set({ league, rosters, users, cachedAt: Date.now() }).catch(() => {});
+      // Update cache in background — don't await
+      try {
+        db.ref(`leagues/${state.leagueId}/sleeperCache`)
+          .set({ league, rosters, users, cachedAt: Date.now() });
+      } catch(e) {}
     }
 
     state.leagueName      = league.name;
@@ -220,12 +229,17 @@ const App = (() => {
         const r = rosters.find(r => r.owner_id === u.user_id);
         if (r && u.username) usernameMap[u.username.toLowerCase()] = r.roster_id;
       });
-      await db.ref(`leagues/${state.leagueId}/usernameToRosterId`).set(usernameMap);
+      db.ref(`leagues/${state.leagueId}/usernameToRosterId`).set(usernameMap).catch(()=>{});
     } catch(e) { /* non-fatal */ }
 
     UI.setLoading('Loading ' + state.statYear + ' stats…');
     let rawStats = {};
-    try { rawStats = await Sleeper.fetchStats(state.statYear); } catch (e) { /* non-fatal */ }
+    try {
+      rawStats = await Promise.race([
+        Sleeper.fetchStats(state.statYear),
+        new Promise((_, rej) => setTimeout(() => rej(new Error('stats timeout')), 6000)),
+      ]);
+    } catch (e) { /* non-fatal — use empty stats */ }
     state.statsMap = rawStats;
 
     const rostered = new Set(rosters.flatMap(r => r.players || []));
@@ -264,11 +278,16 @@ const App = (() => {
     let _readyFired = false;
     // _maybeFirReady fires sb:ready on the FIRST call (when Auction.subscribe
     // callback fires with real Firebase data), then just calls renderAll().
+    let _readyTimeout;
     function _maybeFirReady() {
       if (_readyFired) { renderAll(); return; }
       _readyFired = true;
+      clearTimeout(_readyTimeout);
       window.dispatchEvent(new Event('sb:ready'));
     }
+
+    // Safety timeout: if Firebase doesn't respond in 8s, fire sb:ready anyway
+    _readyTimeout = setTimeout(() => _maybeFirReady(), 8000);
 
     Auction.subscribe(state.leagueId, auctions => {
       const prevAuctions = state.auctions;
@@ -308,6 +327,10 @@ const App = (() => {
 
     UI.startTimers(() => state.auctions);
     requestNotificationPermission();
+    } catch(e) {
+      console.error('initApp error:', e);
+      UI.setLoading('Error loading app. Please refresh. (' + (e?.message||e) + ')');
+    }
   }
 
   async function seedFaabFromKnownValues() {
@@ -348,7 +371,12 @@ const App = (() => {
   // ── Tab switching ────────────────────────────────────────
   function switchTab(name) {
     UI.switchTab(name);
-    if (name === 'watchlist') UI.renderWatchlistTab();
+    if (name === 'watchlist')     UI.renderWatchlistTab();
+    if (name === 'free-agents')   UI.renderFreeAgents(state.posFilter || 'ALL', false);
+    if (name === 'teams')         UI.renderTeams(state.faabOverrides);
+    if (name === 'history')       UI.renderHistory(state.auctions);
+    if (name === 'activity')      UI.renderActivityFeed(state.activityFeed);
+    if (name === 'commissioner')  { updateCommissionerTab(); UI.renderCommissioner(state.faabOverrides); }
   }
 
   function faSort(col) { UI.faSort(col); }
