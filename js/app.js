@@ -257,15 +257,25 @@ const App = (() => {
 
     UI.showScreen('app');
     UI.renderPauseBanner();
-    window.dispatchEvent(new Event('sb:ready'));
 
     // ── Firebase subscriptions ───────────────────────────
+    // Set up ALL subscriptions before firing sb:ready so that when
+    // navigateTo runs, state is already populated from Firebase cache.
+    let _readyFired = false;
+    // _maybeFirReady fires sb:ready on the FIRST call (when Auction.subscribe
+    // callback fires with real Firebase data), then just calls renderAll().
+    function _maybeFirReady() {
+      if (_readyFired) { renderAll(); return; }
+      _readyFired = true;
+      window.dispatchEvent(new Event('sb:ready'));
+    }
+
     Auction.subscribe(state.leagueId, auctions => {
       const prevAuctions = state.auctions;
       state.auctions = auctions;
       checkOutbidNotifications(prevAuctions, auctions);
       checkWatchlistNotifications(prevAuctions, auctions);
-      renderAll();
+      _maybeFirReady();
     });
 
     Auction.subscribeRosterSizes(state.leagueId, sizes => {

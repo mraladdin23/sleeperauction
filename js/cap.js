@@ -82,10 +82,10 @@ function subscribeRosters() {
     const fbData = snap.val();
     if (fbData && Object.keys(fbData).length > 0) {
       DATA = fbData;
-      document.getElementById('last-upd').textContent = 'Live data';
+      const _lu1 = document.getElementById('last-upd'); if(_lu1) _lu1.textContent = 'Live data';
     } else {
       DATA = JSON.parse(JSON.stringify(FALLBACK));
-      document.getElementById('last-upd').textContent = 'Built-in data';
+      const _lu2 = document.getElementById('last-upd'); if(_lu2) _lu2.textContent = 'Built-in data';
     }
     (document.getElementById('cap-loading') || document.getElementById('loading')).style.display = 'none';
     (document.getElementById('cap-app') || document.getElementById('app')).style.display = '';
@@ -107,7 +107,7 @@ function subscribeRosters() {
 
 function initWithFallback() {
   DATA = JSON.parse(JSON.stringify(FALLBACK));
-  document.getElementById('last-upd').textContent = 'Built-in data';
+  const _lu2 = document.getElementById('last-upd'); if(_lu2) _lu2.textContent = 'Built-in data';
   (document.getElementById('cap-loading') || document.getElementById('loading')).style.display = 'none';
   (document.getElementById('cap-app') || document.getElementById('app')).style.display = '';
   if (isComm()) document.getElementById('comm-tab').style.display = '';
