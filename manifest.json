@@ -1,8 +1,9 @@
 {
   "name": "SleeperBid",
   "short_name": "SleeperBid",
-  "description": "FAAB Proxy Auctions for Sleeper Leagues",
-  "start_url": "/",
+  "description": "FAAB Proxy Auctions for Sleeper Leagues · 2026 Season",
+  "start_url": "/#home",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0d0f14",
   "theme_color": "#7c5cfc",

@@ -3,9 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>SleeperBid — FAAB Proxy Auctions</title>
-
-<!-- PWA -->
+<title>SleeperBid</title>
 <link rel="manifest" href="/manifest.json" />
 <meta name="theme-color" content="#0f0f13" />
 <meta name="mobile-web-app-capable" content="yes" />
@@ -19,18 +17,46 @@
 <link rel="stylesheet" href="css/style.css" />
 <style>
 body.light-mode{--bg:#f4f5f8;--surface:#fff;--surface2:#eef0f5;--surface3:#e4e7ef;--border:#d4d8e8;--border2:#bbbfcf;--text:#18192a;--text2:#4a4e6a;--text3:#8a8eaa;}
-body.light-mode .topbar{background:rgba(255,255,255,.95);}
+body.light-mode .app-bar{background:rgba(255,255,255,.97);}
 body.light-mode .auction-card{box-shadow:0 1px 4px rgba(0,0,0,.06);}
 body.light-mode .modal{box-shadow:0 8px 40px rgba(0,0,0,.15);}
 body.light-mode .login-card{box-shadow:0 4px 24px rgba(0,0,0,.08);}
-body.light-mode::before{opacity:.012;}
+
+/* ── Home page cards ── */
+.home-main{max-width:700px;margin:0 auto;padding:24px 16px 40px;}
+.home-league-name{font-size:22px;font-weight:600;color:var(--text);margin-bottom:4px;}
+.home-league-sub{font-size:13px;color:var(--text3);margin-bottom:24px;}
+.home-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:14px;margin-bottom:24px;}
+@media(max-width:480px){.home-grid{grid-template-columns:1fr;}}
+.home-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;cursor:pointer;transition:all .15s;position:relative;overflow:hidden;text-decoration:none;display:block;color:inherit;}
+.home-card:hover{border-color:var(--accent);transform:translateY(-1px);}
+.home-card.disabled{opacity:.45;cursor:not-allowed;pointer-events:none;}
+.home-card-icon{width:44px;height:44px;border-radius:var(--radius-sm);display:flex;align-items:center;justify-content:center;font-size:22px;margin-bottom:12px;}
+.hci-auction{background:rgba(124,92,252,.15);}
+.hci-roster{background:rgba(24,224,122,.15);}
+.hci-draft{background:rgba(255,201,77,.15);}
+.hci-standings{background:rgba(90,94,114,.2);}
+.home-card-title{font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px;}
+.home-card-sub{font-size:12px;color:var(--text3);line-height:1.5;}
+.hc-badge{position:absolute;top:12px;right:12px;font-size:10px;padding:2px 8px;border-radius:99px;}
+.hcb-live{background:rgba(255,77,106,.15);color:var(--red);}
+.hcb-open{background:rgba(24,224,122,.15);color:var(--green);}
+.hcb-soon{background:rgba(90,94,114,.2);color:var(--text3);}
+
+/* ── Activity feed ── */
+.home-feed{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.home-feed-hdr{padding:10px 16px;background:var(--surface2);border-bottom:1px solid var(--border);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);}
+.feed-row{display:flex;align-items:flex-start;gap:10px;padding:10px 16px;border-bottom:1px solid rgba(46,48,64,.3);}
+.feed-row:last-child{border-bottom:none;}
+.feed-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:4px;}
+.feed-body{flex:1;font-size:13px;color:var(--text2);line-height:1.4;}
+.feed-time{font-size:11px;color:var(--text3);margin-top:2px;}
+.feed-empty{padding:20px 16px;text-align:center;font-size:13px;color:var(--text3);}
 </style>
 <script>
-// Apply theme before render to avoid flash
 (function(){
-  if(localStorage.getItem('sb_theme')==='light'){
+  if(localStorage.getItem('sb_theme')==='light')
     document.documentElement.classList.add('light-mode-pre');
-  }
 })();
 function toggleTheme(){
   const light=document.body.classList.toggle('light-mode');
@@ -46,60 +72,14 @@ window.addEventListener('DOMContentLoaded',function(){
   }
 });
 </script>
-<style>
-/* ── Urgency card pulse ── */
-.auction-card.urgent-card {
-  border-color: var(--red) !important;
-  box-shadow: 0 0 0 1px rgba(255,77,106,.4), 0 0 16px rgba(255,77,106,.15);
-}
-.timer.urgent {
-  color: var(--red) !important;
-  animation: timer-pulse .8s ease-in-out infinite;
-}
-@keyframes timer-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-
-/* ── History filters ── */
-.hist-filters {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
-  align-items: center;
-}
-.hist-filters select {
-  padding: 6px 10px;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text2);
-  font-size: 12px;
-  font-family: var(--font-body);
-  outline: none;
-  cursor: pointer;
-}
-.hist-filters select:focus { border-color: var(--accent); }
-.hist-search-inline {
-  padding: 6px 10px;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font-size: 12px;
-  font-family: var(--font-body);
-  outline: none;
-  flex: 1;
-  min-width: 140px;
-}
-.hist-search-inline:focus { border-color: var(--accent); }
-</style>
 </head>
 <body>
 
-<!-- LOGIN SCREEN -->
+<!-- LOGIN -->
 <div id="login-screen" class="login-screen">
   <div class="login-card">
     <div class="login-logo">Sleeper<span>Bid</span></div>
-    <div class="login-subtitle">FAAB Proxy Auctions for Sleeper Leagues</div>
+    <div class="login-subtitle">FAAB Proxy Auctions · 2026 Season</div>
     <div class="login-field">
       <label>Sleeper Username</label>
       <input type="text" id="login-username" placeholder="your_username" autocomplete="off" />
@@ -114,13 +94,13 @@ window.addEventListener('DOMContentLoaded',function(){
   </div>
 </div>
 
-<!-- LOADING SCREEN -->
+<!-- LOADING -->
 <div id="loading-screen" class="loading-screen hidden">
   <div class="spinner" style="width:32px;height:32px;border-width:3px;"></div>
-  <div id="loading-text">Connecting to Sleeper…</div>
+  <div id="loading-text">Connecting…</div>
 </div>
 
-<!-- SETUP SCREEN -->
+<!-- SETUP -->
 <div id="setup-screen" class="hidden">
   <div class="topbar">
     <div class="topbar-logo">Sleeper<span>Bid</span></div>
@@ -133,12 +113,13 @@ window.addEventListener('DOMContentLoaded',function(){
     <div class="setup-card">
       <div class="setup-title">League Setup</div>
       <div class="setup-sub">
-        Enter your Sleeper League ID to connect. Find it in the Sleeper app under
+        Enter your Sleeper League ID. Find it in the Sleeper app under
         <strong>League → Settings → League ID</strong>.
       </div>
       <div class="input-group">
         <label class="input-label">Sleeper League ID</label>
-        <input type="text" id="setup-league-id" placeholder="e.g. 1048764523009835008" style="font-size:15px;padding:10px 14px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);outline:none;" />
+        <input type="text" id="setup-league-id" placeholder="e.g. 1048764523009835008"
+          style="font-size:15px;padding:10px 14px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);outline:none;" />
       </div>
       <div id="setup-error" style="color:var(--red);font-size:13px;margin-bottom:12px;" class="hidden"></div>
       <button class="btn btn-primary" onclick="App.doSetup()">Load League →</button>
@@ -148,45 +129,352 @@ window.addEventListener('DOMContentLoaded',function(){
 
 <!-- MAIN APP -->
 <div id="app" class="hidden">
+
+  <!-- Persistent app bar -->
   <div class="app-bar">
-    <div class="app-bar-logo">Sleeper<span>Bid</span></div>
-    <div class="app-bar-nav">
-      <button class="app-btn" onclick="window.location='rosters.html'">
-        <span class="app-btn-icon">💰</span><span>Salary Cap</span>
-      </button>
-      <div class="app-btn current">
-        <span class="app-btn-icon">🏷</span><span>Auctions</span>
-      </div>
-      <button class="app-btn" onclick="window.location='draft.html'">
-        <span class="app-btn-icon">🎓</span><span>Rookie Draft</span>
-      </button>
-      <button class="app-btn" style="opacity:.4;cursor:not-allowed;" title="Coming soon">
-        <span class="app-btn-icon">📅</span><span>Schedule</span>
-      </button>
-      <button class="app-btn" style="opacity:.4;cursor:not-allowed;" title="Coming soon">
-        <span class="app-btn-icon">🏆</span><span>Standings</span>
-      </button>
+    <div class="app-bar-logo" onclick="navigateTo('home')" style="cursor:pointer;">
+      Sleeper<span>Bid</span>
     </div>
+    <nav class="app-bar-nav">
+      <button class="app-btn" id="nav-home"      onclick="navigateTo('home')">      <span class="app-btn-icon">🏠</span><span>Home</span></button>
+      <button class="app-btn" id="nav-auction"   onclick="navigateTo('auction')">   <span class="app-btn-icon">🏷</span><span>Auction</span></button>
+      <button class="app-btn" id="nav-roster"    onclick="navigateTo('roster')">    <span class="app-btn-icon">💰</span><span>Salary Cap</span></button>
+      <button class="app-btn" id="nav-draft"     onclick="navigateTo('draft')">     <span class="app-btn-icon">🎓</span><span>Draft</span></button>
+      <button class="app-btn" style="opacity:.4;cursor:not-allowed;">               <span class="app-btn-icon">📊</span><span>Standings</span></button>
+    </nav>
     <div class="app-bar-right">
       <div class="league-badge" id="league-name-badge">League</div>
-      <button class="topbar-icon-btn" onclick="App.enableNotifications()" title="Enable notifications">🔔</button>
+      <button class="topbar-icon-btn" onclick="App.enableNotifications()" title="Notifications">🔔</button>
       <button class="topbar-icon-btn" onclick="toggleTheme()" id="theme-btn" title="Toggle theme">☀️</button>
-      <div class="avatar" id="user-avatar" title="Logged in user"></div>
+      <div class="avatar" id="user-avatar"></div>
       <button class="topbar-icon-btn" onclick="App.logout()" title="Log out">↩</button>
     </div>
   </div>
 
-  <div class="nav-tabs" id="nav-tabs-bar">
-    <div class="nav-tab active" onclick="App.switchTab('auctions')"     data-tab="auctions">🏷 Active</div>
-    <div class="nav-tab"        onclick="App.switchTab('free-agents')"  data-tab="free-agents">🔍 Free Agents</div>
-    <div class="nav-tab"        onclick="App.switchTab('watchlist')"    data-tab="watchlist">⭐ Watchlist</div>
-    <div class="nav-tab"        onclick="App.switchTab('teams')"        data-tab="teams">🏆 Teams</div>
-    <div class="nav-tab"        onclick="App.switchTab('history')"      data-tab="history">📋 History</div>
-    <div class="nav-tab"        onclick="App.switchTab('activity')"     data-tab="activity">📡 Activity</div>
-    <div class="nav-tab" id="commissioner-tab" onclick="App.switchTab('commissioner')" data-tab="commissioner" style="display:none">⚙️ Comm</div>
+  <!-- View containers -->
+  <div id="view-home">
+    <div class="home-main">
+      <div class="home-league-name" id="home-league-name">Loading…</div>
+      <div class="home-league-sub">2026 Season · FAAB Proxy Auctions</div>
+
+      <div class="home-grid">
+        <div class="home-card" onclick="navigateTo('auction')">
+          <div class="hc-badge hcb-live" id="home-badge-auction" style="display:none;"></div>
+          <div class="home-card-icon hci-auction">🏷️</div>
+          <div class="home-card-title">Auction</div>
+          <div class="home-card-sub" id="home-sub-auction">FAAB proxy bidding</div>
+        </div>
+        <div class="home-card" onclick="navigateTo('roster')">
+          <div class="home-card-icon hci-roster">💰</div>
+          <div class="home-card-title">Salary Cap</div>
+          <div class="home-card-sub" id="home-sub-roster">Rosters · cap tracking</div>
+        </div>
+        <div class="home-card" onclick="navigateTo('draft')">
+          <div class="hc-badge hcb-open" id="home-badge-draft">open</div>
+          <div class="home-card-icon hci-draft">🎓</div>
+          <div class="home-card-title">Rookie Draft</div>
+          <div class="home-card-sub">2026 draft board</div>
+        </div>
+        <div class="home-card disabled">
+          <div class="hc-badge hcb-soon">soon</div>
+          <div class="home-card-icon hci-standings">📊</div>
+          <div class="home-card-title">Standings</div>
+          <div class="home-card-sub">W/L · points · schedule</div>
+        </div>
+      </div>
+
+      <div class="home-feed">
+        <div class="home-feed-hdr">Recent Activity</div>
+        <div id="home-activity-feed"><div class="feed-empty">Loading…</div></div>
+      </div>
+    </div>
   </div>
 
-  <!-- Mobile tab dropdown -->
+  <div id="view-auction" style="display:none;"></div>
+  <div id="view-roster"  style="display:none;"></div>
+  <div id="view-draft"   style="display:none;"></div>
+
+</div><!-- /#app -->
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script src="js/sleeper.js"></script>
+<script src="js/auction.js"></script>
+<script src="js/ui.js"></script>
+<script src="js/app.js"></script>
+
+<script>
+// ── Router ────────────────────────────────────────────────────
+const VIEWS = ['home','auction','roster','draft'];
+let currentView = null;
+const viewsLoaded = {};
+
+function navigateTo(view) {
+  if (!VIEWS.includes(view)) view = 'home';
+
+  // Update nav
+  VIEWS.forEach(v => {
+    const btn = document.getElementById('nav-' + v);
+    if (btn) btn.classList.toggle('current', v === view);
+  });
+
+  // Show/hide containers
+  document.getElementById('view-home').style.display    = view==='home'    ? '' : 'none';
+  document.getElementById('view-auction').style.display = view==='auction' ? '' : 'none';
+  document.getElementById('view-roster').style.display  = view==='roster'  ? '' : 'none';
+  document.getElementById('view-draft').style.display   = view==='draft'   ? '' : 'none';
+
+  history.pushState({view}, '', '#' + view);
+  currentView = view;
+
+  if (view === 'home')    initHomeView();
+  if (view === 'auction') initAuctionView();
+  if (view === 'roster')  initRosterView();
+  if (view === 'draft')   initDraftView();
+}
+
+window.addEventListener('popstate', e => {
+  navigateTo((e.state?.view) || location.hash.replace('#','') || 'home');
+});
+
+// ── Home ─────────────────────────────────────────────────────
+function initHomeView() {
+  const name = localStorage.getItem('sb_leagueName') || 'My League';
+  const el = document.getElementById('home-league-name');
+  if (el) el.textContent = name;
+
+  // Live auction count
+  if (window.App?.state?.auctions) {
+    const now = Date.now();
+    const live = App.state.auctions.filter(a => !a.processed && !a.cancelled && a.expiresAt > now).length;
+    const badge = document.getElementById('home-badge-auction');
+    const sub   = document.getElementById('home-sub-auction');
+    if (badge) { badge.textContent = live + ' live'; badge.style.display = live ? '' : 'none'; }
+    if (sub)   sub.textContent = live + ' active auction' + (live===1?'':'s');
+  }
+
+  loadActivityFeed();
+}
+
+async function loadActivityFeed() {
+  const el = document.getElementById('home-activity-feed');
+  if (!el || !window.db) return;
+  const lid = localStorage.getItem('sb_leagueId');
+  if (!lid) { el.innerHTML = '<div class="feed-empty">No league connected.</div>'; return; }
+  try {
+    const snap = await db.ref('leagues/' + lid + '/activityFeed')
+      .orderByChild('ts').limitToLast(10).once('value');
+    const val = snap.val();
+    if (!val) { el.innerHTML = '<div class="feed-empty">No activity yet.</div>'; return; }
+    const items = Object.values(val).sort((a,b) => b.ts - a.ts);
+    const dotColors = { auction:'var(--accent2)', draft:'var(--yellow)', trade:'var(--green)' };
+    el.innerHTML = items.map(item => {
+      const color = dotColors[item.type] || 'var(--text3)';
+      const diff  = Date.now() - item.ts;
+      const m = Math.floor(diff/60000);
+      const ago = m < 1 ? 'just now' : m < 60 ? m+'m ago' : m < 1440 ? Math.floor(m/60)+'h ago' : Math.floor(m/1440)+'d ago';
+      return '<div class="feed-row"><div class="feed-dot" style="background:' + color + ';"></div>' +
+        '<div class="feed-body"><div>' + (item.msg||item.message||'Activity') + '</div>' +
+        '<div class="feed-time">' + ago + '</div></div></div>';
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="feed-empty">Could not load activity.</div>';
+  }
+}
+
+// ── Auction view ──────────────────────────────────────────────
+function initAuctionView() {
+  const container = document.getElementById('view-auction');
+  if (viewsLoaded.auction) {
+    if (window.App?.renderAll) App.renderAll();
+    return;
+  }
+  container.innerHTML = buildAuctionHTML();
+  viewsLoaded.auction = true;
+  if (window.App?.renderAll) App.renderAll();
+  if (window.App?.switchTab) App.switchTab('auctions');
+}
+
+// ── Roster/cap view ───────────────────────────────────────────
+function initRosterView() {
+  const container = document.getElementById('view-roster');
+  if (viewsLoaded.roster) {
+    if (window.setTab) setTab(window.tab || 'overview');
+    return;
+  }
+  // Inject exact DOM cap.js expects, then load cap.js
+  container.innerHTML = buildRosterHTML();
+  viewsLoaded.roster = true;
+
+  const s = document.createElement('script');
+  s.src = 'js/cap.js';
+  s.onload = () => {
+    // cap.js sets _capInitPending if DOM wasn't ready on load
+    if (window._capInitPending && window.capInit) {
+      window._capInitPending = false;
+      capInit();
+    }
+  };
+  document.head.appendChild(s);
+}
+
+// ── Draft view ────────────────────────────────────────────────
+function initDraftView() {
+  const container = document.getElementById('view-draft');
+  if (viewsLoaded.draft) {
+    if (window.refreshDraft) refreshDraft();
+    return;
+  }
+  // Inject draft DOM first so draft.js finds its elements on load
+  container.innerHTML = buildDraftHTML();
+  viewsLoaded.draft = true;
+
+  const s = document.createElement('script');
+  s.src = 'js/draft.js';
+  s.onload = () => {
+    if (window._draftInitPending && window.draftInit) {
+      window._draftInitPending = false;
+      draftInit();
+    }
+  };
+  document.head.appendChild(s);
+}
+
+// ── Draft view HTML + CSS ─────────────────────────────────────
+function buildDraftHTML() {
+  // Inject draft-specific styles if not already present
+  if (!document.getElementById('draft-styles')) {
+    const style = document.createElement('style');
+    style.id = 'draft-styles';
+    style.textContent = ':root{--bg:#0d0f14;--surface:#161820;--surface2:#1e2029;--surface3:#252733;--border:#2e3040;--border2:#3a3d52;--accent:#7c5cfc;--accent2:#9d7ffe;--green:#18e07a;--red:#ff4d6a;--yellow:#ffc94d;--cyan:#00d4ff;--text:#e8eaf0;--text2:#9296a8;--text3:#5a5e72;--font-display:"Bebas Neue",sans-serif;--font-body:"DM Sans",sans-serif;--font-mono:"JetBrains Mono",monospace;--radius:10px;--radius-sm:6px;}*{box-sizing:border-box;margin:0;padding:0;}html{overflow-x:hidden;}body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;min-height:100vh;overflow-x:hidden;}::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-track{background:var(--bg);}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}/* APP BAR */.app-bar{display:flex;align-items:center;justify-content:space-between;padding:0 16px;height:48px;background:rgba(13,15,20,.97);border-bottom:2px solid var(--accent);position:sticky;top:0;z-index:200;backdrop-filter:blur(12px);}.app-bar-logo{font-family:var(--font-display);font-size:20px;letter-spacing:1px;color:var(--text);}.app-bar-logo span{color:var(--accent);}.app-bar-nav{display:flex;align-items:center;gap:4px;}.app-btn{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:var(--radius-sm);border:none;background:none;color:var(--text3);font-size:12px;font-weight:500;font-family:var(--font-body);cursor:pointer;text-decoration:none;white-space:nowrap;transition:all .15s;}.app-btn:hover{background:var(--surface2);color:var(--text);}.app-btn.current{background:rgba(124,92,252,.15);color:var(--accent2);}.app-btn-icon{font-size:15px;}.app-bar-right{display:flex;align-items:center;gap:4px;}.tibtn{background:none;border:none;cursor:pointer;font-size:17px;padding:6px;border-radius:var(--radius-sm);color:var(--text2);display:flex;align-items:center;justify-content:center;transition:background .15s;line-height:1;}.tibtn:hover{background:var(--surface2);}.avatar{width:30px;height:30px;border-radius:50%;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--text2);overflow:hidden;flex-shrink:0;}/* LAYOUT */.main{padding:20px;max-width:1600px;margin:0 auto;}.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:12px;color:var(--text3);}.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}@keyframes spin{to{transform:rotate(360deg);}}/* LIGHT MODE */body.light-mode{--bg:#f4f5f8;--surface:#fff;--surface2:#eef0f5;--surface3:#e4e7ef;--border:#d4d8e8;--border2:#bbbfcf;--text:#18192a;--text2:#4a4e6a;--text3:#8a8eaa;}body.light-mode .app-bar{background:rgba(255,255,255,.97);}@media(max-width:600px){  html,body{overscroll-behavior:none;}  .app-bar{padding:0 10px;height:46px;}  .app-btn span:not(.app-btn-icon){display:none;}  .app-btn{padding:5px 8px;}  .main{padding:14px 10px 80px;}}/* DRAFT BOARD */.draft-header{display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px;}.draft-title{font-size:22px;font-weight:600;}.draft-subtitle{font-size:13px;color:var(--text3);margin-top:3px;}.draft-controls{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}.salary-legend{background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 14px;font-size:12px;color:var(--text3);margin-bottom:16px;display:flex;flex-wrap:wrap;gap:12px;}.legend-item{display:flex;align-items:center;gap:6px;}/* Draft round sections */.round-section{margin-bottom:28px;}.round-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;padding-bottom:8px;border-bottom:2px solid var(--border);}.round-label{font-size:15px;font-weight:600;color:var(--text2);}.round-salary{font-size:12px;color:var(--text3);font-family:var(--font-mono);}.picks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:8px;}/* Pick card */.pick-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:11px 12px;transition:border-color .15s;min-height:90px;}.pick-card.assigned{border-color:rgba(124,92,252,.5);background:rgba(124,92,252,.04);}.pick-card.sleeper-pick{border-color:rgba(24,224,122,.3);}.pick-card.has-owner{border-color:rgba(0,212,255,.2);}.pick-owner{font-size:11px;color:var(--cyan);margin-bottom:4px;font-weight:500;}.pick-num{font-size:11px;font-weight:600;color:var(--accent2);margin-bottom:5px;display:flex;align-items:center;justify-content:space-between;}.pick-sal{font-family:var(--font-mono);font-size:11px;color:var(--text3);}.pick-player{font-size:13px;font-weight:500;line-height:1.3;margin-bottom:3px;}.pick-team{font-size:11px;color:var(--accent2);}.pick-source{font-size:10px;color:var(--text3);margin-top:3px;}.pick-inputs{display:flex;flex-direction:column;gap:5px;margin-top:4px;}.pick-input{padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:12px;font-family:var(--font-body);outline:none;width:100%;cursor:pointer;}.pick-input:focus{border-color:var(--accent);}.pick-btn{padding:5px 8px;background:var(--accent);border:none;border-radius:4px;color:#fff;font-size:12px;cursor:pointer;font-family:var(--font-body);width:100%;}.pick-btn:hover{opacity:.9;}.pick-clear{padding:3px 8px;background:none;border:1px solid var(--border);border-radius:4px;color:var(--text3);font-size:10px;cursor:pointer;font-family:var(--font-body);margin-top:4px;}/* Available players panel */.available-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;position:sticky;top:56px;max-height:calc(100vh - 80px);display:flex;flex-direction:column;}.avail-header{padding:12px 14px;background:var(--surface2);border-bottom:1px solid var(--border);flex-shrink:0;}.avail-title{font-size:14px;font-weight:600;margin-bottom:6px;}.avail-pos-chips{display:flex;gap:5px;flex-wrap:wrap;}.avail-chip{padding:4px 10px;border-radius:99px;border:1px solid var(--border);background:var(--surface);color:var(--text3);font-size:11px;cursor:pointer;transition:all .15s;}.avail-chip.active{background:var(--accent);border-color:var(--accent);color:#fff;}.avail-list{overflow-y:auto;flex:1;}.avail-player{display:flex;align-items:center;justify-content:space-between;padding:8px 14px;border-bottom:1px solid rgba(46,48,64,.4);transition:background .1s;}.avail-player:hover{background:var(--surface2);}.avail-player.taken{opacity:.3;pointer-events:none;}.avail-player-name{font-size:13px;}.avail-player-sub{font-size:11px;color:var(--text3);}.avail-adp{font-size:11px;color:var(--text3);font-family:var(--font-mono);}/* pos badges */.pb{display:inline-block;padding:1px 5px;border-radius:3px;font-size:10px;font-weight:600;}.pb-QB{background:rgba(184,159,254,.15);color:#b89ffe;}.pb-RB{background:rgba(24,224,122,.12);color:#18e07a;}.pb-WR{background:rgba(0,212,255,.12);color:#00d4ff;}.pb-TE{background:rgba(255,201,77,.12);color:#ffc94d;}/* two-column layout */.draft-layout{display:grid;grid-template-columns:1fr 280px;gap:20px;align-items:start;}@media(max-width:1000px){.draft-layout{grid-template-columns:1fr;}.available-panel{position:static;max-height:400px;}}';
+    document.head.appendChild(style);
+  }
+  return '<div class="main">\n' +
+    '  <div id="draft-loading" class="loading"><div class="spinner"></div><div style="margin-top:12px;">Loading draft board…</div></div>\n' +
+    '  <div id="draft-app" style="display:none;">\n' +
+    '\n' +
+    '    <div class="draft-header">\n' +
+    '      <div>\n' +
+    '        <div class="draft-title">🎓 Rookie Draft Board</div>\n' +
+    '        <div class="draft-subtitle" id="draft-subtitle">Loading from Sleeper…</div>\n' +
+    '      </div>\n' +
+    '      <div class="draft-controls">\n' +
+    '        <button onclick="refreshDraft()" style="padding:7px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);font-size:12px;cursor:pointer;font-family:var(--font-body);">↻ Refresh</button>\n' +
+    '        <button id="assign-all-btn" onclick="assignAllCompleted()" style="display:none;padding:7px 14px;background:var(--green);color:#111;border:none;border-radius:var(--radius-sm);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body);margin-left:8px;">✓ Assign All Picks to Active Rosters</button>\n' +
+    '      </div>\n' +
+    '    </div>\n' +
+    '\n' +
+    '    <div class="salary-legend">\n' +
+    '      <div class="legend-item"><span style="font-family:var(--font-mono);color:var(--accent2);">R1</span> picks 1–6 = $15M &nbsp;·&nbsp; 7–12 = $10M</div>\n' +
+    '      <div class="legend-item"><span style="font-family:var(--font-mono);color:var(--accent2);">R2</span> picks 1–6 = $7.5M &nbsp;·&nbsp; 7–12 = $5M</div>\n' +
+    '      <div class="legend-item"><span style="font-family:var(--font-mono);color:var(--accent2);">R3</span> picks 1–6 = $3M &nbsp;·&nbsp; 7–12 = $2M</div>\n' +
+    '      <div class="legend-item"><span style="font-family:var(--font-mono);color:var(--accent2);">R4</span> all picks = $1M</div>\n' +
+    '      <div class="legend-item" style="margin-left:auto;color:var(--green);">■ via Sleeper &nbsp; <span style="color:var(--accent2);">■</span> manual</div>\n' +
+    '    </div>\n' +
+    '\n' +
+    '    <div class="draft-layout">\n' +
+    '      <div id="board-container"></div>\n' +
+    '      <div>\n' +
+    '        <div class="available-panel" id="avail-panel">\n' +
+    '          <div class="avail-header">\n' +
+    '            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">\n' +
+    '              <div class="avail-title">Available Rookies <span id="avail-debug" style="font-size:10px;color:var(--text3);font-weight:400;"></span></div>\n' +
+    '            </div>\n' +
+    '            <div style="position:relative;margin-bottom:8px;">\n' +
+    '              <span style="position:absolute;left:8px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:12px;">🔍</span>\n' +
+    '              <input id="avail-search-input" type="text" placeholder="Search players…"\n' +
+    '                style="width:100%;padding:5px 8px 5px 26px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:12px;font-family:var(--font-body);outline:none;"\n' +
+    '                oninput="availSearch=this.value.toLowerCase().trim();renderAvailList();" />\n' +
+    '            </div>\n' +
+    '            <div class="avail-pos-chips">\n' +
+    '              <div class="avail-chip active" onclick="setAvailPos(\'ALL\',this)">All</div>\n' +
+    '              <div class="avail-chip" onclick="setAvailPos(\'QB\',this)">QB</div>\n' +
+    '              <div class="avail-chip" onclick="setAvailPos(\'RB\',this)">RB</div>\n' +
+    '              <div class="avail-chip" onclick="setAvailPos(\'WR\',this)">WR</div>\n' +
+    '              <div class="avail-chip" onclick="setAvailPos(\'TE\',this)">TE</div>\n' +
+    '            </div>\n' +
+    '          </div>\n' +
+    '          <div class="avail-list" id="avail-list" style="min-height:200px;">\n' +
+    '            <div style="padding:20px;text-align:center;color:var(--text3);">Loading…</div>\n' +
+    '          </div>\n' +
+    '        </div>\n' +
+    '\n' +
+    '        <div id="draft-action-panel" style="display:none;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-top:12px;overflow:hidden;">\n' +
+    '          <!-- Tab bar -->\n' +
+    '          <div style="display:flex;border-bottom:1px solid var(--border);">\n' +
+    '            <button id="tab-assign" onclick="switchDraftTab(\'assign\')"\n' +
+    '              style="flex:1;padding:9px 6px;font-size:12px;font-weight:600;font-family:var(--font-body);background:var(--accent);color:#fff;border:none;cursor:pointer;">\n' +
+    '              ✎ Assign Pick\n' +
+    '            </button>\n' +
+    '            <button id="tab-order" onclick="switchDraftTab(\'order\')"\n' +
+    '              style="flex:1;padding:9px 6px;font-size:12px;font-weight:600;font-family:var(--font-body);background:var(--surface2);color:var(--text3);border:none;border-left:1px solid var(--border);cursor:pointer;">\n' +
+    '              🔀 Pick Order\n' +
+    '            </button>\n' +
+    '          </div>\n' +
+    '\n' +
+    '          <!-- Assign Pick panel -->\n' +
+    '          <div id="assign-panel" style="padding:12px;">\n' +
+    '            <div style="display:flex;gap:6px;margin-bottom:6px;">\n' +
+    '              <select id="assign-round-sel" onchange="onAssignRoundOrSlotChange()" style="flex:1;width:100%;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;">\n' +
+    '                <option value="">Rd</option><option value="1">Round 1</option><option value="2">Round 2</option><option value="3">Round 3</option><option value="4">Round 4</option>\n' +
+    '              </select>\n' +
+    '              <select id="assign-slot-sel" onchange="onAssignRoundOrSlotChange()" style="flex:1;width:100%;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;">\n' +
+    '                <option value="">Pick</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option><option value="6">6</option><option value="7">7</option><option value="8">8</option><option value="9">9</option><option value="10">10</option><option value="11">11</option><option value="12">12</option>\n' +
+    '              </select>\n' +
+    '            </div>\n' +
+    '            <div id="assign-owner-label" style="font-size:11px;color:var(--cyan,#00d4ff);margin-bottom:6px;min-height:16px;"></div>\n' +
+    '            <select id="assign-player-sel" style="width:100%;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;margin-bottom:6px;">\n' +
+    '              <option value="">— select player —</option>\n' +
+    '            </select>\n' +
+    '            <select id="assign-team-sel" style="width:100%;padding:6px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;margin-bottom:8px;">\n' +
+    '              <option value="">— assign to team —</option>\n' +
+    '            </select>\n' +
+    '            <button onclick="doAssignFromPanel()" class="pick-btn" style="width:100%;padding:8px;">✓ Assign to Active Roster</button>\n' +
+    '          </div>\n' +
+    '\n' +
+    '          <!-- Pick Order editor -->\n' +
+    '          <div id="order-panel" style="display:none;padding:12px;">\n' +
+    '            <div style="font-size:11px;color:var(--text3);margin-bottom:10px;line-height:1.5;">\n' +
+    '              Set who owns each pick slot. Overrides Sleeper\'s draft order and is saved to Firebase.\n' +
+    '            </div>\n' +
+    '            <div id="order-rows" style="display:flex;flex-direction:column;gap:6px;margin-bottom:10px;"></div>\n' +
+    '            <button onclick="savePickOrder(this)" class="pick-btn" style="width:100%;padding:8px;">💾 Save Pick Order</button>\n' +
+    '            <button onclick="showSlotData()" style="width:100%;margin-top:6px;padding:6px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text3);font-size:11px;cursor:pointer;font-family:var(--font-body);">🔍 Show Raw Data</button>\n' +
+    '          </div>\n' +
+    '        </div>\n' +
+    '      </div>\n' +
+    '    </div>\n' +
+    '\n' +
+    '  </div>\n' +
+    '</div>\n';
+}
+
+
+// ── App ready event (fired by app.js after login) ─────────────
+window.addEventListener('sb:ready', function() {
+  const badge = document.getElementById('league-name-badge');
+  const name  = localStorage.getItem('sb_leagueName') || '';
+  if (badge && name) badge.textContent = name;
+
+  const hash = location.hash.replace('#','') || 'home';
+  navigateTo(hash);
+});
+
+// ── Auction view HTML ─────────────────────────────────────────
+function buildAuctionHTML() {
+  const selStyle = 'padding:5px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:12px;font-family:var(--font-body);outline:none;cursor:pointer;';
+  return `
+  <div class="nav-tabs" id="nav-tabs-bar">
+    <div class="nav-tab active" onclick="App.switchTab('auctions')"    data-tab="auctions">🏷 Active</div>
+    <div class="nav-tab"       onclick="App.switchTab('free-agents')" data-tab="free-agents">🔍 Free Agents</div>
+    <div class="nav-tab"       onclick="App.switchTab('watchlist')"   data-tab="watchlist">⭐ Watchlist</div>
+    <div class="nav-tab"       onclick="App.switchTab('teams')"       data-tab="teams">🏆 Teams</div>
+    <div class="nav-tab"       onclick="App.switchTab('history')"     data-tab="history">📋 History</div>
+    <div class="nav-tab"       onclick="App.switchTab('activity')"    data-tab="activity">📡 Activity</div>
+    <div class="nav-tab" id="commissioner-tab" onclick="App.switchTab('commissioner')" data-tab="commissioner" style="display:none">⚙️ Comm</div>
+  </div>
   <div class="nav-dropdown-wrap" id="nav-dropdown-wrap">
     <select class="nav-dropdown" id="nav-dropdown" onchange="App.switchTab(this.value)">
       <option value="auctions">🏷 Active Auctions</option>
@@ -197,31 +485,9 @@ window.addEventListener('DOMContentLoaded',function(){
       <option value="activity">📡 Activity</option>
     </select>
   </div>
-
   <div class="main">
-
-    <!-- AUCTIONS TAB -->
-    <div id="tab-auctions" class="tab-content active">
-      <div class="section-header">
-        <div class="section-title">Active Auctions</div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <span class="section-count" id="auction-count">0 live</span>
-          <button class="btn btn-ghost btn-sm" onclick="App.refreshAll()">↻ Refresh</button>
-        </div>
-      </div>
-      <div id="auctions-grid" class="auction-grid"></div>
-
-      <div style="margin-top:28px;">
-        <div class="section-header">
-          <div class="section-title">Completed Auctions</div>
-          <span class="section-count" id="completed-count">0</span>
-        </div>
-        <div id="completed-grid" class="auction-grid"></div>
-      </div>
-    </div>
-
-    <!-- FREE AGENTS TAB -->
-    <div id="tab-free-agents" class="tab-content">
+    <div id="tab-auctions"      class="tab-content"></div>
+    <div id="tab-free-agents"   class="tab-content" style="display:none;">
       <div class="section-header">
         <div class="section-title">Free Agents</div>
         <div style="display:flex;gap:8px;align-items:center;">
@@ -241,8 +507,7 @@ window.addEventListener('DOMContentLoaded',function(){
           <div class="filter-chip" onclick="App.setFilter('WR',this)">WR</div>
           <div class="filter-chip" onclick="App.setFilter('TE',this)">TE</div>
         </div>
-        <select id="fa-nfl-team-filter" onchange="App.renderFreeAgents(true)"
-          style="padding:5px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:12px;font-family:var(--font-body);outline:none;cursor:pointer;">
+        <select id="fa-nfl-team-filter" onchange="App.renderFreeAgents(true)" style="${selStyle}">
           <option value="">All NFL Teams</option>
         </select>
         <div style="display:flex;gap:0;margin-left:auto;">
@@ -254,193 +519,199 @@ window.addEventListener('DOMContentLoaded',function(){
       <div id="fa-pagination-top"></div>
       <div style="overflow-x:auto;">
         <table class="fa-table">
-          <thead>
-            <tr>
-              <th onclick="App.faSort('name')" style="cursor:pointer;" id="fa-th-name">Player <span id="fa-sort-name"></span></th>
-              <th onclick="App.faSort('team')" style="cursor:pointer;" id="fa-th-team">Team <span id="fa-sort-team"></span></th>
-              <th onclick="App.faSort('bye')"  style="cursor:pointer;" id="fa-th-bye">Bye <span id="fa-sort-bye"></span></th>
-              <th onclick="App.faSort('pts')"  style="cursor:pointer;" id="fa-th-pts">Pts (2025) <span id="fa-sort-pts">▼</span></th>
-              <th style="text-align:right">Action</th>
-            </tr>
-          </thead>
+          <thead><tr>
+            <th onclick="App.faSort('name')" style="cursor:pointer;" id="fa-th-name">Player <span id="fa-sort-name"></span></th>
+            <th onclick="App.faSort('team')" style="cursor:pointer;" id="fa-th-team">Team <span id="fa-sort-team"></span></th>
+            <th onclick="App.faSort('bye')"  style="cursor:pointer;" id="fa-th-bye">Bye <span id="fa-sort-bye"></span></th>
+            <th onclick="App.faSort('pts')"  style="cursor:pointer;" id="fa-th-pts">Pts (2025) <span id="fa-sort-pts">▼</span></th>
+            <th style="text-align:right">Action</th>
+          </tr></thead>
           <tbody id="fa-tbody"></tbody>
         </table>
       </div>
       <div id="fa-pagination"></div>
     </div>
+    <div id="tab-watchlist"     class="tab-content" style="display:none;"></div>
+    <div id="tab-teams"         class="tab-content" style="display:none;"></div>
+    <div id="tab-history"       class="tab-content" style="display:none;"></div>
+    <div id="tab-activity"      class="tab-content" style="display:none;"></div>
+    <div id="tab-commissioner"  class="tab-content" style="display:none;"></div>
+  </div>
 
-    <!-- WATCHLIST TAB -->
-    <div id="tab-watchlist" class="tab-content">
-      <div class="section-header">
-        <div class="section-title">⭐ Watchlist</div>
-        <span class="section-count" id="wl-count">0 players</span>
+  <!-- Nom modal -->
+  <div id="nom-modal" class="modal-overlay" onclick="App.closeNomModalOutside(event)">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Nominate Player</div>
+        <div class="modal-close" onclick="App.closeNomModal()">&#x2715;</div>
       </div>
-      <div id="watchlist-grid" class="auction-grid"></div>
-    </div>
-
-    <!-- TEAMS TAB -->
-    <div id="tab-teams" class="tab-content">
-      <div class="section-header">
-        <div class="section-title">Teams & FAAB</div>
-        <button class="btn btn-ghost btn-sm" onclick="App.refreshAll()">↻ Refresh</button>
-      </div>
-      <div id="teams-grid" class="teams-grid"></div>
-    </div>
-
-    <!-- HISTORY TAB -->
-    <div id="tab-history" class="tab-content">
-      <div class="section-header">
-        <div class="section-title">Auction History</div>
-        <button class="btn btn-ghost btn-sm" onclick="App.refreshAll()">↻</button>
-      </div>
-      <div class="hist-filters">
-        <input class="hist-search-inline" type="text" id="hist-search" placeholder="🔍 Search player…" oninput="App.filterHistory()"/>
-        <select id="hist-team-filter" onchange="App.filterHistory()">
-          <option value="all">All Teams</option>
-        </select>
-        <select id="hist-pos-filter" onchange="App.filterHistory()">
-          <option value="all">All Positions</option>
-          <option value="QB">QB</option>
-          <option value="RB">RB</option>
-          <option value="WR">WR</option>
-          <option value="TE">TE</option>
-        </select>
-        <select id="hist-status-filter" onchange="App.filterHistory()">
-          <option value="all">All Statuses</option>
-          <option value="claimed">Claimed</option>
-          <option value="expired">Expired</option>
-          <option value="cancelled">Cancelled</option>
-        </select>
-      </div>
-      <div id="history-list" class="history-list"></div>
-    </div>
-
-    <!-- ACTIVITY FEED TAB -->
-    <div id="tab-activity" class="tab-content">
-      <div class="section-header">
-        <div class="section-title">League Activity</div>
-        <span style="font-size:12px;color:var(--text3);">Live · last 50 events</span>
-      </div>
-      <div id="activity-feed-list" class="history-list"></div>
-    </div>
-
-    <!-- COMMISSIONER TAB -->
-    <div id="tab-commissioner" class="tab-content">
-      <div class="section-header">
-        <div class="section-title">Commissioner Tools</div>
-        <span class="comm-badge">Admin</span>
-      </div>
-      <div style="display:grid;gap:14px;max-width:680px;">
-
-        <div class="card-panel">
-          <div style="font-weight:600;margin-bottom:4px;">All Auctions</div>
-          <div style="font-size:13px;color:var(--text3);margin-bottom:12px;">Cancel or delete active auctions. Use ✅ Claim on expired auctions to deduct FAAB and notify the winner.</div>
-          <div id="comm-all-auctions"><div style="color:var(--text3);font-size:13px;">No auctions yet.</div></div>
+      <div class="modal-body">
+        <div id="nom-player-info" class="info-box" style="display:flex;align-items:center;gap:12px;margin-bottom:16px;"></div>
+        <div id="nom-team-row" style="display:none;margin-bottom:12px;">
+          <label class="input-label">Nominating On Behalf Of</label>
+          <select id="nom-team-select" style="font-size:14px;padding:9px 12px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;cursor:pointer;"></select>
         </div>
-
-        <div class="card-panel">
-          <div style="font-weight:600;margin-bottom:6px;">Roster Sizes — All Teams</div>
-          <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Enter how many players are currently on each team's roster (excluding taxi). Open spots = 25 minus that number, minus auctions they're currently winning.</div>
-          <div id="comm-roster-bulk"></div>
-          <button class="btn btn-primary btn-sm" style="margin-top:12px;" onclick="App.commSetAllRosterSizes()">Save Roster Sizes</button>
+        <div class="faab-bar">
+          <span class="faab-bar-label">Available FAAB</span>
+          <span class="faab-bar-value" id="nom-faab">$0</span>
         </div>
-
-        <div class="card-panel">
-          <div style="font-weight:600;margin-bottom:6px;">Set FAAB Balances — All Teams</div>
-          <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Enter full dollar amounts (e.g. 112300000 = $112.3M). Use this at season start or to correct balances.</div>
-          <div id="comm-faab-bulk"></div>
-          <button class="btn btn-primary btn-sm" style="margin-top:12px;" onclick="App.commSetAllFaab()">Save All Balances</button>
-        </div>
-
-        <div class="card-panel">
-          <div style="font-weight:600;margin-bottom:6px;">Quick Single Override</div>
-          <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Quickly adjust one team's balance (full dollar amount).</div>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;">
-            <div style="flex:1;min-width:160px;">
-              <label class="input-label">Team</label>
-              <select id="comm-team-select" style="font-size:14px;padding:9px 12px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;cursor:pointer;"></select>
-            </div>
-            <div style="width:160px;">
-              <label class="input-label">New FAAB ($)</label>
-              <div style="position:relative;">
-                <span style="position:absolute;left:10px;top:50%;transform:translateY(-50%);color:var(--text3);font-family:var(--font-mono);">$</span>
-                <input type="number" id="comm-faab-val" min="0" style="padding:9px 12px 9px 24px;font-family:var(--font-mono);font-size:14px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;" />
-              </div>
-            </div>
-            <button class="btn btn-primary btn-sm" onclick="App.commOverrideFaab()">Update</button>
+        <div class="input-group">
+          <label class="input-label">Opening Max Bid</label>
+          <div style="position:relative;">
+            <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-family:var(--font-mono);font-size:16px;pointer-events:none;">$</span>
+            <input type="number" id="nom-bid-input" min="100000" step="100000" value="100000"
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:22px;padding:10px 14px 10px 28px;outline:none;" />
           </div>
+          <div class="input-hint" id="nom-hint">Minimum $100,000. Bids in $100K increments. Auction runs 8 hours.</div>
         </div>
-
-        <div class="card-panel">
-          <div style="font-weight:600;margin-bottom:6px;">Reset All Auction Data</div>
-          <div style="font-size:13px;color:var(--text3);margin-bottom:14px;">Clears ALL auction history from Firebase. Cannot be undone.</div>
-          <button class="btn btn-sm" style="background:var(--red-dim);color:var(--red);border:1px solid rgba(255,77,106,0.25);" onclick="App.confirmReset()">Reset All Auction Data</button>
-        </div>
-
+        <div id="nom-error" class="hidden" style="color:var(--red);font-size:13px;margin-top:8px;"></div>
       </div>
-    </div>
-
-  </div>
-</div>
-
-
-<!-- NOMINATE MODAL -->
-<div id="nom-modal" class="modal-overlay" onclick="App.closeNomModalOutside(event)">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title">Nominate Player</div>
-      <div class="modal-close" onclick="App.closeNomModal()">✕</div>
-    </div>
-    <div class="modal-body">
-      <div id="nom-player-info" class="info-box" style="display:flex;align-items:center;gap:12px;margin-bottom:16px;"></div>
-      <div id="nom-team-row" style="display:none;margin-bottom:12px;">
-        <label class="input-label">Nominating On Behalf Of</label>
-        <select id="nom-team-select" style="font-size:14px;padding:9px 12px;width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;cursor:pointer;"></select>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="App.closeNomModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="App.submitNomination()">Start Auction &#x2192;</button>
       </div>
-      <div class="faab-bar">
-        <span class="faab-bar-label">Available FAAB</span>
-        <span class="faab-bar-value" id="nom-faab">$0</span>
-      </div>
-      <div class="input-group">
-        <label class="input-label">Opening Max Bid</label>
-        <div style="position:relative;">
-          <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-family:var(--font-mono);font-size:16px;pointer-events:none;">$</span>
-          <input type="number" id="nom-bid-input" min="100000" step="100000" value="100000" placeholder="100000"
-            style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:22px;padding:10px 14px 10px 28px;outline:none;" />
-        </div>
-        <div class="input-hint" id="nom-hint">Minimum $100,000. Bids in $100K increments. Auction runs 8 hours.</div>
-      </div>
-      <div id="nom-error" class="hidden" style="color:var(--red);font-size:13px;margin-top:8px;"></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="App.closeNomModal()">Cancel</button>
-      <button class="btn btn-primary" onclick="App.submitNomination()">Start Auction →</button>
     </div>
   </div>
-</div>
 
-<!-- TOAST CONTAINER -->
-<div class="toast-container" id="toast-container"></div>
+  <!-- Bid modal -->
+  <div id="bid-modal" class="modal-overlay" onclick="App.closeBidModalOutside(event)">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Place Bid</div>
+        <div class="modal-close" onclick="App.closeBidModal()">&#x2715;</div>
+      </div>
+      <div class="modal-body">
+        <div id="bid-modal-player-info" class="info-box" style="display:flex;align-items:center;gap:12px;margin-bottom:12px;"></div>
+        <div id="bid-current-info" style="font-size:12px;color:var(--text3);margin-bottom:12px;padding:8px 12px;background:var(--surface2);border-radius:var(--radius-sm);"></div>
+        <div class="faab-bar">
+          <span class="faab-bar-label">Your Available FAAB</span>
+          <span class="faab-bar-value" id="bid-modal-faab">$0</span>
+        </div>
+        <div class="input-group">
+          <label class="input-label">Your Max Bid</label>
+          <div style="position:relative;">
+            <span style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-family:var(--font-mono);font-size:16px;pointer-events:none;">$</span>
+            <input type="number" id="bid-amount-input" min="100000" step="100000"
+              oninput="App.updateBidHint()"
+              style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:22px;padding:10px 14px 10px 28px;outline:none;" />
+          </div>
+          <div id="bid-hint" class="input-hint" style="margin-top:6px;font-size:12px;color:var(--text3);"></div>
+        </div>
+        <div id="cap-impact-preview" style="font-size:12px;color:var(--text3);margin-top:8px;"></div>
+        <div id="bid-stat-breakdown"></div>
+        <div style="margin-top:14px;">
+          <div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;">Bid History</div>
+          <div id="bid-history-list" style="max-height:140px;overflow-y:auto;border:1px solid var(--border);border-radius:var(--radius-sm);"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="App.closeBidModal()">Cancel</button>
+        <button class="btn btn-primary" id="bid-submit-btn" onclick="App.submitBid()">Place Max Bid</button>
+      </div>
+    </div>
+  </div>
 
-<!-- Firebase SDK (v9 compat) -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <!-- Toast container -->
+  <div class="toast-container" id="toast-container"></div>`;
+}
 
-<!-- App config & logic -->
-<script src="js/firebase-config.js"></script>
-<script src="js/sleeper.js"></script>
-<script src="js/auction.js"></script>
-<script src="js/ui.js"></script>
-<script src="js/app.js"></script>
-
-<!-- Service Worker registration -->
-<script>
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('/sw.js').catch(e => console.warn('SW failed:', e));
-    });
-  }
+// ── Roster view HTML — exact same structure cap.js expects ────
+function buildRosterHTML() {
+  return `
+  <div class="nav-tabs" id="cap-nav-tabs-bar">
+    <button class="nav-tab active" onclick="setTab('overview')"   data-tab="overview">Overview</button>
+    <button class="nav-tab"        onclick="setTab('allplayers')" data-tab="allplayers">All Players</button>
+    <button class="nav-tab"        onclick="setTab('compare')"    data-tab="compare">Compare</button>
+    <button class="nav-tab"        onclick="setTab('toppaid')"    data-tab="toppaid">Top Paid</button>
+    <button class="nav-tab"        onclick="setTab('taxi')"       data-tab="taxi">🚕 Taxi</button>
+    <button class="nav-tab"        onclick="setTab('watchlist')"  data-tab="watchlist">⭐ Watchlist</button>
+    <button class="nav-tab" id="comm-tab" style="display:none;" onclick="setTab('commish')" data-tab="commish">⚙️ Commish</button>
+  </div>
+  <div class="nav-dd-wrap">
+    <select class="nav-dd" id="nav-dd" onchange="setTab(this.value)">
+      <option value="overview">Overview</option>
+      <option value="allplayers">All Players</option>
+      <option value="compare">Compare</option>
+      <option value="toppaid">Top Paid</option>
+      <option value="taxi">🚕 Taxi</option>
+      <option value="watchlist">⭐ Watchlist</option>
+    </select>
+  </div>
+  <div class="main">
+    <div id="cap-loading" class="loading"><div class="spinner"></div><div>Connecting…</div></div>
+    <div id="cap-app" style="display:none;">
+      <div id="tab-overview"></div>
+      <div id="tab-allplayers"  style="display:none;"></div>
+      <div id="tab-compare"     style="display:none;"></div>
+      <div id="tab-toppaid"     style="display:none;"></div>
+      <div id="tab-taxi"        style="display:none;"></div>
+      <div id="cap-tab-watchlist"   style="display:none;"></div>
+      <div id="tab-rookiedraft" style="display:none;"></div>
+      <div id="tab-commish"     style="display:none;"></div>
+    </div>
+    <div id="team-panel" style="display:none;position:fixed;top:0;right:0;bottom:0;width:min(520px,100vw);background:var(--surface);border-left:1px solid var(--border);z-index:200;overflow-y:auto;box-shadow:-8px 0 32px rgba(0,0,0,.4);">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);background:var(--surface2);position:sticky;top:0;z-index:10;">
+        <span id="team-panel-title" style="font-size:15px;font-weight:600;"></span>
+        <button onclick="closeTeamPanel()" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:2px 6px;">✕</button>
+      </div>
+      <div id="team-panel-body" style="padding:20px;"></div>
+    </div>
+  </div>
+  <div class="modal-overlay" id="edit-modal" onclick="if(event.target===this)closeModal()">
+    <div class="modal-box">
+      <div class="modal-title" id="modal-title">Edit Player</div>
+      <div class="modal-field">
+        <div class="modal-label">Player Name</div>
+        <input class="modal-input" id="modal-name" type="text" placeholder="First Last"/>
+      </div>
+      <div class="modal-field" id="modal-pos-field">
+        <div class="modal-label">Position</div>
+        <select class="modal-select" id="modal-pos">
+          <option value="QB">QB</option><option value="RB">RB</option>
+          <option value="WR">WR</option><option value="TE">TE</option>
+        </select>
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">Salary</div>
+        <input class="modal-input" id="modal-salary" type="number" min="100000" step="100000" placeholder="e.g. 5000000"/>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">Enter full dollar amount (e.g. 5000000 = $5M)</div>
+      </div>
+      <div class="modal-field">
+        <div class="modal-label">Roster Slot</div>
+        <select class="modal-select" id="modal-slot" onchange="document.getElementById('modal-yeexp-row').style.display=this.value==='taxi'?'':'none';">
+          <option value="starters">Active Roster</option>
+          <option value="ir">IR (75% cap hit)</option>
+          <option value="taxi">Taxi (no cap hit)</option>
+        </select>
+      </div>
+      <div class="modal-field" id="modal-yeexp-row" style="display:none;">
+        <div class="modal-label">Years Experience (taxi graduation)</div>
+        <select class="modal-select" id="modal-yeexp">
+          <option value="">— not set —</option>
+          <option value="0">0 — rookie year</option>
+          <option value="1">1 — second year</option>
+          <option value="2">2 — last year (must promote next)</option>
+          <option value="3">3 — must promote now</option>
+        </select>
+      </div>
+      <div class="modal-err" id="modal-err"></div>
+      <div class="modal-footer">
+        <button class="btn-danger" id="modal-delete-btn" onclick="deletePlayer()" style="display:none;">🗑 Remove</button>
+        <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+        <button class="btn-save" onclick="savePlayer()">Save</button>
+      </div>
+    </div>
+  </div>
+  <span id="last-upd" style="display:none;"></span>`;
+}
 </script>
 
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('/sw.js').catch(e=>console.warn('SW:',e));
+  });
+}
+</script>
 </body>
 </html>
