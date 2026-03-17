@@ -67,7 +67,11 @@ const UI = (() => {
       const h          = Math.floor(msLeft / 3600000);
       const m          = Math.floor((msLeft % 3600000) / 60000);
       banner.innerHTML = `🌙 Auctions are paused overnight (12am–8am CT). Timers resume in <strong>${h}h ${m}m</strong>.`;
-      const navTabs = document.querySelector('.nav-tabs');
+      // Insert only into auction view nav-tabs, not cap or draft tabs
+      const auctionView = document.getElementById('view-auction');
+      const navTabs = auctionView
+        ? auctionView.querySelector('.nav-tabs')
+        : document.querySelector('.nav-tabs');
       if (navTabs) navTabs.insertAdjacentElement('afterend', banner);
     } else if (!paused && existing) {
       existing.remove();

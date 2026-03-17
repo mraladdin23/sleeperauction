@@ -55,7 +55,7 @@ function rookieSal(r, p) { return r >= 4 ? 1_000_000 : (ROOKIE_SALARY[`${r}-${p}
 const fmtM = n => n >= 1e6 ? '$' + (n/1e6).toFixed(1) + 'M' : n >= 1e3 ? '$' + (n/1e3).toFixed(0) + 'K' : '$' + n;
 
 // ── State ─────────────────────────────────────────────────────
-let DATA = null;            // roster data
+let DRAFT_DATA = null;            // roster data
 let board = {};             // { 'r-p': { player, team, salary, sleeperPick } }
 let rookiePlayers = [];     // available rookie list
 let availPosFilter = 'ALL';
@@ -72,7 +72,7 @@ async function init() {
   // Load roster data from Firebase (needed for team dropdowns)
   try {
     const snap = await db.ref(`leagues/${leagueId()}/rosterData`).once('value');
-    DATA = snap.val() || {};
+    DRAFT_DATA = snap.val() || {};
   } catch(e) {}
   // Refresh CAP from Firebase settings
   try {
@@ -93,7 +93,7 @@ let rosterIdToDisplayName = {};  // Sleeper roster_id (string) → display name 
 async function loadRosterMapping() {
   rosterIdToTeam = {};
   // The cap team keys ARE the Sleeper usernames — so we just need
-  // Sleeper roster_id → username, then look up in DATA directly.
+  // Sleeper roster_id → username, then look up in DRAFT_DATA directly.
   try {
     const [rosters, users] = await Promise.all([
       fetch(`https://api.sleeper.app/v1/league/${leagueId()}/rosters`).then(r=>r.json()),
@@ -104,9 +104,9 @@ async function loadRosterMapping() {
     (rosters||[]).forEach(r => {
       const u = userById[r.owner_id] || {};
       const username = (u.username || '').toLowerCase();
-      // Cap key is the username — verify it exists in DATA, fallback to display_name
-      const capKey = DATA[username] ? username
-                   : Object.keys(DATA||{}).find(k => k.toLowerCase() === (u.display_name||'').toLowerCase())
+      // Cap key is the username — verify it exists in DRAFT_DATA, fallback to display_name
+      const capKey = DRAFT_DATA[username] ? username
+                   : Object.keys(DRAFT_DATA||{}).find(k => k.toLowerCase() === (u.display_name||'').toLowerCase())
                    || username;
       rosterIdToTeam[String(r.roster_id)] = capKey;
       rosterIdToDisplayName[String(r.roster_id)] = u.display_name || u.username || `Roster ${r.roster_id}`;
@@ -249,7 +249,7 @@ async function refreshDraft() {
     // Build slot owner debug string
     const slotDebug = Object.entries(slotOwners)
       .sort((a,b) => { const [ar,ap]=a[0].split('-').map(Number); const [br,bp]=b[0].split('-').map(Number); return ar!==br?ar-br:ap-bp; })
-      .map(([key, val]) => `${key}:${DATA[val]?.team_name||val}`).join(' · ');
+      .map(([key, val]) => `${key}:${DRAFT_DATA[val]?.team_name||val}`).join(' · ');
     document.getElementById('draft-subtitle').textContent =
       `${statusLabel} · ${draftInfo.season || ''} · type: ${draftInfo.type} · ID: ${draftInfo.draft_id}`;
     document.getElementById('draft-subtitle').title =
@@ -314,7 +314,7 @@ async function loadRookiePlayers() {
     const SKILL = new Set(['QB','RB','WR','TE']);
     const draftedNames = new Set(Object.values(board).map(p => (p.player||'').toLowerCase()));
     const rostered = new Set();
-    Object.values(DATA || {}).forEach(t => {
+    Object.values(DRAFT_DATA || {}).forEach(t => {
       [...(t.starters||[]),...(t.ir||[]),...(t.taxi||[])].forEach(p => {
         if (p.name) rostered.add(p.name.toLowerCase());
       });
@@ -403,17 +403,17 @@ async function autoSaveCompletedDraft(draftPicks) {
     for (const [key, pick] of Object.entries(draftPicks)) {
       if (existingBoard[key]) continue; // already saved manually, skip
       const teamKey = rosterIdToTeam[pick.rosterId];
-      if (!teamKey || !DATA[teamKey]) continue;
+      if (!teamKey || !DRAFT_DATA[teamKey]) continue;
 
       // Calculate salary from pick key
       const [r, p] = key.split('-').map(Number);
       const sal = rookieSal(r, p);
 
       // Add to active roster (not taxi - commissioner will move to taxi if needed)
-      if (!DATA[teamKey].starters) DATA[teamKey].starters = [];
-      const alreadyRostered = [...(DATA[teamKey].starters||[]),...(DATA[teamKey].taxi||[])].some(pl => pl.name === pick.player);
+      if (!DRAFT_DATA[teamKey].starters) DRAFT_DATA[teamKey].starters = [];
+      const alreadyRostered = [...(DRAFT_DATA[teamKey].starters||[]),...(DRAFT_DATA[teamKey].taxi||[])].some(pl => pl.name === pick.player);
       if (!alreadyRostered) {
-        DATA[teamKey].starters.push({ name: pick.player, pos: '—', salary: sal });
+        DRAFT_DATA[teamKey].starters.push({ name: pick.player, pos: '—', salary: sal });
         changed = true;
       }
 
@@ -423,11 +423,11 @@ async function autoSaveCompletedDraft(draftPicks) {
 
     if (changed) {
       // Recalculate cap for affected teams and check over-cap
-      Object.values(DATA).forEach(t => {
+      Object.values(DRAFT_DATA).forEach(t => {
         t.cap_spent = (t.starters||[]).reduce((s,p)=>s+p.salary,0)
                     + (t.ir||[]).reduce((s,p)=>s+Math.round(p.salary*.75),0);
       });
-      await db.ref(`leagues/${leagueId()}/rosterData`).set(DATA);
+      await db.ref(`leagues/${leagueId()}/rosterData`).set(DRAFT_DATA);
       await db.ref(`leagues/${leagueId()}/rookieDraft`).set(existingBoard);
     }
   } catch(e) { console.warn('autoSaveCompletedDraft:', e); }
@@ -457,11 +457,11 @@ function renderBoard() {
       // For snake drafts, even rounds reverse the pick order
       // Look up owner by round-pick key directly
       const ownerKey  = slotOwners[`${r}-${p}`] || null;
-      const ownerName = ownerKey ? (DATA[ownerKey]?.team_name || ownerKey) : null;
+      const ownerName = ownerKey ? (DRAFT_DATA[ownerKey]?.team_name || ownerKey) : null;
       const isSleeper = pick.sleeperPick && !pick.team;
       const assignedTeamKey  = pick.team || null;
-      const assignedTeamName = assignedTeamKey ? (DATA[assignedTeamKey]?.team_name || assignedTeamKey) : '';
-      const isOverCap = assignedTeamKey && DATA[assignedTeamKey]?.cap_spent > CAP;
+      const assignedTeamName = assignedTeamKey ? (DRAFT_DATA[assignedTeamKey]?.team_name || assignedTeamKey) : '';
+      const isOverCap = assignedTeamKey && DRAFT_DATA[assignedTeamKey]?.cap_spent > CAP;
 
       const cardCls = assigned
         ? (pick.team ? 'assigned' : 'sleeper-pick')
@@ -584,14 +584,14 @@ function onAssignRoundOrSlotChange() {
 
   // Look up owner by round-pick key directly
   const ownerKey = slotOwners[`${r}-${p}`] || null;
-  const ownerName = ownerKey ? (DATA[ownerKey]?.team_name || ownerKey) : null;
+  const ownerName = ownerKey ? (DRAFT_DATA[ownerKey]?.team_name || ownerKey) : null;
 
   // Show who owns the pick
   ownerLabel.textContent = ownerName ? `Pick ${r}.${String(p).padStart(2,'0')} owned by: ${ownerName}` : '';
 
   // Pre-populate team dropdown with owner
   tSel.innerHTML = '<option value="">— assign to team —</option>' +
-    Object.entries(DATA||{}).map(([k,t]) =>
+    Object.entries(DRAFT_DATA||{}).map(([k,t]) =>
       `<option value="${k}"${k===ownerKey?' selected':''}>${t.team_name}</option>`
     ).join('');
 
@@ -668,20 +668,20 @@ async function assignPick(key, salary, suppliedPlayer, suppliedTeam) {
   board[key] = entry;
 
   // Add to team's ACTIVE roster (not taxi — commissioner moves to taxi manually if needed)
-  if (DATA && DATA[teamKey]) {
-    if (!DATA[teamKey].starters) DATA[teamKey].starters = [];
-    const already = [...(DATA[teamKey].starters||[]),...(DATA[teamKey].taxi||[])].some(p => p.name === pName);
+  if (DRAFT_DATA && DRAFT_DATA[teamKey]) {
+    if (!DRAFT_DATA[teamKey].starters) DRAFT_DATA[teamKey].starters = [];
+    const already = [...(DRAFT_DATA[teamKey].starters||[]),...(DRAFT_DATA[teamKey].taxi||[])].some(p => p.name === pName);
     if (!already) {
-      DATA[teamKey].starters.push({ name: pName, pos: '—', salary });
+      DRAFT_DATA[teamKey].starters.push({ name: pName, pos: '—', salary });
     }
     // Recalculate cap
-    DATA[teamKey].cap_spent = (DATA[teamKey].starters||[]).reduce((s,p)=>s+p.salary,0)
-      + (DATA[teamKey].ir||[]).reduce((s,p)=>s+Math.round(p.salary*.75),0);
-    await db.ref(`leagues/${leagueId()}/rosterData`).set(DATA);
+    DRAFT_DATA[teamKey].cap_spent = (DRAFT_DATA[teamKey].starters||[]).reduce((s,p)=>s+p.salary,0)
+      + (DRAFT_DATA[teamKey].ir||[]).reduce((s,p)=>s+Math.round(p.salary*.75),0);
+    await db.ref(`leagues/${leagueId()}/rosterData`).set(DRAFT_DATA);
     // Warn if over cap
-    if (DATA[teamKey].cap_spent > CAP) {
-      const over = fmtM(DATA[teamKey].cap_spent - CAP);
-      setTimeout(() => alert(`⚠️ ${DATA[teamKey].team_name} is now OVER CAP by ${over}!\nThey need to drop players to get under ${fmtM(CAP)}.`), 100);
+    if (DRAFT_DATA[teamKey].cap_spent > CAP) {
+      const over = fmtM(DRAFT_DATA[teamKey].cap_spent - CAP);
+      setTimeout(() => alert(`⚠️ ${DRAFT_DATA[teamKey].team_name} is now OVER CAP by ${over}!\nThey need to drop players to get under ${fmtM(CAP)}.`), 100);
     }
   }
 
@@ -694,8 +694,8 @@ async function clearPick(key) {
   if (!pick) return;
 
   // Remove from starters (where assignPick places them)
-  if (pick.team && DATA && DATA[pick.team]) {
-    const t = DATA[pick.team];
+  if (pick.team && DRAFT_DATA && DRAFT_DATA[pick.team]) {
+    const t = DRAFT_DATA[pick.team];
     for (const slot of ['starters', 'taxi']) {
       const arr = t[slot] || [];
       const idx = arr.findIndex(p => p.name === pick.player);
@@ -703,7 +703,7 @@ async function clearPick(key) {
         arr.splice(idx, 1);
         t.cap_spent = (t.starters||[]).reduce((s,p)=>s+p.salary,0)
           + (t.ir||[]).reduce((s,p)=>s+Math.round(p.salary*.75),0);
-        await db.ref(`leagues/${leagueId()}/rosterData`).set(DATA);
+        await db.ref(`leagues/${leagueId()}/rosterData`).set(DRAFT_DATA);
         break;
       }
     }
@@ -743,7 +743,7 @@ function renderOrderPanel() {
       const key   = r + '-' + p;
       const owner = slotOwners[key] || '';
       const teamOpts = '<option value="">— owner —</option>' +
-        Object.entries(DATA||{}).map(([k,t]) =>
+        Object.entries(DRAFT_DATA||{}).map(([k,t]) =>
           '<option value="' + k + '"' + (k===owner?' selected':'') + '>' + t.team_name + '</option>'
         ).join('');
       rows += '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
@@ -786,11 +786,11 @@ function showSlotData() {
   const rows = Object.entries(slotOwners)
     .sort((a,b) => { const [ar,ap]=a[0].split('-').map(Number); const [br,bp]=b[0].split('-').map(Number); return ar!==br?ar-br:ap-bp; })
     .map(([key, val]) => {
-      const teamName = DATA[val]?.team_name || val;
+      const teamName = DRAFT_DATA[val]?.team_name || val;
       return `Pick ${key}: ${teamName}`;
     });
   const rMap = Object.entries(rosterIdToTeam)
-    .map(([rid, key]) => `  rid ${rid} → "${key}" (${DATA[key]?.team_name||'NOT IN DATA'})`).join('\n');
+    .map(([rid, key]) => `  rid ${rid} → "${key}" (${DRAFT_DATA[key]?.team_name||'NOT IN DRAFT_DATA'})`).join('\n');
   const rawSlot = JSON.stringify(draftInfo?.slot_to_roster_id || 'MISSING', null, 2);
   const rawOrder = JSON.stringify(draftInfo?.draft_order || 'MISSING', null, 2);
   alert(

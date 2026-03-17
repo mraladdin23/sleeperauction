@@ -178,7 +178,11 @@ const fmtM    = n => n>=1e6?'$'+(n/1e6).toFixed(1)+'M':n>=1e3?'$'+(n/1e3).toFixe
 const pctOf   = n => ((n/CAP)*100).toFixed(1)+'%';
 const capClr  = s => s/CAP>.72?'var(--red)':s/CAP>.58?'var(--yellow)':'var(--green)';
 const posTotal= (t,pos) => t.starters.filter(p=>p.pos===pos).reduce((a,p)=>a+p.salary,0);
-const badge   = pos => `<span class="pos-badge pb-${pos}">${pos}</span>`;
+const badge   = pos => {
+  if (pos === 'IR')   return '<span title="IR" style="font-size:13px;cursor:default;">🏥</span>';
+  if (pos === 'Taxi') return '<span title="Taxi squad" style="font-size:13px;cursor:default;">🚕</span>';
+  return `<span class="pos-badge pb-${pos}">${pos}</span>`;
+};
 
 // ── Tab switcher ──────────────────────────────────────────────
 function setTab(t) {
@@ -321,7 +325,7 @@ function renderRosters() {
       rows+=players.map(p=>{
         const bw=Math.round(p.salary/maxSal*100);
         const ho=(holdouts[key]||{})[p.name];
-        const hoBadge=ho?`<span class="holdout-badge">🔥${ho.note?' '+ho.note:''}</span>`:'';
+        const hoBadge=ho?'<span title="Holdout" style="font-size:13px;cursor:default;">🔥</span>':''; 
         const hoBtn=comm?`<button class="act-btn" onclick="toggleHoldout('${key}','${p.name.replace(/'/g,"\\'")}')" title="${ho?'Remove holdout':'Flag holdout'}">${ho?'🔥':'🏳'}</button>`:'';
         const editBtn=comm?`<td class="act-cell">${hoBtn}<button class="act-btn" onclick="openEdit('${key}','starters',${p._idx})">✏️</button></td>`:'';
         return `<tr class="pr">
@@ -353,7 +357,7 @@ function renderRosters() {
       rows+=`<tr class="sec-row"><td colspan="${comm?3:2}">IR <span style="opacity:.55;font-size:10px;">75% cap</span></td><td class="sec-add">${ab}</td></tr>`;
       rows+=irArr.map((p,i)=>{
         const eb=comm?`<td class="act-cell"><button class="act-btn" onclick="openEdit('${key}','ir',${i})">✏️</button></td>`:'';
-        return `<tr class="pr"><td>${p.name}${ageBadge(p.name)}<span class="ir-note">IR</span></td><td>${badge('IR')}</td><td class="sal-cell">${fmtM(Math.round(p.salary*.75))}</td>${eb}</tr>`;
+        return `<tr class="pr"><td>${p.name}${ageBadge(p.name)}<span title="IR" style="font-size:11px;margin-left:3px;cursor:default;">🏥</span></td><td>${badge('IR')}</td><td class="sal-cell">${fmtM(Math.round(p.salary*.75))}</td>${eb}</tr>`;
       }).join('');
     } else if(comm){
       rows+=`<tr class="sec-row"><td colspan="3">IR <span style="opacity:.55;font-size:10px;">75% cap</span></td><td class="sec-add"><button class="add-slot-btn" onclick="openAdd('${key}','ir','')">+IR</button></td></tr>`;
