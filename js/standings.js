@@ -24,11 +24,19 @@ function renderStandingsShell() {
   if (!container) return;
   container.innerHTML = `
     <div class="nav-tabs" id="standings-nav-tabs">
-      <button class="nav-tab active" onclick="switchStandingsTab('standings')"  data-tab="standings">📊 Standings</button>
-      <button class="nav-tab"        onclick="switchStandingsTab('matchups')"   data-tab="matchups">🏈 Matchups</button>
-      <button class="nav-tab"        onclick="switchStandingsTab('playoffs')"   data-tab="playoffs">🏆 Playoffs</button>
+      <div class="nav-tab active" onclick="switchStandingsTab('standings')" data-tab="standings">📊 Standings</div>
+      <div class="nav-tab"        onclick="switchStandingsTab('matchups')"  data-tab="matchups">🏈 Matchups</div>
+      <div class="nav-tab"        onclick="switchStandingsTab('playoffs')"  data-tab="playoffs">🏆 Playoffs</div>
+    </div>
+    <div class="nav-dropdown-wrap">
+      <select class="nav-dd" id="standings-nav-dd" onchange="switchStandingsTab(this.value)">
+        <option value="standings">📊 Standings</option>
+        <option value="matchups">🏈 Matchups</option>
+        <option value="playoffs">🏆 Playoffs</option>
+      </select>
     </div>
     <div class="main">
+      <div id="st-season-bar" style="display:none;margin-bottom:14px;"></div>
       <div id="st-tab-standings"></div>
       <div id="st-tab-matchups"  style="display:none;"></div>
       <div id="st-tab-playoffs"  style="display:none;"></div>
@@ -41,6 +49,9 @@ function switchStandingsTab(name) {
   if (!scope) return;
   scope.querySelectorAll('#standings-nav-tabs .nav-tab').forEach(b =>
     b.classList.toggle('active', b.dataset.tab === name));
+  // Sync dropdown
+  const dd = document.getElementById('standings-nav-dd');
+  if (dd) dd.value = name;
   ['standings','matchups','playoffs'].forEach(t => {
     const el = document.getElementById('st-tab-' + t);
     if (el) el.style.display = t === name ? '' : 'none';
@@ -53,6 +64,7 @@ function switchStandingsTab(name) {
 // ── Data loading ───────────────────────────────────────────────
 async function loadStandingsData(forceRefresh) {
   const lid = standingsLeagueId();
+  viewingLeagueId = null;  // reset to current season
   showStandingsLoading('Loading standings…');
 
   // Try Firebase cache
@@ -116,8 +128,110 @@ async function loadStandingsData(forceRefresh) {
     }).catch(() => {});
 
     renderStandingsTab();
+    // Load historical seasons in background (non-blocking)
+    if (!historicalLeagues.length) loadHistoricalSeasons(league);
   } catch(e) {
     showStandingsError('Could not load standings: ' + (e.message || e));
+  }
+}
+
+// ── Historical seasons ─────────────────────────────────────────
+async function loadHistoricalSeasons(currentLeague) {
+  historicalLeagues = [];
+  const currentSeason = currentLeague.season || new Date().getFullYear();
+  historicalLeagues.push({
+    leagueId: standingsLeagueId(),
+    season:   currentSeason,
+    name:     currentLeague.name || currentSeason,
+    current:  true,
+  });
+
+  // Walk back through previous_league_id chain
+  let prevId = currentLeague.previous_league_id;
+  let attempts = 0;
+  while (prevId && attempts < 10) {
+    attempts++;
+    try {
+      const league = await Sleeper.fetchLeague(prevId);
+      historicalLeagues.push({
+        leagueId: prevId,
+        season:   league.season || (currentSeason - attempts),
+        name:     league.name || String(currentSeason - attempts),
+        current:  false,
+      });
+      prevId = league.previous_league_id;
+    } catch(e) { break; }
+  }
+
+  // Only show season bar if there are multiple seasons
+  if (historicalLeagues.length > 1) renderSeasonBar();
+}
+
+function renderSeasonBar() {
+  const bar = document.getElementById('st-season-bar');
+  if (!bar) return;
+  const currentId = viewingLeagueId || standingsLeagueId();
+  bar.style.display = '';
+  bar.innerHTML =
+    '<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;font-weight:600;">Season</div>' +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+    historicalLeagues.map(h =>
+      `<button onclick="switchSeason('${h.leagueId}')"
+        style="padding:5px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);
+        background:${h.leagueId===currentId?'var(--accent)':'var(--surface2)'};
+        color:${h.leagueId===currentId?'#fff':'var(--text2)'};font-size:12px;cursor:pointer;
+        font-family:var(--font-body);">${h.season}${h.current?' ★':''}</button>`
+    ).join('') +
+    '</div>';
+}
+
+async function switchSeason(leagueId) {
+  viewingLeagueId = leagueId;
+  matchupsCache   = {};   // clear matchup cache for this season
+  renderSeasonBar();
+
+  // Fetch data for this season
+  showStandingsLoading('Loading ' + (historicalLeagues.find(h=>h.leagueId===leagueId)?.season || 'season') + ' standings…');
+  try {
+    const [league, rosters, users] = await Promise.all([
+      Sleeper.fetchLeague(leagueId),
+      Sleeper.fetchRosters(leagueId),
+      Sleeper.fetchLeagueUsers(leagueId),
+    ]);
+
+    const week = league.settings?.leg || league.settings?.week || 17;
+    currentWeek = week;
+
+    const userMap = {};
+    (users || []).forEach(u => { userMap[u.user_id] = u; });
+
+    const teams = (rosters || []).map(r => {
+      const u = userMap[r.owner_id] || {};
+      const s = r.settings || {};
+      return {
+        roster_id:    r.roster_id,
+        owner_id:     r.owner_id,
+        display_name: u.display_name || u.username || `Team ${r.roster_id}`,
+        avatar:       u.avatar || null,
+        username:     (u.username || '').toLowerCase(),
+        wins:         s.wins   || 0,
+        losses:       s.losses || 0,
+        ties:         s.ties   || 0,
+        fpts:         (s.fpts  || 0) + (s.fpts_decimal  || 0) / 100,
+        fpts_against: (s.fpts_against || 0) + (s.fpts_against_decimal || 0) / 100,
+        streak:       s.streak_type === 'W' ? `W${s.streak_count||1}` :
+                      s.streak_type === 'L' ? `L${s.streak_count||1}` : '—',
+      };
+    });
+
+    standingsData = { teams, league, week };
+    renderStandingsTab();
+
+    // Switch to appropriate tab
+    if (standingsTab === 'matchups') renderMatchupsTab();
+    if (standingsTab === 'playoffs') renderPlayoffsTab();
+  } catch(e) {
+    showStandingsError('Could not load season: ' + (e.message || e));
   }
 }
 
@@ -246,7 +360,7 @@ function renderMatchupsTab() {
 }
 
 async function loadMatchupsWeek(week) {
-  const lid = standingsLeagueId();
+  const lid = viewingLeagueId || standingsLeagueId();
   // Update button highlight
   document.querySelectorAll('[id^="st-week-"]').forEach(b => {
     const w = parseInt(b.id.replace('st-week-',''));
@@ -356,7 +470,7 @@ function renderPlayoffsTab() {
 }
 
 async function loadBracket() {
-  const lid = standingsLeagueId();
+  const lid = viewingLeagueId || standingsLeagueId();
   const el  = document.getElementById('st-tab-playoffs');
   if (!el) return;
 
