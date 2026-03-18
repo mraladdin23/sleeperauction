@@ -798,3 +798,27 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
 /* two-column layout */
 .draft-layout{display:grid;grid-template-columns:1fr 280px;gap:20px;align-items:start;}
 @media(max-width:1000px){.draft-layout{grid-template-columns:1fr;}.available-panel{position:static;max-height:400px;}}
+/* ── Standings ─────────────────────────────────────────────── */
+.standings-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.standings-table th { padding: 8px 10px; text-align: left; font-size: 11px; font-weight: 600; color: var(--text3); text-transform: uppercase; letter-spacing: .4px; border-bottom: 2px solid var(--border); white-space: nowrap; }
+.standings-table td { padding: 9px 10px; border-bottom: 1px solid rgba(46,48,64,.4); white-space: nowrap; }
+.standings-table tr:last-child td { border-bottom: none; }
+.standings-table tr:hover td { background: var(--surface2); }
+.st-avatar { width: 26px; height: 26px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 600; color: #fff; flex-shrink: 0; }
+
+/* Matchups */
+.matchup-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+.matchup-team { flex: 1; display: flex; align-items: center; gap: 10px; }
+.matchup-team:last-child { flex-direction: row-reverse; text-align: right; }
+.matchup-name { font-size: 13px; font-weight: 500; flex: 1; }
+.matchup-pts { font-family: var(--font-mono); font-size: 18px; font-weight: 700; min-width: 56px; text-align: right; }
+.matchup-team:last-child .matchup-pts { text-align: left; }
+.matchup-vs { font-size: 11px; font-weight: 700; color: var(--text3); padding: 0 4px; flex-shrink: 0; }
+.matchup-winner .matchup-name { font-weight: 700; }
+
+/* Bracket */
+.bracket-container { display: flex; gap: 24px; overflow-x: auto; padding-bottom: 8px; }
+.bracket-round { min-width: 180px; }
+.bracket-round-label { font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px; }
+.bracket-match { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 10px; font-size: 13px; }
+.bracket-vs { font-size: 10px; color: var(--text3); margin: 3px 0; }
