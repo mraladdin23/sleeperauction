@@ -599,10 +599,14 @@ function renderBoard() {
             ${assignedTeamName || ownerName || ''}${isOverCap?' ⚠️ OVER CAP':''}
           </div>
           ${comm ? `<button class="pick-clear" onclick="clearPick('${key}')">✕ Clear</button>` : ''}`;
-      } else if (comm) {
-        // Nothing shown in card — use the assign panel on the right
       } else {
-        html += `<div style="font-size:12px;color:var(--text3);margin-top:4px;">Open pick</div>`;
+        // Show owner name on all unassigned picks
+        if (ownerName) {
+          html += `<div class="pick-owner">${ownerName}</div>`;
+        }
+        if (!comm) {
+          html += `<div style="font-size:11px;color:var(--text3);margin-top:2px;">Open pick</div>`;
+        }
       }
 
       html += '</div>'; // pick-card

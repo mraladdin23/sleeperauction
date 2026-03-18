@@ -666,10 +666,27 @@ async function loadBracket() {
       </div>`;
     }
 
-    // Group winners and losers by round
+    // Build set of winners bracket match IDs for filtering
+    const wMatchIds = new Set((winners||[]).map(m => m.m));
+
+    // Filter losers bracket: only keep placement games (from winners bracket losses)
+    // A match is a placement game if EITHER team comes from a winners bracket loss
+    function isPlacementGame(m) {
+      const fromW = id => wMatchIds.has(id);
+      const t1w = m.t1_from?.l != null && fromW(m.t1_from.l);
+      const t2w = m.t2_from?.l != null && fromW(m.t2_from.l);
+      const t1r = m.t1_from?.w != null; // winner of a losers bracket match (round 2+)
+      const t2r = m.t2_from?.w != null;
+      // Include if at least one team directly came from winners bracket loss
+      // OR if this is a later round (feeding from earlier placement games)
+      return t1w || t2w || t1r || t2r;
+    }
+    const placementLosers = (losers||[]).filter(isPlacementGame);
+
+    // Group winners and filtered losers by round
     const wByRound = {}, lByRound = {};
     (winners||[]).forEach(m => { const r=m.r||1; if(!wByRound[r]) wByRound[r]=[]; wByRound[r].push(m); });
-    (losers ||[]).forEach(m => { const r=m.r||1; if(!lByRound[r]) lByRound[r]=[]; lByRound[r].push(m); });
+    placementLosers.forEach(m => { const r=m.r||1; if(!lByRound[r]) lByRound[r]=[]; lByRound[r].push(m); });
 
     const wRounds   = Object.keys(wByRound).map(Number).sort((a,b)=>a-b);
     const maxWRound = wRounds.length ? Math.max(...wRounds) : 1;
@@ -723,10 +740,37 @@ async function loadBracket() {
       </div>`;
     }).join('');
 
+    // Build non-playoff draft order: teams ranked 7+ ordered by MaxPF ascending
+    // Lowest MaxPF = pick 1.01 (first pick), highest = last pick
+    const playoffSpots = standingsData?.league?.settings?.playoff_teams || 6;
+    const nonPlayoffTeams = sortedTeams
+      .slice(playoffSpots)
+      .sort((a,b) => (a.max_pts||0) - (b.max_pts||0)); // ascending: worst MaxPF picks first
+    const fmt2 = n => n > 0 ? n.toFixed(2) : '—';
+
+    const draftOrderHTML = nonPlayoffTeams.length ? `
+      <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">📋 Consolation Draft Order</div>
+        <div style="font-size:11px;color:var(--text3);margin-bottom:10px;">Based on MaxPF — lower MaxPF picks earlier</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;">
+          ${nonPlayoffTeams.map((t,i) => `
+            <div style="display:flex;align-items:center;gap:8px;background:var(--surface);
+              border:1px solid var(--border);border-radius:var(--radius-sm);padding:7px 10px;">
+              <span style="font-family:var(--font-mono);font-size:12px;font-weight:700;
+                color:var(--accent2);min-width:28px;">1.${String(i+1).padStart(2,'0')}</span>
+              <span style="font-size:12px;flex:1;overflow:hidden;text-overflow:ellipsis;
+                white-space:nowrap;">${t.display_name}</span>
+              <span style="font-family:var(--font-mono);font-size:11px;color:var(--text3);">
+                ${fmt2(t.max_pts)}</span>
+            </div>`).join('')}
+        </div>
+      </div>` : '';
+
     el.innerHTML = `
       <div style="padding:16px 0 8px;">
         <div style="font-size:15px;font-weight:600;margin-bottom:12px;">🏆 Playoff Bracket</div>
         <div class="bracket-container" style="align-items:flex-start;">${bracketCols}</div>
+        ${draftOrderHTML}
       </div>`;
   } catch(e) {
     if (el) el.innerHTML = `<div style="padding:30px;text-align:center;color:var(--red);">
