@@ -669,17 +669,16 @@ async function loadBracket() {
     // Build set of winners bracket match IDs for filtering
     const wMatchIds = new Set((winners||[]).map(m => m.m));
 
-    // Filter losers bracket: only keep placement games (from winners bracket losses)
-    // A match is a placement game if EITHER team comes from a winners bracket loss
+    // Filter losers bracket: ONLY keep matches where a team came directly
+    // from a WINNERS bracket loss. This gives us exactly:
+    //   - 5th place game (R1 losers from winners bracket)
+    //   - 3rd place game (semifinal losers from winners bracket)
+    // Teams 7-12 in the consolation bracket never appear in the winners bracket,
+    // so their matches are excluded entirely.
     function isPlacementGame(m) {
-      const fromW = id => wMatchIds.has(id);
-      const t1w = m.t1_from?.l != null && fromW(m.t1_from.l);
-      const t2w = m.t2_from?.l != null && fromW(m.t2_from.l);
-      const t1r = m.t1_from?.w != null; // winner of a losers bracket match (round 2+)
-      const t2r = m.t2_from?.w != null;
-      // Include if at least one team directly came from winners bracket loss
-      // OR if this is a later round (feeding from earlier placement games)
-      return t1w || t2w || t1r || t2r;
+      const t1w = m.t1_from?.l != null && wMatchIds.has(m.t1_from.l);
+      const t2w = m.t2_from?.l != null && wMatchIds.has(m.t2_from.l);
+      return t1w || t2w;
     }
     const placementLosers = (losers||[]).filter(isPlacementGame);
 
