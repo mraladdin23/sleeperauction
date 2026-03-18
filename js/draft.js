@@ -389,6 +389,16 @@ async function refreshDraft() {
   const draftPanelEl = document.getElementById('draft-action-panel');
   if (draftPanelEl) draftPanelEl.style.display = (!window.viewingDraftLeagueId && isComm()) ? '' : 'none';
 
+  // Hide available players panel when draft is complete or viewing historical season
+  const availPanel = document.getElementById('avail-panel');
+  if (availPanel) {
+    const draftComplete = draftInfo?.status === 'complete' || window.viewingDraftLeagueId;
+    availPanel.style.display = draftComplete ? 'none' : '';
+    // Also collapse the draft layout to single column when panel is hidden
+    const layout = document.querySelector('#view-draft .draft-layout');
+    if (layout) layout.style.gridTemplateColumns = draftComplete ? '1fr' : '';
+  }
+
   // Load season history bar (non-blocking)
   loadDraftSeasons();
   } catch(e) {

@@ -473,45 +473,83 @@ async function renderMatchupCards(matchups, week) {
   }
   const posColor = { QB:'var(--accent2)', RB:'var(--green)', WR:'var(--cyan)', TE:'var(--yellow)', K:'var(--text3)', DEF:'var(--text3)' };
 
-  function renderRoster(entry, opponentPts, isWinner) {
-    const starters = entry.starters || [];
-    const allPlayers = entry.players || [];
-    const sPts = entry.starters_points || {};
-    const pPts = entry.players_points || {};
-    const bench = allPlayers.filter(id => !starters.includes(id));
-    const starterRows = starters.map(id => {
-      const pts = sPts[id] ?? pPts[id] ?? 0;
-      const pos = pPos(id);
-      const col = posColor[pos] || 'var(--text3)';
-      return `<div class="mu-player-row">
-        <span class="mu-pos" style="color:${col};">${pos||'—'}</span>
-        <span class="mu-pname">${pName(id)}</span>
-        <span class="mu-team">${pTeam(id)}</span>
-        <span class="mu-pts">${(+pts).toFixed(2)}</span>
-      </div>`;
-    }).join('');
-    const benchRows = bench.length ? `
-      <div class="mu-section-label">Bench</div>
-      ${bench.map(id => {
-        const pts = pPts[id] ?? 0;
-        const pos = pPos(id);
-        const col = posColor[pos] || 'var(--text3)';
-        return `<div class="mu-player-row mu-bench">
-          <span class="mu-pos" style="color:${col};opacity:.6;">${pos||'—'}</span>
-          <span class="mu-pname" style="opacity:.6;">${pName(id)}</span>
-          <span class="mu-team" style="opacity:.5;">${pTeam(id)}</span>
-          <span class="mu-pts" style="opacity:.6;">${(+pts).toFixed(2)}</span>
-        </div>`;
-      }).join('')}` : '';
-    return starterRows + benchRows;
-  }
+  // Roster slot positions from league settings
+  const rosterSlots = standingsData?.league?.roster_positions || [];
 
   function teamAvatar(t) {
     return t.avatar
       ? `<img src="https://sleepercdn.com/avatars/thumbs/${t.avatar}"
-          style="width:28px;height:28px;border-radius:50%;object-fit:cover;"
+          style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;"
           onerror="this.style.display='none'">`
-      : `<div class="st-avatar" style="width:28px;height:28px;font-size:11px;">${(t.display_name||'?')[0].toUpperCase()}</div>`;
+      : `<div class="st-avatar" style="width:26px;height:26px;font-size:11px;flex-shrink:0;">${(t.display_name||'?')[0].toUpperCase()}</div>`;
+  }
+
+  // Build side-by-side starter rows: left name+pts | slot label | right name+pts
+  function renderSideBySide(entryA, entryB) {
+    const stA = entryA.starters || [], stB = entryB.starters || [];
+    const spA = entryA.starters_points || {}, ppA = entryA.players_points || {};
+    const spB = entryB.starters_points || {}, ppB = entryB.players_points || {};
+    const allA = entryA.players || [], allB = entryB.players || [];
+
+    // Starter slot labels from roster_positions (skip K, BN, IR, TAXI)
+    const starterSlots = rosterSlots.filter(s => !['BN','IR','TAXI'].includes(s));
+    const rows = [];
+    const maxLen = Math.max(stA.length, stB.length, starterSlots.length);
+
+    for (let i = 0; i < maxLen; i++) {
+      const idA   = stA[i];
+      const idB   = stB[i];
+      const slot  = starterSlots[i] || 'FLEX';
+      const ptsA  = idA ? +(spA[idA] ?? ppA[idA] ?? 0) : 0;
+      const ptsB  = idB ? +(spB[idB] ?? ppB[idB] ?? 0) : 0;
+      const slotLabel = slot === 'FLEX' || slot === 'WRT' || slot === 'WRTF' ? 'FLEX'
+                      : slot === 'REC_FLEX' ? 'FLEX'
+                      : slot === 'SUPER_FLEX' || slot === 'SF' ? 'SF'
+                      : slot;
+      const posCol = posColor[slotLabel] || posColor[pPos(idA)] || 'var(--text3)';
+
+      rows.push(`<div class="mu-sbs-row">
+        <div class="mu-sbs-left">
+          <span class="mu-sbs-pts ${ptsA > ptsB ? 'mu-win' : ''}">${idA ? ptsA.toFixed(2) : '—'}</span>
+          <span class="mu-sbs-name">${idA ? pName(idA) : '—'}</span>
+        </div>
+        <div class="mu-sbs-slot" style="color:${posCol};">${slotLabel}</div>
+        <div class="mu-sbs-right">
+          <span class="mu-sbs-name">${idB ? pName(idB) : '—'}</span>
+          <span class="mu-sbs-pts ${ptsB > ptsA ? 'mu-win' : ''}">${idB ? ptsB.toFixed(2) : '—'}</span>
+        </div>
+      </div>`);
+    }
+
+    // Bench
+    const benchA = allA.filter(id => !stA.includes(id));
+    const benchB = allB.filter(id => !stB.includes(id));
+    const benchLen = Math.max(benchA.length, benchB.length);
+    let benchHTML = '';
+    if (benchLen > 0) {
+      benchHTML = `<div class="mu-section-divider">
+        <span class="mu-section-label">Bench</span>
+      </div>`;
+      for (let i = 0; i < benchLen; i++) {
+        const idA  = benchA[i];
+        const idB  = benchB[i];
+        const ptsA = idA ? +(ppA[idA] ?? 0) : 0;
+        const ptsB = idB ? +(ppB[idB] ?? 0) : 0;
+        benchHTML += `<div class="mu-sbs-row mu-bench">
+          <div class="mu-sbs-left">
+            <span class="mu-sbs-pts">${idA ? ptsA.toFixed(2) : ''}</span>
+            <span class="mu-sbs-name">${idA ? pName(idA) : ''}</span>
+          </div>
+          <div class="mu-sbs-slot" style="opacity:.3;">—</div>
+          <div class="mu-sbs-right">
+            <span class="mu-sbs-name">${idB ? pName(idB) : ''}</span>
+            <span class="mu-sbs-pts">${idB ? ptsB.toFixed(2) : ''}</span>
+          </div>
+        </div>`;
+      }
+    }
+
+    return rows.join('') + benchHTML;
   }
 
   const cards = Object.entries(pairs).sort(([a],[b]) => +a - +b).map(([matchupId, pair]) => {
@@ -524,34 +562,31 @@ async function renderMatchupCards(matchups, week) {
     const hasDetail = (a.starters||[]).length > 0;
     const cardId = `mu-${matchupId}`;
 
-    return `<div class="matchup-card" style="flex-direction:column;cursor:pointer;"
-        onclick="this.querySelector('.mu-detail').style.display=this.querySelector('.mu-detail').style.display==='none'?'':'none'">
-      <div style="display:flex;align-items:center;gap:10px;width:100%;">
-        <div class="matchup-team ${aWin?'matchup-winner':''}" style="flex:1;">
+    return `<div class="matchup-card mu-card" onclick="this.querySelector('.mu-detail').style.display=this.querySelector('.mu-detail').style.display==='none'?'':'none'">
+      <div class="mu-header">
+        <div class="mu-team-block">
           ${teamAvatar(ta)}
-          <div class="matchup-name">${ta.display_name}</div>
-          <div class="matchup-pts" style="color:${aWin?'var(--green)':bWin?'var(--red)':'var(--text2)'}">${fmt(a.points)}</div>
+          <div class="mu-team-name ${aWin?'mu-win':''}" title="${ta.display_name}">${ta.display_name}</div>
         </div>
-        <div class="matchup-vs">VS</div>
-        <div class="matchup-team matchup-team-right ${bWin?'matchup-winner':''}" style="flex:1;">
+        <div class="mu-score-block">
+          <span class="mu-score ${aWin?'mu-win':bWin?'mu-lose':''}">${fmt(a.points)}</span>
+          <span class="mu-score-sep">–</span>
+          <span class="mu-score ${bWin?'mu-win':aWin?'mu-lose':''}">${fmt(b.points)}</span>
+        </div>
+        <div class="mu-team-block mu-team-right">
+          <div class="mu-team-name ${bWin?'mu-win':''}" title="${tb.display_name}">${tb.display_name}</div>
           ${teamAvatar(tb)}
-          <div class="matchup-name">${tb.display_name}</div>
-          <div class="matchup-pts" style="color:${bWin?'var(--green)':aWin?'var(--red)':'var(--text2)'}">${fmt(b.points)}</div>
         </div>
       </div>
-      ${hasDetail ? `<div class="mu-detail" style="display:none;width:100%;margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
-        <div class="mu-roster-grid">
-          <div>
-            <div class="mu-team-label">${ta.display_name}</div>
-            ${renderRoster(a, b.points, aWin)}
-          </div>
-          <div>
-            <div class="mu-team-label">${tb.display_name}</div>
-            ${renderRoster(b, a.points, bWin)}
-          </div>
+      ${hasDetail ? `<div class="mu-detail" style="display:none;">
+        <div class="mu-sbs-header">
+          <span class="mu-sbs-team-label">${ta.display_name}</span>
+          <span class="mu-sbs-slot-header">Slot</span>
+          <span class="mu-sbs-team-label" style="text-align:right;">${tb.display_name}</span>
         </div>
-        <div style="text-align:center;font-size:11px;color:var(--text3);margin-top:8px;">Tap to collapse</div>
-      </div>` : `<div style="font-size:11px;color:var(--text3);margin-top:6px;width:100%;text-align:center;">Score data only — player breakdown available after week completes</div>`}
+        ${renderSideBySide(a, b)}
+        <div style="text-align:center;font-size:10px;color:var(--text3);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);">Tap to collapse ↑</div>
+      </div>` : `<div style="font-size:11px;color:var(--text3);text-align:center;padding-top:6px;">No player data yet</div>`}
     </div>`;
   }).join('');
 
@@ -589,7 +624,10 @@ async function loadBracket() {
   if (!el) return;
 
   try {
-    const winners = await Sleeper.fetchWinnersBracket(lid);
+    const [winners, losers] = await Promise.all([
+      Sleeper.fetchWinnersBracket(lid),
+      Sleeper.fetchLosersBracket(lid),
+    ]);
 
     if (!winners || !winners.length) {
       el.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text3);">
@@ -614,7 +652,7 @@ async function loadBracket() {
       return seed ? `${name} <span style="font-size:10px;color:var(--text3);">#${seed}</span>` : name;
     }
 
-    function bracketMatch(m, label) {
+    function bracketMatch(m) {
       const t1 = matchName(m.t1);
       const t2 = matchName(m.t2);
       const decided = m.w != null;
@@ -624,8 +662,7 @@ async function loadBracket() {
                   t2win ? 'color:var(--text3);text-decoration:line-through;opacity:.6;' : '';
       const s2 = t2win ? 'color:var(--green);font-weight:700;' :
                   t1win ? 'color:var(--text3);text-decoration:line-through;opacity:.6;' : '';
-      return `<div class="bracket-match${label?' bracket-match-labeled':''}">
-        ${label ? `<div class="bracket-match-label">${label}</div>` : ''}
+      return `<div class="bracket-match">
         <div class="bracket-slot" style="${s1}">${t1 || 'TBD'}</div>
         <div class="bracket-vs">vs</div>
         <div class="bracket-slot" style="${s2}">${t2 || 'TBD'}</div>
@@ -635,37 +672,56 @@ async function loadBracket() {
       </div>`;
     }
 
-    // Group by round
-    const wByRound = {};
-    winners.forEach(m => { const r = m.r||1; if(!wByRound[r]) wByRound[r]=[]; wByRound[r].push(m); });
+    // Group winners and losers by round
+    const wByRound = {}, lByRound = {};
+    (winners||[]).forEach(m => { const r=m.r||1; if(!wByRound[r]) wByRound[r]=[]; wByRound[r].push(m); });
+    (losers ||[]).forEach(m => { const r=m.r||1; if(!lByRound[r]) lByRound[r]=[]; lByRound[r].push(m); });
 
-    const wRounds  = Object.keys(wByRound).map(Number).sort((a,b)=>a-b);
-    const maxWRound = Math.max(...wRounds);
-    const totalTeams = winners.length > 0
-      ? (wByRound[1]?.length || 0) * 2 + ((wByRound[1]?.length||0) < 4 ? 2 : 0)
-      : 0;
+    const wRounds    = Object.keys(wByRound).map(Number).sort((a,b)=>a-b);
+    const lRounds    = Object.keys(lByRound).map(Number).sort((a,b)=>a-b);
+    const maxWRound  = wRounds.length ? Math.max(...wRounds) : 1;
+    const maxLRound  = lRounds.length ? Math.max(...lRounds) : 0;
 
-    // Round labels based on total rounds
-    function wRoundLabel(r, total) {
-      if (r === total) return '🏆 Championship';
-      if (r === total - 1) return 'Semifinals';
+    // Winners bracket round labels
+    function wRoundLabel(r) {
+      if (r === maxWRound)     return '🏆 Championship';
+      if (r === maxWRound - 1) return 'Semifinals';
       return 'First Round';
     }
 
-    // Build winners bracket HTML (left to right)
-    const wBracketCols = wRounds.map(r => {
-      const matches = wByRound[r];
-      const label = wRoundLabel(r, maxWRound);
-      return `<div class="bracket-round">
-        <div class="bracket-round-label">${label}</div>
-        ${matches.map(m => bracketMatch(m, null)).join('')}
-      </div>`;
-    }).join('');
+    // Losers bracket placement labels:
+    // Final round of losers = 3rd place game
+    // Previous round = 5th place game (2 losers from first round)
+    function lRoundLabel(r) {
+      if (r === maxLRound)     return '🥉 3rd Place Game';
+      if (r === maxLRound - 1) return '5th Place Game';
+      return 'Consolation';
+    }
+
+    // Winners bracket
+    const wCols = wRounds.map(r => `
+      <div class="bracket-round">
+        <div class="bracket-round-label">${wRoundLabel(r)}</div>
+        ${wByRound[r].map(m => bracketMatch(m)).join('')}
+      </div>`).join('');
+
+    // Placement games (3rd + 5th) -- only final 2 rounds of losers bracket
+    const relevantLRounds = lRounds.filter(r => r >= maxLRound - 1);
+    const lCols = relevantLRounds.map(r => `
+      <div class="bracket-round">
+        <div class="bracket-round-label">${lRoundLabel(r)}</div>
+        ${lByRound[r].map(m => bracketMatch(m)).join('')}
+      </div>`).join('');
 
     el.innerHTML = `
       <div style="padding:16px 0 8px;">
-        <div style="font-size:15px;font-weight:600;margin-bottom:16px;">🏆 Playoff Bracket</div>
-        <div class="bracket-container">${wBracketCols}</div>
+        <div style="font-size:15px;font-weight:600;margin-bottom:12px;">🏆 Playoff Bracket</div>
+        <div class="bracket-container">${wCols}</div>
+        ${lCols ? `<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
+          <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;
+            letter-spacing:.5px;margin-bottom:12px;">Placement Games</div>
+          <div class="bracket-container">${lCols}</div>
+        </div>` : ''}
       </div>`;
   } catch(e) {
     if (el) el.innerHTML = `<div style="padding:30px;text-align:center;color:var(--red);">
