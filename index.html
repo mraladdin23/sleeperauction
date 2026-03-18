@@ -273,8 +273,9 @@ window.addEventListener('DOMContentLoaded',function(){
     </div>
     <nav class="app-bar-nav">
       <button class="app-btn" id="nav-home"      onclick="navigateTo('home')">      <span class="app-btn-icon">🏠</span><span>Home</span></button>
+      <button class="app-btn" id="nav-roster"    onclick="navigateTo('roster')">    <span class="app-btn-icon">💰</span><span>Rosters</span></button>
+      <button class="app-btn" id="nav-standings" onclick="navigateTo('standings')" style="opacity:.45;pointer-events:none;"> <span class="app-btn-icon">📊</span><span>Standings</span></button>
       <button class="app-btn" id="nav-auction"   onclick="navigateTo('auction')">   <span class="app-btn-icon">🏷</span><span>Auction</span></button>
-      <button class="app-btn" id="nav-roster"    onclick="navigateTo('roster')">    <span class="app-btn-icon">💰</span><span>Salary Cap</span></button>
       <button class="app-btn" id="nav-draft"     onclick="navigateTo('draft')">     <span class="app-btn-icon">🎓</span><span>Draft</span></button>
       <button class="app-btn" style="opacity:.4;cursor:not-allowed;">               <span class="app-btn-icon">📊</span><span>Standings</span></button>
     </nav>
@@ -294,28 +295,28 @@ window.addEventListener('DOMContentLoaded',function(){
       <div class="home-league-sub">2026 Season · FAAB Proxy Auctions</div>
 
       <div class="home-grid">
-        <div class="home-card" onclick="navigateTo('auction')">
-          <div class="hc-badge hcb-live" id="home-badge-auction" style="display:none;"></div>
-          <div class="home-card-icon hci-auction">🏷️</div>
-          <div class="home-card-title">Auction</div>
-          <div class="home-card-sub" id="home-sub-auction">FAAB proxy bidding</div>
-        </div>
         <div class="home-card" onclick="navigateTo('roster')">
           <div class="home-card-icon hci-roster">💰</div>
-          <div class="home-card-title">Salary Cap</div>
-          <div class="home-card-sub" id="home-sub-roster">Rosters · cap tracking</div>
-        </div>
-        <div class="home-card" onclick="navigateTo('draft')">
-          <div class="hc-badge hcb-open" id="home-badge-draft">open</div>
-          <div class="home-card-icon hci-draft">🎓</div>
-          <div class="home-card-title">Rookie Draft</div>
-          <div class="home-card-sub">2026 draft board</div>
+          <div class="home-card-title">Rosters</div>
+          <div class="home-card-sub" id="home-sub-roster">Salary cap · tracking</div>
         </div>
         <div class="home-card disabled">
           <div class="hc-badge hcb-soon">soon</div>
           <div class="home-card-icon hci-standings">📊</div>
           <div class="home-card-title">Standings</div>
           <div class="home-card-sub">W/L · points · schedule</div>
+        </div>
+        <div class="home-card" onclick="navigateTo('auction')">
+          <div class="hc-badge hcb-live" id="home-badge-auction" style="display:none;"></div>
+          <div class="home-card-icon hci-auction">🏷️</div>
+          <div class="home-card-title">Auction</div>
+          <div class="home-card-sub" id="home-sub-auction">FAAB proxy bidding</div>
+        </div>
+        <div class="home-card" onclick="navigateTo('draft')">
+          <div class="hc-badge hcb-open" id="home-badge-draft">open</div>
+          <div class="home-card-icon hci-draft">🎓</div>
+          <div class="home-card-title">Rookie Draft</div>
+          <div class="home-card-sub">2026 draft board</div>
         </div>
       </div>
 
@@ -326,6 +327,7 @@ window.addEventListener('DOMContentLoaded',function(){
     </div>
   </div>
 
+  <div id="view-standings" style="display:none;"></div>
   <div id="view-auction" style="display:none;"></div>
   <div id="view-roster"  style="display:none;"></div>
   <div id="view-draft"   style="display:none;"></div>
@@ -344,7 +346,7 @@ window.addEventListener('DOMContentLoaded',function(){
 
 <script>
 // ── Router ────────────────────────────────────────────────────
-const VIEWS = ['home','auction','roster','draft'];
+const VIEWS = ['home','roster','standings','auction','draft'];
 let currentView = null;
 const viewsLoaded = {};
 
@@ -401,19 +403,36 @@ async function loadActivityFeed() {
   const lid = localStorage.getItem('sb_leagueId');
   if (!lid) { el.innerHTML = '<div class="feed-empty">No league connected.</div>'; return; }
   try {
+    // logActivity writes 'timestamp' (not 'ts'), so order by timestamp
     const snap = await db.ref('leagues/' + lid + '/activityFeed')
-      .orderByChild('ts').limitToLast(10).once('value');
+      .orderByChild('timestamp').limitToLast(15).once('value');
     const val = snap.val();
     if (!val) { el.innerHTML = '<div class="feed-empty">No activity yet.</div>'; return; }
-    const items = Object.values(val).sort((a,b) => b.ts - a.ts);
-    const dotColors = { auction:'var(--accent2)', draft:'var(--yellow)', trade:'var(--green)' };
+    // Build human-readable message from event fields since no 'msg' field is stored
+    function feedMsg(item) {
+      const p = item.playerName || '';
+      const t = item.teamName   || '';
+      switch(item.type) {
+        case 'nomination': return '🏷 ' + (t||'Someone') + ' nominated ' + (p||'a player');
+        case 'bid':        return '💰 ' + (t||'Someone') + ' bid on ' + (p||'a player');
+        case 'claim':      return '✅ ' + (t||'Someone') + ' claimed ' + (p||'a player');
+        case 'cancel':     return '❌ Auction cancelled for ' + (p||'a player');
+        case 'pass':       return '⏭ ' + (t||'Someone') + ' passed on ' + (p||'a player');
+        case 'autoclose':  return '🔒 Auction auto-closed for ' + (p||'a player');
+        default:           return item.msg || item.message || item.type || 'Activity';
+      }
+    }
+    const items = Object.values(val).sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
+    const dotColors = { nomination:'var(--accent)', bid:'var(--accent2)', claim:'var(--green)',
+                        cancel:'var(--red)', pass:'var(--text3)', autoclose:'var(--yellow)' };
     el.innerHTML = items.map(item => {
       const color = dotColors[item.type] || 'var(--text3)';
-      const diff  = Date.now() - item.ts;
-      const m = Math.floor(diff/60000);
-      const ago = m < 1 ? 'just now' : m < 60 ? m+'m ago' : m < 1440 ? Math.floor(m/60)+'h ago' : Math.floor(m/1440)+'d ago';
+      const ts    = item.timestamp || item.ts || 0;
+      const diff  = Date.now() - ts;
+      const m     = Math.floor(diff/60000);
+      const ago   = m < 1 ? 'just now' : m < 60 ? m+'m ago' : m < 1440 ? Math.floor(m/60)+'h ago' : Math.floor(m/1440)+'d ago';
       return '<div class="feed-row"><div class="feed-dot" style="background:' + color + ';"></div>' +
-        '<div class="feed-body"><div>' + (item.msg||item.message||'Activity') + '</div>' +
+        '<div class="feed-body"><div>' + feedMsg(item) + '</div>' +
         '<div class="feed-time">' + ago + '</div></div></div>';
     }).join('');
   } catch(e) {
