@@ -1,6 +1,6 @@
 // SleeperBid Service Worker
 // Cache version is stamped by deploy.sh at deploy time — do not edit manually.
-const CACHE = 'sleeperbid-20260317-032715';
+const CACHE = 'sleeperbid-__TIMESTAMP__';
 
 const STATIC = [
   '/',
@@ -12,6 +12,7 @@ const STATIC = [
   '/js/ui.js',
   '/js/cap.js',
   '/js/draft.js',
+  '/js/standings.js',
   '/js/firebase-config.js',
   '/manifest.json',
   '/icons/icon-192.png',
