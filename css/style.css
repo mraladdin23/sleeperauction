@@ -507,7 +507,7 @@ input[type="number"] { -moz-appearance: textfield; }
 .topbar-icon-btn:hover { background: var(--surface2); }
 
 /* NAV DROPDOWN (mobile only — hidden on desktop) */
-.nav-dropdown-wrap { display: none; }
+.nav-dd-wrap { display: none; padding: 10px 16px 0; }
 .nav-dropdown {
   width: 100%;
   padding: 10px 14px;
@@ -533,18 +533,53 @@ input[type="number"] { -moz-appearance: textfield; }
   .topbar { padding: 0 12px; height: 50px; }
   .topbar-logo { font-size: 20px; }
   .league-badge { max-width: 90px; font-size: 11px; padding: 3px 8px; }
-  .main { padding: 14px 10px 80px; }
+  .main { padding: 12px 10px 80px; }
   .auction-grid { grid-template-columns: 1fr; }
   .login-card { padding: 28px 20px; }
 
   /* Hide tab bar, show dropdown */
   .nav-tabs { display: none; }
-  .nav-dropdown-wrap { display: block; }
+  .nav-dd-wrap { display: block; }
 
   /* Card buttons wrap to second line instead of overflowing */
   .card-bot { flex-wrap: wrap; gap: 6px; padding: 10px 12px; }
   .card-bot .btn-primary { margin-left: 0 !important; }
+
+  /* Draft board: single column on mobile */
+  .draft-layout { grid-template-columns: 1fr; }
+  .pick-card { min-height: 64px; padding: 8px 10px; }
+  .draft-header { gap: 8px; }
+  .draft-title { font-size: 16px !important; }
+
+  /* Standings table: tighten up */
+  .standings-table th, .standings-table td { padding: 6px 6px; font-size: 11px; }
+
+  /* Matchup cards on mobile */
+  .matchup-card { padding: 10px 12px; }
+  .matchup-pts { font-size: 15px !important; min-width: 44px !important; }
+
+  /* Bracket scrolls horizontally */
+  .bracket-container { gap: 12px; }
+  .bracket-match { min-width: 130px; font-size: 12px; }
 }
+
+/* Nav dropdown — custom styled to match dark theme */
+.nav-dd {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  padding: 9px 36px 9px 14px;
+  background: var(--surface2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23888' d='M6 8L1 3h10z'/%3E%3C/svg%3E") no-repeat right 12px center;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--font-body);
+  font-weight: 500;
+  cursor: pointer;
+  outline: none;
+}
+.nav-dd:focus { border-color: var(--accent); }
 }
 
 /* PAUSE BANNER */
