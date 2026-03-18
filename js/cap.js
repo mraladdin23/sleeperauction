@@ -1,6 +1,6 @@
 
-let CAP = 301_200_000; // loaded from Firebase leagues/{id}/settings/cap
-const COMM        = 'mraladdin23';
+var CAP = 301_200_000; // loaded from Firebase leagues/{id}/settings/cap
+var COMM        = 'mraladdin23';
 const FB_PATH     = () => `leagues/${leagueId()}/rosterData`;
 const POSITIONS   = ['QB','RB','WR','TE'];
 const POS_COLORS  = {QB:'#b89ffe',RB:'#18e07a',WR:'#00d4ff',TE:'#ffc94d'};
@@ -174,7 +174,7 @@ function ageBadge(name) {
   return `<span style="font-size:10px;color:${clr};background:${bg};border-radius:3px;padding:0 4px;margin-left:4px;cursor:default;" title="${title}">${age}yo</span>`;
 }
 
-const fmtM    = n => n>=1e6?'$'+(n/1e6).toFixed(1)+'M':n>=1e3?'$'+(n/1e3).toFixed(0)+'K':'$'+n;
+var fmtM    = n => n>=1e6?'$'+(n/1e6).toFixed(1)+'M':n>=1e3?'$'+(n/1e3).toFixed(0)+'K':'$'+n;
 const pctOf   = n => ((n/CAP)*100).toFixed(1)+'%';
 const capClr  = s => s/CAP>.72?'var(--red)':s/CAP>.58?'var(--yellow)':'var(--green)';
 const posTotal= (t,pos) => t.starters.filter(p=>p.pos===pos).reduce((a,p)=>a+p.salary,0);
@@ -729,9 +729,9 @@ function openTeamPanel(key) {
     const ye=yeStored??yeLookup;
     let gradBadge='';
     if(ye!=null){
-      if(ye>=3) gradBadge='<span style="font-size:10px;background:rgba(255,77,106,.15);color:var(--red);border-radius:3px;padding:0 4px;margin-left:4px;">🚨Yr'+ye+'</span>';
-      else if(ye===2) gradBadge='<span style="font-size:10px;background:rgba(255,201,77,.15);color:var(--yellow);border-radius:3px;padding:0 4px;margin-left:4px;">⚠️Yr2</span>';
-      else gradBadge='<span style="font-size:10px;color:var(--text3);margin-left:4px;">Yr'+ye+'</span>';
+      if(ye>=3) gradBadge='<span title="Year '+ye+' — must promote or release" style="font-size:12px;margin-left:4px;cursor:default;">🔴</span>';
+      else if(ye===2) gradBadge='<span title="Year 2 — caution" style="font-size:12px;margin-left:4px;cursor:default;">⚠️</span>';
+      else gradBadge='';
     }
     return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;gap:8px;">
       <div style="flex:1;font-size:13px;color:var(--text3);">${p.name}${ageBadge(p.name)}${gradBadge}${p.pos&&p.pos!=='—'?`<span style="font-size:10px;background:${pc}22;color:${pc};padding:0 4px;border-radius:3px;margin-left:4px;">${p.pos}</span>`:''}${promo?'<span style="font-size:10px;color:var(--green);margin-left:4px;">⬆️</span>':''}</div>

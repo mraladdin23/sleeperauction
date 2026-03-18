@@ -3,11 +3,11 @@
 // ── Auth helpers ─────────────────────────────────────────────
 function leagueId()  { return localStorage.getItem('sb_leagueId') || ''; }
 function username()  { return localStorage.getItem('sb_username') || ''; }
-const COMM = 'mraladdin23';
+var COMM = 'mraladdin23';
 function isComm()    { return username().toLowerCase() === COMM; }
 // CAP: use window.CAP if cap.js is loaded (SPA roster view loaded first),
 // otherwise use the default. Loaded fresh from Firebase in refreshDraft.
-let CAP = (typeof window !== 'undefined' && window.CAP) ? window.CAP : 301_200_000;
+var CAP = (typeof window !== 'undefined' && window.CAP) ? window.CAP : 301_200_000;
 
 function capLogout() {
   localStorage.removeItem('sb_username');
@@ -52,7 +52,7 @@ const ROOKIE_SALARY = {
   '3-7':2e6,'3-8':2e6,'3-9':2e6,'3-10':2e6,'3-11':2e6,'3-12':2e6,
 };
 function rookieSal(r, p) { return r >= 4 ? 1_000_000 : (ROOKIE_SALARY[`${r}-${p}`] || 1_000_000); }
-const fmtM = n => n >= 1e6 ? '$' + (n/1e6).toFixed(1) + 'M' : n >= 1e3 ? '$' + (n/1e3).toFixed(0) + 'K' : '$' + n;
+var fmtM = n => n >= 1e6 ? '$' + (n/1e6).toFixed(1) + 'M' : n >= 1e3 ? '$' + (n/1e3).toFixed(0) + 'K' : '$' + n;
 
 // ── State ─────────────────────────────────────────────────────
 let DRAFT_DATA = null;            // roster data
