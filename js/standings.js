@@ -7,7 +7,9 @@ var STANDINGS_CACHE_TTL = 30 * 60 * 1000; // 30 minutes
 var standingsData = null;   // { teams, rosters, users, league }
 var matchupsCache = {};     // week -> matchup array
 var currentWeek   = 1;
-var standingsTab  = 'standings'; // 'standings' | 'matchups' | 'playoffs'
+var standingsTab      = 'standings'; // 'standings' | 'matchups' | 'playoffs'
+var viewingLeagueId   = null;  // null = current, else historical leagueId
+var historicalLeagues = [];    // [{leagueId, season, name, current}] newest-first
 
 function standingsLeagueId() { return localStorage.getItem('sb_leagueId') || ''; }
 

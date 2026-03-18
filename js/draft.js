@@ -113,15 +113,21 @@ async function loadDraftSeasons() {
 }
 
 function renderDraftSeasonBar() {
+  // Deduplicate by leagueId
+  const seen = new Set();
+  const unique = draftSeasons.filter(s => { if (seen.has(s.leagueId)) return false; seen.add(s.leagueId); return true; });
+  if (unique.length <= 1) return; // nothing to show
+  draftSeasons = unique;
+
   let bar = document.getElementById('draft-season-bar');
   if (!bar) {
-    // Insert before board-container
-    const bc = document.getElementById('board-container');
-    if (!bc) return;
+    // Insert BEFORE the draft-layout grid (not inside it)
+    const layout = document.querySelector('#view-draft .draft-layout');
+    if (!layout) return;
     bar = document.createElement('div');
     bar.id = 'draft-season-bar';
-    bar.style.cssText = 'margin-bottom:14px;';
-    bc.parentNode.insertBefore(bar, bc);
+    bar.style.cssText = 'margin:0 0 14px;';
+    layout.parentNode.insertBefore(bar, layout);
   }
   const currentId = viewingDraftLeagueId || leagueId();
   bar.innerHTML =
