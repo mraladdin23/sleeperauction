@@ -865,22 +865,33 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
 .bracket-vs { font-size:10px; color:var(--border2); margin:3px 0; }
 .bracket-round-label { font-size:11px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:12px; padding-bottom:6px; border-bottom:1px solid var(--border); }
 
-/* ── Matchup player breakdown ──────────────────────────────────── */
-.matchup-card { cursor:pointer; }
-.matchup-card:hover { border-color:var(--border2); }
-.matchup-team-right { flex-direction:row-reverse; text-align:right; }
-.matchup-team-right .matchup-pts { text-align:left; }
-.mu-roster-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; width:100%; min-width:0; }
-.mu-team-label { font-size:12px; font-weight:700; color:var(--text2); margin-bottom:8px; padding-bottom:4px; border-bottom:1px solid var(--border); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-.mu-player-row { display:grid; grid-template-columns:28px minmax(0,1fr) 26px 40px; gap:3px; align-items:center; padding:3px 0; font-size:11px; min-width:0; }
-.mu-bench { opacity:.7; }
-.mu-pos { font-size:10px; font-weight:700; }
-.mu-pname { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
-.mu-team { font-size:10px; color:var(--text3); text-align:center; white-space:nowrap; overflow:hidden; }
-.mu-pts { font-family:var(--font-mono); font-size:11px; text-align:right; white-space:nowrap; }
-.mu-section-label { font-size:10px; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:.5px; margin:8px 0 4px; }
-@media(max-width:600px) {
-  .mu-roster-grid { grid-template-columns:1fr; gap:20px; }
-  .matchup-card { padding:10px; }
-  .matchup-pts { font-size:15px !important; }
-}
+/* ── Matchup cards ──────────────────────────────────────────── */
+.mu-card { cursor:pointer; flex-direction:column; padding:10px 12px; }
+.mu-card:hover { border-color:var(--accent); }
+.mu-header { display:grid; grid-template-columns:1fr auto 1fr; align-items:center; gap:6px; width:100%; }
+.mu-team-block { display:flex; align-items:center; gap:7px; min-width:0; }
+.mu-team-right { flex-direction:row-reverse; }
+.mu-team-name { font-size:12px; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+.mu-team-name.mu-win { font-weight:700; color:var(--green); }
+.mu-score-block { display:flex; align-items:center; gap:4px; flex-shrink:0; }
+.mu-score { font-family:var(--font-mono); font-size:16px; font-weight:700; }
+.mu-score.mu-win { color:var(--green); }
+.mu-score.mu-lose { color:var(--text3); font-weight:400; }
+.mu-score-sep { color:var(--text3); font-size:13px; }
+/* Side-by-side detail */
+.mu-detail { margin-top:10px; padding-top:10px; border-top:1px solid var(--border); }
+.mu-sbs-header { display:grid; grid-template-columns:1fr 36px 1fr; gap:4px; margin-bottom:4px; }
+.mu-sbs-team-label { font-size:10px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:.4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mu-sbs-slot-header { font-size:10px; color:var(--text3); text-align:center; }
+.mu-sbs-row { display:grid; grid-template-columns:1fr 36px 1fr; gap:2px; align-items:center; padding:2px 0; border-bottom:1px solid rgba(255,255,255,.03); }
+.mu-sbs-row.mu-bench { opacity:.6; }
+.mu-sbs-left { display:flex; align-items:center; gap:4px; min-width:0; justify-content:flex-start; }
+.mu-sbs-right { display:flex; align-items:center; gap:4px; min-width:0; justify-content:flex-end; }
+.mu-sbs-slot { font-size:10px; font-weight:700; text-align:center; }
+.mu-sbs-name { font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; flex:1; }
+.mu-sbs-pts { font-family:var(--font-mono); font-size:11px; font-weight:600; flex-shrink:0; white-space:nowrap; }
+.mu-sbs-pts.mu-win { color:var(--green); }
+.mu-win { color:var(--green); }
+.mu-lose { color:var(--text3); }
+.mu-section-divider { display:flex; align-items:center; margin:6px 0 3px; }
+.mu-section-label { font-size:10px; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:.5px; }
