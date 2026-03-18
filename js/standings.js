@@ -539,8 +539,6 @@ async function loadBracket() {
 }
 
 // ── Boot guard ─────────────────────────────────────────────────
-if (document.getElementById('view-standings')) {
-  standingsInit();
-} else {
-  window._standingsInitPending = true;
-}
+// Always defer to initStandingsView() so we don't double-initialize.
+// The router calls standingsInit() after loadScript completes.
+window._standingsInitPending = true;
