@@ -673,37 +673,6 @@ async function loadBracket() {
       </div>`;
     }
 
-    // Group winners bracket by round
-    const wByRound = {}, lByRound = {};
-    (winners||[]).forEach(m => { const r=m.r||1; if(!wByRound[r]) wByRound[r]=[]; wByRound[r].push(m); });
-    (losers||[]).forEach(m  => { const r=m.r||1; if(!lByRound[r]) lByRound[r]=[]; lByRound[r].push(m); });
-
-    // Only keep the FINAL 2 rounds of the losers bracket -- these are always
-    // the 3rd place game (final losers round) and 5th place game (penultimate).
-    // This safely excludes consolation rounds for teams 7-12.
-    const allLRounds = Object.keys(lByRound).map(Number).sort((a,b)=>a-b);
-    const placementLRounds = new Set(allLRounds.slice(-2)); // last 2 rounds only
-    const filteredLByRound = {};
-    allLRounds.forEach(r => {
-      if (placementLRounds.has(r)) filteredLByRound[r] = lByRound[r];
-    });
-
-    const wRounds   = Object.keys(wByRound).map(Number).sort((a,b)=>a-b);
-    const maxWRound = wRounds.length ? Math.max(...wRounds) : 1;
-    const maxLRound = Object.keys(lByRound).length ? Math.max(...Object.keys(lByRound).map(Number)) : 0;
-
-    // Map losers rounds to winners rounds they correspond to:
-    // Losers R1 = 5th place game, played same week as winners R2 (semis)
-    // Losers R2 = 3rd place game, played same week as winners R3 (championship)
-    const lRoundsList = Object.keys(filteredLByRound).map(Number).sort((a,b)=>a-b);
-    // lRounds[0] -> 5th place (alongside semis), lRounds[1] -> 3rd place (alongside finals)
-    function lMatchLabel(lRound) {
-      const idx = lRoundsList.indexOf(lRound);
-      if (idx === lRoundsList.length - 1) return '🥉 3rd Place';
-      return '5th Place';
-    }
-
-    // Build unified columns: each winners bracket round is a column
     // KEY INSIGHT from Sleeper API data:
     // ALL playoff matches (including 3rd/5th place) are in the winners bracket.
     // The 'p' field marks placement games: p=1=Championship, p=3=3rd, p=5=5th.
