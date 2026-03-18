@@ -704,50 +704,73 @@ async function loadBracket() {
     }
 
     // Build unified columns: each winners bracket round is a column
-    // R2 column also shows 5th place game; R3 column also shows 3rd place game
-    const bracketCols = wRounds.map((r, ri) => {
-      // Label for this winners round
-      let roundTitle;
-      if (r === maxWRound)     roundTitle = '🏆 Championship Round';
-      else if (r === maxWRound - 1) roundTitle = 'Semifinals';
-      else                     roundTitle = 'First Round';
+    // KEY INSIGHT from Sleeper API data:
+    // ALL playoff matches (including 3rd/5th place) are in the winners bracket.
+    // The 'p' field marks placement games: p=1=Championship, p=3=3rd, p=5=5th.
+    // The losers bracket contains ONLY consolation matches for seeds 7-12. Ignore it.
 
-      // Championship / placement matches for this column
-      const wMatches = wByRound[r] || [];
+    const regularMatches   = (winners||[]).filter(m => m.p == null);
+    const champMatch        = (winners||[]).find(m => m.p === 1);
+    const thirdMatch        = (winners||[]).find(m => m.p === 3);
+    const fifthMatch        = (winners||[]).find(m => m.p === 5);
 
-      // Which losers round corresponds to this winners round?
-      // lRoundsList[0] aligns with wRounds[1] (semis), lRoundsList[1] aligns with wRounds[2] (finals)
-      const lAlignIdx = ri - 1; // offset: R1 has no losers game, R2 has L[0], R3 has L[1]
-      const lRound    = lRoundsList[lAlignIdx];
-      const lMatches  = (lRound != null && filteredLByRound[lRound]) ? filteredLByRound[lRound] : [];
+    // Group regular matches by round
+    const byRound = {};
+    regularMatches.forEach(m => {
+      const r = m.r || 1;
+      if (!byRound[r]) byRound[r] = [];
+      byRound[r].push(m);
+    });
 
-      const wMatchesHTML = wMatches.map(m => `
+    const rounds   = Object.keys(byRound).map(Number).sort((a,b) => a-b);
+    const maxRound = rounds.length ? Math.max(...rounds) : 1;
+
+    // Column per round: First Round | Semis (+5th place) | [Championship+3rd in finalCol]
+    const bracketCols = rounds.map(r => {
+      const rMatches  = byRound[r] || [];
+      const isSemis   = r === maxRound;
+      const colTitle  = isSemis ? 'Semifinals' : 'First Round';
+      const subLabel  = isSemis ? 'Semifinal'  : 'First Round';
+
+      const regularHTML = rMatches.map(m => `
         <div class="bracket-match-group">
-          <div class="bracket-match-sub-label">${r === maxWRound ? '🏆 Championship' : r === maxWRound-1 ? 'Semifinal' : 'First Round'}</div>
+          <div class="bracket-match-sub-label">${subLabel}</div>
           ${bracketMatch(m)}
         </div>`).join('');
 
-      const lMatchesHTML = lMatches.map(m => `
+      // 5th place game appears alongside the semis column
+      const fifthHTML = isSemis && fifthMatch ? `
         <div class="bracket-match-group">
-          <div class="bracket-match-sub-label" style="color:var(--text3);">${lMatchLabel(lRound)}</div>
-          ${bracketMatch(m)}
-        </div>`).join('');
+          <div class="bracket-match-sub-label" style="color:var(--accent2);">5th Place</div>
+          ${bracketMatch(fifthMatch)}
+        </div>` : '';
 
       return `<div class="bracket-round">
-        <div class="bracket-round-label">${roundTitle}</div>
-        ${wMatchesHTML}
-        ${lMatchesHTML}
+        <div class="bracket-round-label">${colTitle}</div>
+        ${regularHTML}${fifthHTML}
       </div>`;
     }).join('');
 
-    // Build non-playoff draft order: teams ranked 7+ ordered by MaxPF ascending
-    // Lowest MaxPF = pick 1.01 (first pick), highest = last pick
-    const playoffSpots = standingsData?.league?.settings?.playoff_teams || 6;
-    const nonPlayoffTeams = sortedTeams
-      .slice(playoffSpots)
-      .sort((a,b) => (a.max_pts||0) - (b.max_pts||0)); // ascending: worst MaxPF picks first
-    const fmt2 = n => n > 0 ? n.toFixed(2) : '—';
+    // Final column: Championship + 3rd Place
+    const finalCol = `<div class="bracket-round">
+      <div class="bracket-round-label">🏆 Championship Round</div>
+      ${champMatch ? `<div class="bracket-match-group">
+        <div class="bracket-match-sub-label">🏆 Championship</div>
+        ${bracketMatch(champMatch)}
+      </div>` : ''}
+      ${thirdMatch ? `<div class="bracket-match-group">
+        <div class="bracket-match-sub-label" style="color:var(--accent2);">🥉 3rd Place</div>
+        ${bracketMatch(thirdMatch)}
+      </div>` : ''}
+    </div>`;
 
+    // Consolation draft order: non-playoff teams ranked by MaxPF ascending
+    const playoffSpots = standingsData?.league?.settings?.playoff_teams || 6;
+    const nonPlayoffTeams = [...(standingsData?.teams || [])]
+      .sort((a,b) => b.wins !== a.wins ? b.wins-a.wins : b.fpts-a.fpts)
+      .slice(playoffSpots)
+      .sort((a,b) => (a.max_pts||0) - (b.max_pts||0));
+    const fmt2 = n => n > 0 ? n.toFixed(2) : '—';
     const draftOrderHTML = nonPlayoffTeams.length ? `
       <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
         <div style="font-size:13px;font-weight:600;margin-bottom:4px;">📋 Consolation Draft Order</div>
@@ -765,11 +788,10 @@ async function loadBracket() {
             </div>`).join('')}
         </div>
       </div>` : '';
-
     el.innerHTML = `
       <div style="padding:16px 0 8px;">
         <div style="font-size:15px;font-weight:600;margin-bottom:12px;">🏆 Playoff Bracket</div>
-        <div class="bracket-container" style="align-items:flex-start;">${bracketCols}</div>
+        <div class="bracket-container" style="align-items:flex-start;">${bracketCols}${finalCol}</div>
         ${draftOrderHTML}
       </div>`;
   } catch(e) {
