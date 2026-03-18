@@ -623,6 +623,10 @@ async function loadBracket() {
       Sleeper.fetchLosersBracket(lid),
     ]);
 
+    // DEBUG: log raw bracket data so we can see the actual structure
+    console.log('WINNERS BRACKET:', JSON.stringify(winners, null, 2));
+    console.log('LOSERS BRACKET:', JSON.stringify(losers, null, 2));
+
     if (!winners || !winners.length) {
       el.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text3);">
         Bracket data not available yet.</div>`;

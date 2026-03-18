@@ -230,6 +230,9 @@ async function refreshDraft() {
   teamDisplayNames = {}; // reset for each season
   // Load roster mapping first so we can display team names
   await loadRosterMapping();
+  console.log('DRAFT DEBUG - draftLeagueId:', draftLeagueId());
+  console.log('DRAFT DEBUG - teamDisplayNames:', JSON.stringify(teamDisplayNames));
+  console.log('DRAFT DEBUG - rosterIdToTeam:', JSON.stringify(rosterIdToTeam));
 
   let draftPicks = {};    // key "r-slot" → { player, sleeperPick, rosterId }
   slotOwners = {};        // slot# → teamKey (from slot_to_roster_id)
@@ -275,7 +278,7 @@ async function refreshDraft() {
           const pick = (isSnakeS && r % 2 === 0) ? String(TEAMS_N + 1 - Number(slot)) : String(slot);
           slotOwners[`${r}-${pick}`] = teamKey;
         }
-        console.log(`Slot ${slot} → ${teamKey}`);
+        console.log(`Slot ${slot} → teamKey:${teamKey} displayName:${teamDisplayNames[teamKey]}`);
       });
 
     } else if (draftInfo.draft_order && Object.keys(draftInfo.draft_order).length) {
