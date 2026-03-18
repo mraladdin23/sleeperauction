@@ -822,3 +822,24 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
 .bracket-round-label { font-size: 11px; font-weight: 700; color: var(--text3); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px; }
 .bracket-match { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; margin-bottom: 10px; font-size: 13px; }
 .bracket-vs { font-size: 10px; color: var(--text3); margin: 3px 0; }
+
+/* ── Bracket improvements ──────────────────────────────────────── */
+.bracket-match { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius-sm); padding:10px 14px; margin-bottom:10px; font-size:13px; min-width:160px; }
+.bracket-match-label { font-size:10px; font-weight:700; color:var(--accent2); text-transform:uppercase; letter-spacing:.5px; margin-bottom:6px; }
+.bracket-slot { padding:2px 0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px; }
+.bracket-vs { font-size:10px; color:var(--border2); margin:3px 0; }
+.bracket-round-label { font-size:11px; font-weight:700; color:var(--text3); text-transform:uppercase; letter-spacing:.5px; margin-bottom:12px; padding-bottom:6px; border-bottom:1px solid var(--border); }
+
+/* ── Matchup player breakdown ──────────────────────────────────── */
+.matchup-card { cursor:pointer; }
+.matchup-card:hover { border-color:var(--border2); }
+.matchup-team-right { flex-direction:row-reverse; text-align:right; }
+.matchup-team-right .matchup-pts { text-align:left; }
+.mu-team-label { font-size:12px; font-weight:700; color:var(--text2); margin-bottom:8px; padding-bottom:4px; border-bottom:1px solid var(--border); }
+.mu-player-row { display:grid; grid-template-columns:30px 1fr 30px 44px; gap:4px; align-items:center; padding:3px 0; font-size:12px; }
+.mu-bench { opacity:.7; }
+.mu-pos { font-size:10px; font-weight:700; }
+.mu-pname { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.mu-team { font-size:10px; color:var(--text3); text-align:center; }
+.mu-pts { font-family:var(--font-mono); font-size:12px; text-align:right; }
+.mu-section-label { font-size:10px; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:.5px; margin:8px 0 4px; }
