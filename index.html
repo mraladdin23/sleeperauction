@@ -402,16 +402,20 @@ window.addEventListener('popstate', e => {
 // ── Home ─────────────────────────────────────────────────────
 function initStandingsView() {
   if (viewsLoaded.standings) {
-    // Re-render current tab with fresh data check
     if (window.switchStandingsTab) switchStandingsTab(window.standingsTab || 'standings');
     return;
   }
   viewsLoaded.standings = true;
   if (window.standingsInit) {
+    // Already loaded — call directly
     standingsInit();
   } else {
     loadScript('js/standings.js', () => {
-      if (window.standingsInit) standingsInit();
+      // Script sets _standingsInitPending — call init now
+      if (window._standingsInitPending && window.standingsInit) {
+        window._standingsInitPending = false;
+        standingsInit();
+      }
     });
   }
 }
