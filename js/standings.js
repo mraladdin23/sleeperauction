@@ -407,7 +407,7 @@ async function loadMatchupsWeek(week) {
 
   // Use cache if available
   if (matchupsCache[week]) {
-    renderMatchupCards(matchupsCache[week], week);
+    await renderMatchupCards(matchupsCache[week], week);
     return;
   }
 
@@ -417,14 +417,14 @@ async function loadMatchupsWeek(week) {
   try {
     const matchups = await Sleeper.fetchMatchups(lid, week);
     matchupsCache[week] = matchups;
-    renderMatchupCards(matchups, week);
+    await renderMatchupCards(matchups, week);
   } catch(e) {
     grid.innerHTML = `<div style="padding:30px;text-align:center;color:var(--red);">
       Could not load matchups for week ${week}.</div>`;
   }
 }
 
-function renderMatchupCards(matchups, week) {
+async function renderMatchupCards(matchups, week) {
   const grid = document.getElementById('st-matchups-grid');
   if (!grid || !standingsData) return;
 
@@ -442,13 +442,21 @@ function renderMatchupCards(matchups, week) {
   const fmt = n => (n || 0).toFixed(2);
 
   // Get player name lookup from App state
-  // Get player lookup -- try App.state first, then localStorage cache
+  // Get player lookup -- try App.state, then localStorage, then fetch
   let players = (window.App && window.App.state && window.App.state.players) || null;
   if (!players || !Object.keys(players).length) {
     try {
       const raw = localStorage.getItem('sb_players');
       if (raw) players = JSON.parse(raw);
     } catch(e) {}
+  }
+  // If still empty, fetch directly (stores in localStorage for next time)
+  if (!players || !Object.keys(players).length) {
+    try {
+      const r = await fetch('https://api.sleeper.app/v1/players/nfl');
+      players = await r.json();
+      try { localStorage.setItem('sb_players', JSON.stringify(players)); } catch(e) {}
+    } catch(e) { players = {}; }
   }
   players = players || {};
   function pName(id) {
@@ -532,7 +540,7 @@ function renderMatchupCards(matchups, week) {
         </div>
       </div>
       ${hasDetail ? `<div class="mu-detail" style="display:none;width:100%;margin-top:12px;border-top:1px solid var(--border);padding-top:12px;">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+        <div class="mu-roster-grid">
           <div>
             <div class="mu-team-label">${ta.display_name}</div>
             ${renderRoster(a, b.points, aWin)}
@@ -589,11 +597,21 @@ async function loadBracket() {
       return;
     }
 
+    // Build roster -> display name AND seed (rank in sorted standings)
     const rosterMap = {};
-    (standingsData?.teams || []).forEach(t => { rosterMap[t.roster_id] = t.display_name; });
+    const seedMap   = {};
+    const sortedTeams = [...(standingsData?.teams || [])].sort((a,b) =>
+      b.wins !== a.wins ? b.wins - a.wins : b.fpts - a.fpts);
+    sortedTeams.forEach((t, i) => {
+      rosterMap[t.roster_id] = t.display_name;
+      seedMap[t.roster_id]   = i + 1;
+    });
 
     function matchName(rosterId) {
-      return rosterMap[rosterId] || (rosterId ? `Team ${rosterId}` : 'TBD');
+      if (!rosterId) return 'TBD';
+      const name = rosterMap[rosterId] || `Team ${rosterId}`;
+      const seed = seedMap[rosterId];
+      return seed ? `${name} <span style="font-size:10px;color:var(--text3);">#${seed}</span>` : name;
     }
 
     function bracketMatch(m, label) {

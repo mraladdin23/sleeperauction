@@ -579,17 +579,15 @@ function renderBoard() {
           <span class="pick-sal">${fmtM(sal)}</span>
         </div>`;
 
-      // Always show slot owner on every card
-      if (ownerName) {
-        html += `<div class="pick-owner">${ownerName}</div>`;
-      }
-
       if (assigned) {
+        // Only show slot owner if it differs from who made the pick (traded pick)
+        if (ownerName && ownerName !== (assignedTeamName || ownerName)) {
+          html += `<div class="pick-owner" title="Original pick owner">${ownerName}</div>`;
+        }
         html += `<div class="pick-player">${pick.player}</div>
           <div class="pick-team" style="${isOverCap?'color:var(--red);font-weight:600;':''}">
             ${assignedTeamName || ownerName || ''}${isOverCap?' ⚠️ OVER CAP':''}
           </div>
-          ${isSleeper ? '<div class="pick-source">via Sleeper</div>' : ''}
           ${comm ? `<button class="pick-clear" onclick="clearPick('${key}')">✕ Clear</button>` : ''}`;
       } else if (comm) {
         // Nothing shown in card — use the assign panel on the right
