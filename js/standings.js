@@ -509,15 +509,11 @@ async function renderMatchupCards(matchups, week) {
       const posCol = posColor[slotLabel] || posColor[pPos(idA)] || 'var(--text3)';
 
       rows.push(`<div class="mu-sbs-row">
-        <div class="mu-sbs-left">
-          <span class="mu-sbs-pts ${ptsA > ptsB ? 'mu-win' : ''}">${idA ? ptsA.toFixed(2) : '—'}</span>
-          <span class="mu-sbs-name">${idA ? pName(idA) : '—'}</span>
-        </div>
-        <div class="mu-sbs-slot" style="color:${posCol};">${slotLabel}</div>
-        <div class="mu-sbs-right">
-          <span class="mu-sbs-name">${idB ? pName(idB) : '—'}</span>
-          <span class="mu-sbs-pts ${ptsB > ptsA ? 'mu-win' : ''}">${idB ? ptsB.toFixed(2) : '—'}</span>
-        </div>
+        <span class="mu-sbs-pts ${ptsA > ptsB ? 'mu-win' : ''}">${idA ? ptsA.toFixed(2) : '—'}</span>
+        <span class="mu-sbs-name mu-sbs-name-left">${idA ? pName(idA) : '—'}</span>
+        <span class="mu-sbs-slot" style="color:${posCol};">${slotLabel}</span>
+        <span class="mu-sbs-name mu-sbs-name-right">${idB ? pName(idB) : '—'}</span>
+        <span class="mu-sbs-pts mu-sbs-pts-right ${ptsB > ptsA ? 'mu-win' : ''}">${idB ? ptsB.toFixed(2) : '—'}</span>
       </div>`);
     }
 
@@ -536,15 +532,11 @@ async function renderMatchupCards(matchups, week) {
         const ptsA = idA ? +(ppA[idA] ?? 0) : 0;
         const ptsB = idB ? +(ppB[idB] ?? 0) : 0;
         benchHTML += `<div class="mu-sbs-row mu-bench">
-          <div class="mu-sbs-left">
-            <span class="mu-sbs-pts">${idA ? ptsA.toFixed(2) : ''}</span>
-            <span class="mu-sbs-name">${idA ? pName(idA) : ''}</span>
-          </div>
-          <div class="mu-sbs-slot" style="opacity:.3;">—</div>
-          <div class="mu-sbs-right">
-            <span class="mu-sbs-name">${idB ? pName(idB) : ''}</span>
-            <span class="mu-sbs-pts">${idB ? ptsB.toFixed(2) : ''}</span>
-          </div>
+          <span class="mu-sbs-pts">${idA ? ptsA.toFixed(2) : ''}</span>
+          <span class="mu-sbs-name mu-sbs-name-left">${idA ? pName(idA) : ''}</span>
+          <span class="mu-sbs-slot" style="opacity:.3;">BN</span>
+          <span class="mu-sbs-name mu-sbs-name-right">${idB ? pName(idB) : ''}</span>
+          <span class="mu-sbs-pts mu-sbs-pts-right">${idB ? ptsB.toFixed(2) : ''}</span>
         </div>`;
       }
     }
@@ -580,9 +572,11 @@ async function renderMatchupCards(matchups, week) {
       </div>
       ${hasDetail ? `<div class="mu-detail" style="display:none;">
         <div class="mu-sbs-header">
+          <span></span>
           <span class="mu-sbs-team-label">${ta.display_name}</span>
-          <span class="mu-sbs-slot-header">Slot</span>
+          <span class="mu-sbs-slot-header">POS</span>
           <span class="mu-sbs-team-label" style="text-align:right;">${tb.display_name}</span>
+          <span></span>
         </div>
         ${renderSideBySide(a, b)}
         <div style="text-align:center;font-size:10px;color:var(--text3);margin-top:6px;padding-top:6px;border-top:1px solid var(--border);">Tap to collapse ↑</div>
@@ -677,51 +671,62 @@ async function loadBracket() {
     (winners||[]).forEach(m => { const r=m.r||1; if(!wByRound[r]) wByRound[r]=[]; wByRound[r].push(m); });
     (losers ||[]).forEach(m => { const r=m.r||1; if(!lByRound[r]) lByRound[r]=[]; lByRound[r].push(m); });
 
-    const wRounds    = Object.keys(wByRound).map(Number).sort((a,b)=>a-b);
-    const lRounds    = Object.keys(lByRound).map(Number).sort((a,b)=>a-b);
-    const maxWRound  = wRounds.length ? Math.max(...wRounds) : 1;
-    const maxLRound  = lRounds.length ? Math.max(...lRounds) : 0;
+    const wRounds   = Object.keys(wByRound).map(Number).sort((a,b)=>a-b);
+    const maxWRound = wRounds.length ? Math.max(...wRounds) : 1;
+    const maxLRound = Object.keys(lByRound).length ? Math.max(...Object.keys(lByRound).map(Number)) : 0;
 
-    // Winners bracket round labels
-    function wRoundLabel(r) {
-      if (r === maxWRound)     return '🏆 Championship';
-      if (r === maxWRound - 1) return 'Semifinals';
-      return 'First Round';
+    // Map losers rounds to winners rounds they correspond to:
+    // Losers R1 = 5th place game, played same week as winners R2 (semis)
+    // Losers R2 = 3rd place game, played same week as winners R3 (championship)
+    const lRoundsList = Object.keys(lByRound).map(Number).sort((a,b)=>a-b);
+    // lRounds[0] -> 5th place (alongside semis), lRounds[1] -> 3rd place (alongside finals)
+    function lMatchLabel(lRound) {
+      const idx = lRoundsList.indexOf(lRound);
+      if (idx === lRoundsList.length - 1) return '🥉 3rd Place';
+      return '5th Place';
     }
 
-    // Losers bracket placement labels:
-    // Final round of losers = 3rd place game
-    // Previous round = 5th place game (2 losers from first round)
-    function lRoundLabel(r) {
-      if (r === maxLRound)     return '🥉 3rd Place Game';
-      if (r === maxLRound - 1) return '5th Place Game';
-      return 'Consolation';
-    }
+    // Build unified columns: each winners bracket round is a column
+    // R2 column also shows 5th place game; R3 column also shows 3rd place game
+    const bracketCols = wRounds.map((r, ri) => {
+      // Label for this winners round
+      let roundTitle;
+      if (r === maxWRound)     roundTitle = '🏆 Championship Round';
+      else if (r === maxWRound - 1) roundTitle = 'Semifinals';
+      else                     roundTitle = 'First Round';
 
-    // Winners bracket
-    const wCols = wRounds.map(r => `
-      <div class="bracket-round">
-        <div class="bracket-round-label">${wRoundLabel(r)}</div>
-        ${wByRound[r].map(m => bracketMatch(m)).join('')}
-      </div>`).join('');
+      // Championship / placement matches for this column
+      const wMatches = wByRound[r] || [];
 
-    // Placement games (3rd + 5th) -- only final 2 rounds of losers bracket
-    const relevantLRounds = lRounds.filter(r => r >= maxLRound - 1);
-    const lCols = relevantLRounds.map(r => `
-      <div class="bracket-round">
-        <div class="bracket-round-label">${lRoundLabel(r)}</div>
-        ${lByRound[r].map(m => bracketMatch(m)).join('')}
-      </div>`).join('');
+      // Which losers round corresponds to this winners round?
+      // lRoundsList[0] aligns with wRounds[1] (semis), lRoundsList[1] aligns with wRounds[2] (finals)
+      const lAlignIdx = ri - 1; // offset: R1 has no losers game, R2 has L[0], R3 has L[1]
+      const lRound    = lRoundsList[lAlignIdx];
+      const lMatches  = (lRound != null && lByRound[lRound]) ? lByRound[lRound] : [];
+
+      const wMatchesHTML = wMatches.map(m => `
+        <div class="bracket-match-group">
+          <div class="bracket-match-sub-label">${r === maxWRound ? '🏆 Championship' : r === maxWRound-1 ? 'Semifinal' : 'First Round'}</div>
+          ${bracketMatch(m)}
+        </div>`).join('');
+
+      const lMatchesHTML = lMatches.map(m => `
+        <div class="bracket-match-group">
+          <div class="bracket-match-sub-label" style="color:var(--text3);">${lMatchLabel(lRound)}</div>
+          ${bracketMatch(m)}
+        </div>`).join('');
+
+      return `<div class="bracket-round">
+        <div class="bracket-round-label">${roundTitle}</div>
+        ${wMatchesHTML}
+        ${lMatchesHTML}
+      </div>`;
+    }).join('');
 
     el.innerHTML = `
       <div style="padding:16px 0 8px;">
         <div style="font-size:15px;font-weight:600;margin-bottom:12px;">🏆 Playoff Bracket</div>
-        <div class="bracket-container">${wCols}</div>
-        ${lCols ? `<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border);">
-          <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;
-            letter-spacing:.5px;margin-bottom:12px;">Placement Games</div>
-          <div class="bracket-container">${lCols}</div>
-        </div>` : ''}
+        <div class="bracket-container" style="align-items:flex-start;">${bracketCols}</div>
       </div>`;
   } catch(e) {
     if (el) el.innerHTML = `<div style="padding:30px;text-align:center;color:var(--red);">
