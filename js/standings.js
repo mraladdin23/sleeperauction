@@ -155,6 +155,7 @@ async function loadHistoricalSeasons(currentLeague) {
 
   // Walk back through previous_league_id chain (auto-linked via Sleeper renewal)
   let prevId = currentLeague.previous_league_id;
+  if (prevId === "0" || prevId === 0) prevId = null;
   let attempts = 0;
   while (prevId && attempts < 10) {
     attempts++;
@@ -167,6 +168,7 @@ async function loadHistoricalSeasons(currentLeague) {
         current:  false,
       });
       prevId = league.previous_league_id;
+      if (prevId === "0" || prevId === 0) prevId = null;
     } catch(e) { break; }
   }
 
@@ -216,6 +218,7 @@ function renderSeasonBar() {
 }
 
 async function switchSeason(leagueId) {
+  if (!leagueId || leagueId === '0' || leagueId === 0) return;
   window.viewingLeagueId = leagueId;
   matchupsCache   = {};   // clear matchup cache for this season
   renderSeasonBar();
@@ -615,7 +618,7 @@ function renderPlayoffsTab() {
 async function loadBracket() {
   const lid = window.viewingLeagueId || standingsLeagueId();
   const el  = document.getElementById('st-tab-playoffs');
-  if (!el) return;
+  if (!el || !lid || lid === '0') return;
 
   try {
     const [winners, losers] = await Promise.all([
@@ -623,9 +626,9 @@ async function loadBracket() {
       Sleeper.fetchLosersBracket(lid),
     ]);
 
-    // DEBUG: log raw bracket data so we can see the actual structure
-    console.log('WINNERS BRACKET:', JSON.stringify(winners, null, 2));
-    console.log('LOSERS BRACKET:', JSON.stringify(losers, null, 2));
+    console.log('=== WINNERS BRACKET ===', JSON.stringify(winners));
+    console.log('=== LOSERS BRACKET ===', JSON.stringify(losers));
+
 
     if (!winners || !winners.length) {
       el.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text3);">
@@ -670,26 +673,20 @@ async function loadBracket() {
       </div>`;
     }
 
-    // Build set of winners bracket match IDs for filtering
-    const wMatchIds = new Set((winners||[]).map(m => m.m));
-
-    // Filter losers bracket: ONLY keep matches where a team came directly
-    // from a WINNERS bracket loss. This gives us exactly:
-    //   - 5th place game (R1 losers from winners bracket)
-    //   - 3rd place game (semifinal losers from winners bracket)
-    // Teams 7-12 in the consolation bracket never appear in the winners bracket,
-    // so their matches are excluded entirely.
-    function isPlacementGame(m) {
-      const t1w = m.t1_from?.l != null && wMatchIds.has(m.t1_from.l);
-      const t2w = m.t2_from?.l != null && wMatchIds.has(m.t2_from.l);
-      return t1w || t2w;
-    }
-    const placementLosers = (losers||[]).filter(isPlacementGame);
-
-    // Group winners and filtered losers by round
+    // Group winners bracket by round
     const wByRound = {}, lByRound = {};
     (winners||[]).forEach(m => { const r=m.r||1; if(!wByRound[r]) wByRound[r]=[]; wByRound[r].push(m); });
-    placementLosers.forEach(m => { const r=m.r||1; if(!lByRound[r]) lByRound[r]=[]; lByRound[r].push(m); });
+    (losers||[]).forEach(m  => { const r=m.r||1; if(!lByRound[r]) lByRound[r]=[]; lByRound[r].push(m); });
+
+    // Only keep the FINAL 2 rounds of the losers bracket -- these are always
+    // the 3rd place game (final losers round) and 5th place game (penultimate).
+    // This safely excludes consolation rounds for teams 7-12.
+    const allLRounds = Object.keys(lByRound).map(Number).sort((a,b)=>a-b);
+    const placementLRounds = new Set(allLRounds.slice(-2)); // last 2 rounds only
+    const filteredLByRound = {};
+    allLRounds.forEach(r => {
+      if (placementLRounds.has(r)) filteredLByRound[r] = lByRound[r];
+    });
 
     const wRounds   = Object.keys(wByRound).map(Number).sort((a,b)=>a-b);
     const maxWRound = wRounds.length ? Math.max(...wRounds) : 1;
@@ -698,7 +695,7 @@ async function loadBracket() {
     // Map losers rounds to winners rounds they correspond to:
     // Losers R1 = 5th place game, played same week as winners R2 (semis)
     // Losers R2 = 3rd place game, played same week as winners R3 (championship)
-    const lRoundsList = Object.keys(lByRound).map(Number).sort((a,b)=>a-b);
+    const lRoundsList = Object.keys(filteredLByRound).map(Number).sort((a,b)=>a-b);
     // lRounds[0] -> 5th place (alongside semis), lRounds[1] -> 3rd place (alongside finals)
     function lMatchLabel(lRound) {
       const idx = lRoundsList.indexOf(lRound);
@@ -722,7 +719,7 @@ async function loadBracket() {
       // lRoundsList[0] aligns with wRounds[1] (semis), lRoundsList[1] aligns with wRounds[2] (finals)
       const lAlignIdx = ri - 1; // offset: R1 has no losers game, R2 has L[0], R3 has L[1]
       const lRound    = lRoundsList[lAlignIdx];
-      const lMatches  = (lRound != null && lByRound[lRound]) ? lByRound[lRound] : [];
+      const lMatches  = (lRound != null && filteredLByRound[lRound]) ? filteredLByRound[lRound] : [];
 
       const wMatchesHTML = wMatches.map(m => `
         <div class="bracket-match-group">

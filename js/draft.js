@@ -78,6 +78,8 @@ async function loadDraftSeasons() {
     window.draftSeasons = [{ leagueId: lid, season: currentSeason, current: true }];
 
     let prevId = currentLeague.previous_league_id;
+    // Guard against Sleeper returning "0" as a string for no previous league
+    if (prevId === "0" || prevId === 0) prevId = null;
     let attempts = 0;
     while (prevId && attempts < 10) {
       attempts++;
@@ -89,6 +91,7 @@ async function loadDraftSeasons() {
           current:  false,
         });
         prevId = prev.previous_league_id;
+        if (prevId === "0" || prevId === 0) prevId = null;
       } catch(e) { break; }
     }
 
@@ -226,13 +229,18 @@ async function refreshDraft() {
   const bc = document.getElementById('board-container');
   if (!bc) return; // view not in DOM yet
   bc.innerHTML = '<div class="loading"><div class="spinner"></div><div style="margin-top:10px;">Loading board…</div></div>';
+  // Capture which season we're loading -- used to detect stale concurrent calls
+  const thisSeasonId = draftLeagueId();
   try {
   teamDisplayNames = {}; // reset for each season
   // Load roster mapping first so we can display team names
   await loadRosterMapping();
-  console.log('DRAFT DEBUG - draftLeagueId:', draftLeagueId());
-  console.log('DRAFT DEBUG - teamDisplayNames:', JSON.stringify(teamDisplayNames));
-  console.log('DRAFT DEBUG - rosterIdToTeam:', JSON.stringify(rosterIdToTeam));
+  console.log('DRAFT DEBUG leagueId:', draftLeagueId(), 'viewing:', window.viewingDraftLeagueId);
+  console.log('DRAFT DEBUG teamDisplayNames:', JSON.stringify(teamDisplayNames));
+  console.log('DRAFT DEBUG rosterIdToTeam:', JSON.stringify(rosterIdToTeam));
+  console.log('=== DRAFT SEASON:', draftLeagueId());
+  console.log('=== rosterIdToTeam:', JSON.stringify(rosterIdToTeam));
+  console.log('=== teamDisplayNames:', JSON.stringify(teamDisplayNames));
 
   let draftPicks = {};    // key "r-slot" → { player, sleeperPick, rosterId }
   slotOwners = {};        // slot# → teamKey (from slot_to_roster_id)
@@ -278,7 +286,7 @@ async function refreshDraft() {
           const pick = (isSnakeS && r % 2 === 0) ? String(TEAMS_N + 1 - Number(slot)) : String(slot);
           slotOwners[`${r}-${pick}`] = teamKey;
         }
-        console.log(`Slot ${slot} → teamKey:${teamKey} displayName:${teamDisplayNames[teamKey]}`);
+        console.log(`Slot ${slot} → ${teamKey}`);
       });
 
     } else if (draftInfo.draft_order && Object.keys(draftInfo.draft_order).length) {
@@ -310,15 +318,20 @@ async function refreshDraft() {
     }
 
     // Override with any manually saved pick order from Firebase
-    // (takes precedence over Sleeper API data for traded picks)
-    try {
-      const savedOrder = await db.ref(`leagues/${leagueId()}/draftSlotOwners`).once('value');
-      const saved = savedOrder.val();
-      if (saved && Object.keys(saved).length) {
-        Object.assign(slotOwners, saved);
-        console.log('Loaded saved pick order from Firebase:', saved);
-      }
-    } catch(e) { console.warn('Could not load saved pick order:', e); }
+    // (current season only -- historical seasons use Sleeper data exclusively)
+    // Only apply Firebase slot owners if we're still on the same season (prevent race condition)
+    if (!window.viewingDraftLeagueId && draftLeagueId() === thisSeasonId) {
+      try {
+        const savedOrder = await db.ref(`leagues/${leagueId()}/draftSlotOwners`).once('value');
+        const saved = savedOrder.val();
+        if (saved && Object.keys(saved).length) {
+          // Final race check before applying
+          if (draftLeagueId() === thisSeasonId) {
+            Object.assign(slotOwners, saved);
+          }
+        }
+      } catch(e) { console.warn('Could not load saved pick order:', e); }
+    }
 
     // 3. Fetch actual picks made (empty array for pre_draft, populated otherwise)
     const picks = await fetch(`https://api.sleeper.app/v1/draft/${draftInfo.draft_id}/picks`).then(r=>r.json());
@@ -374,12 +387,14 @@ async function refreshDraft() {
       'Could not load Sleeper draft — check league ID. Manual entry mode active.';
   }
 
-  // 4. Load manual/saved board from Firebase (overrides Sleeper)
+  // 4. Load manual/saved board from Firebase (current season only)
   let savedBoard = {};
-  try {
-    const snap = await db.ref(`leagues/${leagueId()}/rookieDraft`).once('value');
-    savedBoard = snap.val() || {};
-  } catch(e) {}
+  if (!window.viewingDraftLeagueId) {
+    try {
+      const snap = await db.ref(`leagues/${leagueId()}/rookieDraft`).once('value');
+      savedBoard = snap.val() || {};
+    } catch(e) {}
+  }
 
   // Merge: Sleeper picks first, Firebase manual picks override
   board = { ...draftPicks, ...savedBoard };
