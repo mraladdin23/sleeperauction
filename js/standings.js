@@ -8,8 +8,8 @@ var standingsData = null;   // { teams, rosters, users, league }
 var matchupsCache = {};     // week -> matchup array
 var currentWeek   = 1;
 var standingsTab      = 'standings'; // 'standings' | 'matchups' | 'playoffs'
-var viewingLeagueId   = null;  // null = current, else historical leagueId
-var historicalLeagues = [];    // [{leagueId, season, name, current}] newest-first
+window.viewingLeagueId   = window.viewingLeagueId   || null;
+window.historicalLeagues = window.historicalLeagues || [];
 
 function standingsLeagueId() { return localStorage.getItem('sb_leagueId') || ''; }
 
@@ -66,7 +66,7 @@ function switchStandingsTab(name) {
 // ── Data loading ───────────────────────────────────────────────
 async function loadStandingsData(forceRefresh) {
   const lid = standingsLeagueId();
-  viewingLeagueId = null;  // reset to current season
+  window.viewingLeagueId = null;  // reset to current season
   showStandingsLoading('Loading standings…');
 
   // Try Firebase cache
@@ -82,7 +82,7 @@ async function loadStandingsData(forceRefresh) {
         currentWeek   = cached.currentWeek || 1;
         renderStandingsTab();
         // Also load historical seasons if not already loaded
-        if (!historicalLeagues.length && cached.data?.league) {
+        if (!window.historicalLeagues.length && cached.data?.league) {
           loadHistoricalSeasons(cached.data.league);
         }
         return;
@@ -135,7 +135,7 @@ async function loadStandingsData(forceRefresh) {
 
     renderStandingsTab();
     // Load historical seasons in background (non-blocking)
-    if (!historicalLeagues.length) loadHistoricalSeasons(league);
+    if (!window.historicalLeagues.length) loadHistoricalSeasons(league);
   } catch(e) {
     showStandingsError('Could not load standings: ' + (e.message || e));
   }
@@ -143,9 +143,9 @@ async function loadStandingsData(forceRefresh) {
 
 // ── Historical seasons ─────────────────────────────────────────
 async function loadHistoricalSeasons(currentLeague) {
-  historicalLeagues = [];
+  window.historicalLeagues = [];
   const currentSeason = currentLeague.season || new Date().getFullYear();
-  historicalLeagues.push({
+  window.historicalLeagues.push({
     leagueId: standingsLeagueId(),
     season:   currentSeason,
     name:     currentLeague.name || currentSeason,
@@ -159,7 +159,7 @@ async function loadHistoricalSeasons(currentLeague) {
     attempts++;
     try {
       const league = await Sleeper.fetchLeague(prevId);
-      historicalLeagues.push({
+      window.historicalLeagues.push({
         leagueId: prevId,
         season:   league.season || (currentSeason - attempts),
         name:     league.name || String(currentSeason - attempts),
@@ -171,14 +171,14 @@ async function loadHistoricalSeasons(currentLeague) {
 
   // Fallback: check Firebase for manually registered seasons
   // (needed when league was created fresh each year instead of renewed via Sleeper)
-  if (historicalLeagues.length <= 1) {
+  if (window.historicalLeagues.length <= 1) {
     try {
       const snap = await db.ref(`leagues/${standingsLeagueId()}/seasonHistory`).once('value');
       const manual = snap.val();
       if (manual && Array.isArray(manual)) {
         manual.forEach(entry => {
           if (entry.leagueId && entry.leagueId !== standingsLeagueId()) {
-            historicalLeagues.push({
+            window.historicalLeagues.push({
               leagueId: entry.leagueId,
               season:   entry.season,
               name:     entry.name || String(entry.season),
@@ -187,24 +187,24 @@ async function loadHistoricalSeasons(currentLeague) {
           }
         });
         // Sort newest first
-        historicalLeagues.sort((a, b) => (b.season || 0) - (a.season || 0));
+        window.historicalLeagues.sort((a, b) => (b.season || 0) - (a.season || 0));
       }
     } catch(e) { /* no manual registry */ }
   }
 
   // Only show season bar if there are multiple seasons
-  if (historicalLeagues.length > 1) renderSeasonBar();
+  if (window.historicalLeagues.length > 1) renderSeasonBar();
 }
 
 function renderSeasonBar() {
   const bar = document.getElementById('st-season-bar');
   if (!bar) return;
-  const currentId = viewingLeagueId || standingsLeagueId();
+  const currentId = window.viewingLeagueId || standingsLeagueId();
   bar.style.display = '';
   bar.innerHTML =
     '<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;font-weight:600;">Season</div>' +
     '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
-    historicalLeagues.map(h =>
+    window.historicalLeagues.map(h =>
       `<button onclick="switchSeason('${h.leagueId}')"
         style="padding:5px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);
         background:${h.leagueId===currentId?'var(--accent)':'var(--surface2)'};
@@ -215,12 +215,12 @@ function renderSeasonBar() {
 }
 
 async function switchSeason(leagueId) {
-  viewingLeagueId = leagueId;
+  window.viewingLeagueId = leagueId;
   matchupsCache   = {};   // clear matchup cache for this season
   renderSeasonBar();
 
   // Fetch data for this season
-  showStandingsLoading('Loading ' + (historicalLeagues.find(h=>h.leagueId===leagueId)?.season || 'season') + ' standings…');
+  showStandingsLoading('Loading ' + (window.historicalLeagues.find(h=>h.leagueId===leagueId)?.season || 'season') + ' standings…');
   try {
     const [league, rosters, users] = await Promise.all([
       Sleeper.fetchLeague(leagueId),
@@ -389,7 +389,7 @@ function renderMatchupsTab() {
 }
 
 async function loadMatchupsWeek(week) {
-  const lid = viewingLeagueId || standingsLeagueId();
+  const lid = window.viewingLeagueId || standingsLeagueId();
   // Update button highlight
   document.querySelectorAll('[id^="st-week-"]').forEach(b => {
     const w = parseInt(b.id.replace('st-week-',''));
@@ -499,7 +499,7 @@ function renderPlayoffsTab() {
 }
 
 async function loadBracket() {
-  const lid = viewingLeagueId || standingsLeagueId();
+  const lid = window.viewingLeagueId || standingsLeagueId();
   const el  = document.getElementById('st-tab-playoffs');
   if (!el) return;
 

@@ -2,7 +2,7 @@
 
 // ── Auth helpers ─────────────────────────────────────────────
 function leagueId()  { return localStorage.getItem('sb_leagueId') || ''; }
-function draftLeagueId() { return viewingDraftLeagueId || leagueId(); }
+function draftLeagueId() { return window.viewingDraftLeagueId || leagueId(); }
 function username()  { return localStorage.getItem('sb_username') || ''; }
 var COMM = 'mraladdin23';
 function isComm()    { return username().toLowerCase() === COMM; }
@@ -68,14 +68,14 @@ let draftInfo = null;
 
 // ── Draft season history ───────────────────────────────────────
 async function loadDraftSeasons() {
-  if (draftSeasons.length) { renderDraftSeasonBar(); return; }
+  if (window.draftSeasons.length) { renderDraftSeasonBar(); return; }
   const lid = leagueId();
 
   // First try Sleeper's previous_league_id chain
   try {
     const currentLeague = await Sleeper.fetchLeague(lid);
     const currentSeason = currentLeague.season || new Date().getFullYear();
-    draftSeasons = [{ leagueId: lid, season: currentSeason, current: true }];
+    window.draftSeasons = [{ leagueId: lid, season: currentSeason, current: true }];
 
     let prevId = currentLeague.previous_league_id;
     let attempts = 0;
@@ -83,7 +83,7 @@ async function loadDraftSeasons() {
       attempts++;
       try {
         const prev = await Sleeper.fetchLeague(prevId);
-        draftSeasons.push({
+        window.draftSeasons.push({
           leagueId: prevId,
           season:   prev.season || (currentSeason - attempts),
           current:  false,
@@ -93,31 +93,31 @@ async function loadDraftSeasons() {
     }
 
     // Fallback: Firebase manual registry
-    if (draftSeasons.length <= 1) {
+    if (window.draftSeasons.length <= 1) {
       try {
         const snap = await db.ref(`leagues/${lid}/seasonHistory`).once('value');
         const manual = snap.val();
         if (manual && Array.isArray(manual)) {
           manual.forEach(entry => {
             if (entry.leagueId && entry.leagueId !== lid) {
-              draftSeasons.push({ leagueId: entry.leagueId, season: entry.season, current: false });
+              window.draftSeasons.push({ leagueId: entry.leagueId, season: entry.season, current: false });
             }
           });
-          draftSeasons.sort((a, b) => (b.season || 0) - (a.season || 0));
+          window.draftSeasons.sort((a, b) => (b.season || 0) - (a.season || 0));
         }
       } catch(e) {}
     }
   } catch(e) {}
 
-  if (draftSeasons.length > 1) renderDraftSeasonBar();
+  if (window.draftSeasons.length > 1) renderDraftSeasonBar();
 }
 
 function renderDraftSeasonBar() {
   // Deduplicate by leagueId
   const seen = new Set();
-  const unique = draftSeasons.filter(s => { if (seen.has(s.leagueId)) return false; seen.add(s.leagueId); return true; });
+  const unique = window.draftSeasons.filter(s => { if (seen.has(s.leagueId)) return false; seen.add(s.leagueId); return true; });
   if (unique.length <= 1) return; // nothing to show
-  draftSeasons = unique;
+  window.draftSeasons = unique;
 
   let bar = document.getElementById('draft-season-bar');
   if (!bar) {
@@ -129,11 +129,11 @@ function renderDraftSeasonBar() {
     bar.style.cssText = 'margin:0 0 14px;';
     layout.parentNode.insertBefore(bar, layout);
   }
-  const currentId = viewingDraftLeagueId || leagueId();
+  const currentId = window.viewingDraftLeagueId || leagueId();
   bar.innerHTML =
     '<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;font-weight:600;">Season</div>' +
     '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
-    draftSeasons.map(s =>
+    window.draftSeasons.map(s =>
       `<button onclick="switchDraftSeason('${s.leagueId}')"
         style="padding:5px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);
         background:${s.leagueId===currentId?'var(--accent)':'var(--surface2)'};
@@ -144,13 +144,13 @@ function renderDraftSeasonBar() {
 }
 
 async function switchDraftSeason(lid) {
-  viewingDraftLeagueId = lid === leagueId() ? null : lid;
+  window.viewingDraftLeagueId = lid === leagueId() ? null : lid;
   renderDraftSeasonBar();
 
   // For past seasons: hide the commissioner assign panel (read-only view)
   const panel = document.getElementById('draft-action-panel');
-  if (panel) panel.style.display = (viewingDraftLeagueId && !isComm()) ? 'none' :
-                                    viewingDraftLeagueId ? 'none' : // hide for historical
+  if (panel) panel.style.display = (window.viewingDraftLeagueId && !isComm()) ? 'none' :
+                                    window.viewingDraftLeagueId ? 'none' : // hide for historical
                                     isComm() ? '' : 'none';
   await refreshDraft();
 }
@@ -181,8 +181,8 @@ async function init() {
 let slotOwners = {};   // "round-pick" → teamKey
 let rosterIdToTeam        = {};  // Sleeper roster_id (string) → our teamKey
 let rosterIdToDisplayName = {};  // Sleeper roster_id (string) → display name (fallback)
-var viewingDraftLeagueId  = null; // null = current season, else historical leagueId
-var draftSeasons          = [];   // [{leagueId, season, current}] newest-first
+window.viewingDraftLeagueId = window.viewingDraftLeagueId || null;
+window.draftSeasons         = window.draftSeasons         || [];
 
 async function loadRosterMapping() {
   rosterIdToTeam = {};
@@ -387,7 +387,7 @@ async function refreshDraft() {
 
   // Only show assign/order panels for current season commissioner
   const draftPanelEl = document.getElementById('draft-action-panel');
-  if (draftPanelEl) draftPanelEl.style.display = (!viewingDraftLeagueId && isComm()) ? '' : 'none';
+  if (draftPanelEl) draftPanelEl.style.display = (!window.viewingDraftLeagueId && isComm()) ? '' : 'none';
 
   // Load season history bar (non-blocking)
   loadDraftSeasons();
