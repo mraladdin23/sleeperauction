@@ -274,7 +274,7 @@ window.addEventListener('DOMContentLoaded',function(){
     <nav class="app-bar-nav">
       <button class="app-btn" id="nav-home"      onclick="navigateTo('home')">      <span class="app-btn-icon">🏠</span><span>Home</span></button>
       <button class="app-btn" id="nav-roster"    onclick="navigateTo('roster')">    <span class="app-btn-icon">💰</span><span>Rosters</span></button>
-      <button class="app-btn" id="nav-standings" onclick="navigateTo('standings')" style="opacity:.45;pointer-events:none;"> <span class="app-btn-icon">📊</span><span>Standings</span></button>
+      <button class="app-btn" id="nav-standings" onclick="navigateTo('standings')"> <span class="app-btn-icon">📊</span><span>Standings</span></button>
       <button class="app-btn" id="nav-auction"   onclick="navigateTo('auction')">   <span class="app-btn-icon">🏷</span><span>Auction</span></button>
       <button class="app-btn" id="nav-draft"     onclick="navigateTo('draft')">     <span class="app-btn-icon">🎓</span><span>Draft</span></button>
       <button class="app-btn" style="opacity:.4;cursor:not-allowed;">               <span class="app-btn-icon">📊</span><span>Standings</span></button>
@@ -300,11 +300,10 @@ window.addEventListener('DOMContentLoaded',function(){
           <div class="home-card-title">Rosters</div>
           <div class="home-card-sub" id="home-sub-roster">Salary cap · tracking</div>
         </div>
-        <div class="home-card disabled">
-          <div class="hc-badge hcb-soon">soon</div>
+        <div class="home-card" onclick="navigateTo('standings')">
           <div class="home-card-icon hci-standings">📊</div>
           <div class="home-card-title">Standings</div>
-          <div class="home-card-sub">W/L · points · schedule</div>
+          <div class="home-card-sub" id="home-sub-standings">W/L · matchups · playoffs</div>
         </div>
         <div class="home-card" onclick="navigateTo('auction')">
           <div class="hc-badge hcb-live" id="home-badge-auction" style="display:none;"></div>
@@ -350,6 +349,26 @@ const VIEWS = ['home','roster','standings','auction','draft'];
 let currentView = null;
 const viewsLoaded = {};
 
+// Robust script loader — handles cached scripts where onload may not fire
+function loadScript(src, callback) {
+  // Check if already in DOM
+  const existing = document.querySelector('script[src="' + src + '"]');
+  if (existing) {
+    // Script tag exists — function may already be defined
+    callback();
+    return;
+  }
+  const s = document.createElement('script');
+  s.src = src;
+  let called = false;
+  function done() { if (!called) { called = true; callback(); } }
+  s.onload  = done;
+  s.onerror = () => console.error('Failed to load', src);
+  document.head.appendChild(s);
+  // Timeout fallback: if onload doesn't fire in 5s, try calling anyway
+  setTimeout(() => done(), 5000);
+}
+
 function navigateTo(view) {
   if (!VIEWS.includes(view)) view = 'home';
 
@@ -363,15 +382,17 @@ function navigateTo(view) {
   document.getElementById('view-home').style.display    = view==='home'    ? '' : 'none';
   document.getElementById('view-auction').style.display = view==='auction' ? '' : 'none';
   document.getElementById('view-roster').style.display  = view==='roster'  ? '' : 'none';
-  document.getElementById('view-draft').style.display   = view==='draft'   ? '' : 'none';
+  document.getElementById('view-draft').style.display      = view==='draft'      ? '' : 'none';
+  document.getElementById('view-standings').style.display = view==='standings' ? '' : 'none';
 
   history.pushState({view}, '', '#' + view);
   currentView = view;
 
-  if (view === 'home')    initHomeView();
-  if (view === 'auction') initAuctionView();
-  if (view === 'roster')  initRosterView();
-  if (view === 'draft')   initDraftView();
+  if (view === 'home')      initHomeView();
+  if (view === 'auction')   initAuctionView();
+  if (view === 'roster')    initRosterView();
+  if (view === 'draft')     initDraftView();
+  if (view === 'standings') initStandingsView();
 }
 
 window.addEventListener('popstate', e => {
@@ -379,6 +400,22 @@ window.addEventListener('popstate', e => {
 });
 
 // ── Home ─────────────────────────────────────────────────────
+function initStandingsView() {
+  if (viewsLoaded.standings) {
+    // Re-render current tab with fresh data check
+    if (window.switchStandingsTab) switchStandingsTab(window.standingsTab || 'standings');
+    return;
+  }
+  viewsLoaded.standings = true;
+  if (window.standingsInit) {
+    standingsInit();
+  } else {
+    loadScript('js/standings.js', () => {
+      if (window.standingsInit) standingsInit();
+    });
+  }
+}
+
 function initHomeView() {
   const name = localStorage.getItem('sb_leagueName') || 'My League';
   const el = document.getElementById('home-league-name');
@@ -394,50 +431,39 @@ function initHomeView() {
     if (sub)   sub.textContent = live + ' active auction' + (live===1?'':'s');
   }
 
-  loadActivityFeed();
+  // Small delay to ensure App subscription data is available
+  setTimeout(loadActivityFeed, 200);
 }
 
-async function loadActivityFeed() {
+function loadActivityFeed() {
   const el = document.getElementById('home-activity-feed');
-  if (!el || !window.db) return;
+  if (!el) return;
+  // Use live state from app.js if available (subscription already running)
+  if (window.App && window.App.state && window.App.state.activityFeed &&
+      Object.keys(window.App.state.activityFeed).length) {
+    if (window.App.updateHomeFeed) App.updateHomeFeed(App.state.activityFeed);
+    return;
+  }
+  // Fallback: direct Firebase read
+  if (typeof db === 'undefined') {
+    el.innerHTML = '<div class="feed-empty">Loading…</div>';
+    return;
+  }
   const lid = localStorage.getItem('sb_leagueId');
   if (!lid) { el.innerHTML = '<div class="feed-empty">No league connected.</div>'; return; }
-  try {
-    // logActivity writes 'timestamp' (not 'ts'), so order by timestamp
-    const snap = await db.ref('leagues/' + lid + '/activityFeed')
-      .orderByChild('timestamp').limitToLast(15).once('value');
-    const val = snap.val();
-    if (!val) { el.innerHTML = '<div class="feed-empty">No activity yet.</div>'; return; }
-    // Build human-readable message from event fields since no 'msg' field is stored
-    function feedMsg(item) {
-      const p = item.playerName || '';
-      const t = item.teamName   || '';
-      switch(item.type) {
-        case 'nomination': return '🏷 ' + (t||'Someone') + ' nominated ' + (p||'a player');
-        case 'bid':        return '💰 ' + (t||'Someone') + ' bid on ' + (p||'a player');
-        case 'claim':      return '✅ ' + (t||'Someone') + ' claimed ' + (p||'a player');
-        case 'cancel':     return '❌ Auction cancelled for ' + (p||'a player');
-        case 'pass':       return '⏭ ' + (t||'Someone') + ' passed on ' + (p||'a player');
-        case 'autoclose':  return '🔒 Auction auto-closed for ' + (p||'a player');
-        default:           return item.msg || item.message || item.type || 'Activity';
+  db.ref('leagues/' + lid + '/activityFeed')
+    .orderByChild('timestamp').limitToLast(15)
+    .once('value')
+    .then(snap => {
+      if (window.App && window.App.updateHomeFeed) {
+        App.updateHomeFeed(snap.val() || {});
+      } else {
+        el.innerHTML = snap.val()
+          ? '<div class="feed-empty">Activity loaded.</div>'
+          : '<div class="feed-empty">No activity yet.</div>';
       }
-    }
-    const items = Object.values(val).sort((a,b) => (b.timestamp||0) - (a.timestamp||0));
-    const dotColors = { nomination:'var(--accent)', bid:'var(--accent2)', claim:'var(--green)',
-                        cancel:'var(--red)', pass:'var(--text3)', autoclose:'var(--yellow)' };
-    el.innerHTML = items.map(item => {
-      const color = dotColors[item.type] || 'var(--text3)';
-      const ts    = item.timestamp || item.ts || 0;
-      const diff  = Date.now() - ts;
-      const m     = Math.floor(diff/60000);
-      const ago   = m < 1 ? 'just now' : m < 60 ? m+'m ago' : m < 1440 ? Math.floor(m/60)+'h ago' : Math.floor(m/1440)+'d ago';
-      return '<div class="feed-row"><div class="feed-dot" style="background:' + color + ';"></div>' +
-        '<div class="feed-body"><div>' + feedMsg(item) + '</div>' +
-        '<div class="feed-time">' + ago + '</div></div></div>';
-    }).join('');
-  } catch(e) {
-    el.innerHTML = '<div class="feed-empty">Could not load activity.</div>';
-  }
+    })
+    .catch(() => { el.innerHTML = '<div class="feed-empty">Could not load activity.</div>'; });
 }
 
 // ── Auction view ──────────────────────────────────────────────
@@ -466,13 +492,9 @@ function initRosterView() {
   container.innerHTML = buildRosterHTML();
   viewsLoaded.roster = true;
   if (window.capInit) {
-    // Already loaded from a previous session
     capInit();
   } else {
-    const s = document.createElement('script');
-    s.src = 'js/cap.js';
-    s.onload = () => { if (window.capInit) capInit(); };
-    document.head.appendChild(s);
+    loadScript('js/cap.js', () => { if (window.capInit) capInit(); });
   }
 }
 
@@ -486,13 +508,9 @@ function initDraftView() {
   container.innerHTML = buildDraftHTML();
   viewsLoaded.draft = true;
   if (window.draftInit) {
-    // Already loaded from a previous session
     draftInit();
   } else {
-    const s = document.createElement('script');
-    s.src = 'js/draft.js';
-    s.onload = () => { if (window.draftInit) draftInit(); };
-    document.head.appendChild(s);
+    loadScript('js/draft.js', () => { if (window.draftInit) draftInit(); });
   }
 }
 
