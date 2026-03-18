@@ -181,6 +181,7 @@ async function init() {
 let slotOwners = {};   // "round-pick" → teamKey
 let rosterIdToTeam        = {};  // Sleeper roster_id (string) → our teamKey
 let rosterIdToDisplayName = {};  // Sleeper roster_id (string) → display name (fallback)
+let teamDisplayNames      = {};  // teamKey (username) → display name for current viewing season
 window.viewingDraftLeagueId = window.viewingDraftLeagueId || null;
 window.draftSeasons         = window.draftSeasons         || [];
 
@@ -204,6 +205,8 @@ async function loadRosterMapping() {
                    || username;
       rosterIdToTeam[String(r.roster_id)] = capKey;
       rosterIdToDisplayName[String(r.roster_id)] = u.display_name || u.username || `Roster ${r.roster_id}`;
+      // Store display name keyed by teamKey for historical season name lookup
+      teamDisplayNames[capKey] = u.display_name || u.username || capKey;
       console.log(`Roster ${r.roster_id} → ${capKey} (${u.display_name})`);
     });
   } catch(e) {
@@ -224,6 +227,7 @@ async function refreshDraft() {
   if (!bc) return; // view not in DOM yet
   bc.innerHTML = '<div class="loading"><div class="spinner"></div><div style="margin-top:10px;">Loading board…</div></div>';
   try {
+  teamDisplayNames = {}; // reset for each season
   // Load roster mapping first so we can display team names
   await loadRosterMapping();
 
@@ -573,10 +577,10 @@ function renderBoard() {
       // For snake drafts, even rounds reverse the pick order
       // Look up owner by round-pick key directly
       const ownerKey  = slotOwners[`${r}-${p}`] || null;
-      const ownerName = ownerKey ? (DRAFT_DATA[ownerKey]?.team_name || ownerKey) : null;
+      const ownerName = ownerKey ? (window.viewingDraftLeagueId ? (teamDisplayNames[ownerKey] || ownerKey) : (DRAFT_DATA[ownerKey]?.team_name || ownerKey)) : null;
       const isSleeper = pick.sleeperPick && !pick.team;
       const assignedTeamKey  = pick.team || null;
-      const assignedTeamName = assignedTeamKey ? (DRAFT_DATA[assignedTeamKey]?.team_name || assignedTeamKey) : '';
+      const assignedTeamName = assignedTeamKey ? (window.viewingDraftLeagueId ? (teamDisplayNames[assignedTeamKey] || assignedTeamKey) : (DRAFT_DATA[assignedTeamKey]?.team_name || assignedTeamKey)) : '';
       const isOverCap = assignedTeamKey && DRAFT_DATA[assignedTeamKey]?.cap_spent > CAP;
 
       const cardCls = assigned
@@ -702,7 +706,7 @@ function onAssignRoundOrSlotChange() {
 
   // Look up owner by round-pick key directly
   const ownerKey = slotOwners[`${r}-${p}`] || null;
-  const ownerName = ownerKey ? (DRAFT_DATA[ownerKey]?.team_name || ownerKey) : null;
+  const ownerName = ownerKey ? (window.viewingDraftLeagueId ? (teamDisplayNames[ownerKey] || ownerKey) : (DRAFT_DATA[ownerKey]?.team_name || ownerKey)) : null;
 
   // Show who owns the pick
   ownerLabel.textContent = ownerName ? `Pick ${r}.${String(p).padStart(2,'0')} owned by: ${ownerName}` : '';
