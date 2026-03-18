@@ -100,5 +100,24 @@ const Sleeper = (() => {
     return pts;
   }
 
-  return { fetchUser, fetchLeague, fetchRosters, fetchLeagueUsers, fetchPlayers, fetchStats, calculatePoints, invalidatePlayerCache };
+
+  async function fetchMatchups(leagueId, week) {
+    const r = await fetch(`${BASE}/league/${leagueId}/matchups/${week}`);
+    if (!r.ok) throw new Error(`Could not load matchups week ${week}`);
+    return r.json();
+  }
+
+  async function fetchWinnersBracket(leagueId) {
+    const r = await fetch(`${BASE}/league/${leagueId}/winners_bracket`);
+    if (!r.ok) return [];
+    return r.json();
+  }
+
+  async function fetchLosersBracket(leagueId) {
+    const r = await fetch(`${BASE}/league/${leagueId}/losers_bracket`);
+    if (!r.ok) return [];
+    return r.json();
+  }
+
+  return { fetchUser, fetchLeague, fetchRosters, fetchLeagueUsers, fetchPlayers, fetchStats, calculatePoints, invalidatePlayerCache, fetchMatchups, fetchWinnersBracket, fetchLosersBracket };
 })();

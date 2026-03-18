@@ -126,9 +126,10 @@ async function loadRosterMapping() {
 }
 
 async function refreshDraft() {
-  document.getElementById('board-container').innerHTML =
-    '<div class="loading"><div class="spinner"></div><div style="margin-top:10px;">Loading board…</div></div>';
-
+  const bc = document.getElementById('board-container');
+  if (!bc) return; // view not in DOM yet
+  bc.innerHTML = '<div class="loading"><div class="spinner"></div><div style="margin-top:10px;">Loading board…</div></div>';
+  try {
   // Load roster mapping first so we can display team names
   await loadRosterMapping();
 
@@ -293,6 +294,14 @@ async function refreshDraft() {
   // Only show assign/order panels to commissioner
   const draftPanelEl = document.getElementById('draft-action-panel');
   if (draftPanelEl) draftPanelEl.style.display = isComm() ? '' : 'none';
+  } catch(e) {
+    console.error('refreshDraft:', e);
+    const bc2 = document.getElementById('board-container');
+    if (bc2) bc2.innerHTML = '<div style="padding:40px;text-align:center;color:var(--red);">' +
+      '<div style="font-size:24px;margin-bottom:12px;">⚠️</div>' +
+      'Error loading draft board.<br><small style="font-family:monospace;opacity:.7;">' + (e.message||String(e)) + '</small><br>' +
+      '<button onclick="refreshDraft()" style="margin-top:16px;padding:8px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);cursor:pointer;">↻ Try Again</button></div>';
+  }
 }
 
 async function loadRookiePlayers() {

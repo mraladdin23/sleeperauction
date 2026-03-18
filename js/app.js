@@ -305,6 +305,8 @@ const App = (() => {
     Auction.subscribeFaabOverrides(state.leagueId, async overrides => {
       if (!overrides || Object.keys(overrides).length === 0) {
         await seedFaabFromKnownValues();
+        // Still render — teams show Sleeper FAAB budget even without overrides
+        renderAll();
         return;
       }
       state.faabOverrides = overrides;
@@ -314,6 +316,8 @@ const App = (() => {
     Auction.subscribeActivityFeed(state.leagueId, feed => {
       state.activityFeed = feed;
       UI.renderActivityFeed(feed);
+      // Also update home page activity feed if visible
+      updateHomeFeed(feed);
     });
 
     // Watchlist — keyed by Sleeper user_id
@@ -358,6 +362,41 @@ const App = (() => {
       opt.textContent = '⚙️ Commissioner';
       dd.appendChild(opt);
     }
+  }
+
+  function updateHomeFeed(feed) {
+    const el = document.getElementById('home-activity-feed');
+    if (!el) return;
+    if (!feed || !Object.keys(feed).length) {
+      el.innerHTML = '<div class="feed-empty">No activity yet.</div>';
+      return;
+    }
+    function feedMsg(item) {
+      const p = item.playerName || '';
+      const t = item.teamName   || '';
+      switch(item.type) {
+        case 'nomination': return '🏷 ' + (t||'Someone') + ' nominated ' + (p||'a player');
+        case 'bid':        return '💰 ' + (t||'Someone') + ' bid on ' + (p||'a player');
+        case 'claim':      return '✅ ' + (t||'Someone') + ' claimed ' + (p||'a player');
+        case 'cancel':     return '❌ Auction cancelled for ' + (p||'a player');
+        case 'pass':       return '⏭ ' + (t||'Someone') + ' passed on ' + (p||'a player');
+        case 'autoclose':  return '🔒 Auction auto-closed for ' + (p||'a player');
+        default:           return item.msg || item.message || item.type || 'Activity';
+      }
+    }
+    const dotColors = { nomination:'var(--accent)', bid:'var(--accent2)', claim:'var(--green)',
+                        cancel:'var(--red)', pass:'var(--text3)', autoclose:'var(--yellow)' };
+    const items = Object.values(feed).sort((a,b) => (b.timestamp||0)-(a.timestamp||0)).slice(0,10);
+    el.innerHTML = items.map(item => {
+      const color = dotColors[item.type] || 'var(--text3)';
+      const ts    = item.timestamp || item.ts || 0;
+      const diff  = Date.now() - ts;
+      const m     = Math.floor(diff/60000);
+      const ago   = m < 1 ? 'just now' : m < 60 ? m+'m ago' : m < 1440 ? Math.floor(m/60)+'h ago' : Math.floor(m/1440)+'d ago';
+      return '<div class="feed-row"><div class="feed-dot" style="background:' + color + ';"></div>' +
+        '<div class="feed-body"><div>' + feedMsg(item) + '</div>' +
+        '<div class="feed-time">' + ago + '</div></div></div>';
+    }).join('');
   }
 
   function renderAll() {
@@ -1012,7 +1051,7 @@ const App = (() => {
     doSetup,
     switchTab,
     setFilter, renderFreeAgents, loadFreeAgents,
-    refreshAll, renderAll, faSort, setStatYear,
+    refreshAll, renderAll, updateHomeFeed, faSort, setStatYear,
     enableNotifications,
     computeCustomPts,
     toggleWatch,

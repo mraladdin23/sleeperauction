@@ -878,7 +878,7 @@ function renderTaxi() {
   }
   el.innerHTML = `
     <p style="font-size:13px;color:var(--text3);margin-bottom:16px;padding-top:16px;">
-      Taxi squad players don't count toward the cap.${comm ? ' Yr 2 = last year (yellow). Yr 3+ = must promote (red).' : ''}
+      Taxi squad players don't count toward the cap.${comm ? ' ⚠️ = yr 2 (last year)  🔴 = yr 3+ (must promote or release).' : ''}
     </p>
     <div class="taxi-grid">${allTeams.map(([key,t]) => {
       const players = (t.taxi||[]).filter(p=>p.name).sort((a,b)=>b.salary-a.salary);
@@ -900,17 +900,11 @@ function renderTaxi() {
           let gradBadge = '';
           if (ye != null) {
             if (ye >= 3)
-              gradBadge = `<span style="font-size:10px;background:rgba(255,77,106,.15);color:var(--red);border-radius:4px;padding:1px 6px;margin-left:5px;">🚨 Must promote — Yr ${ye}</span>`;
+              gradBadge = `<span title="Year ${ye} — must promote or release" style="font-size:13px;margin-left:4px;cursor:default;">🔴</span>`;
             else if (ye === 2)
-              gradBadge = `<span style="font-size:10px;background:rgba(255,201,77,.15);color:var(--yellow);border-radius:4px;padding:1px 6px;margin-left:5px;">⚠️ Last year (Yr 2)</span>`;
-            else if (ye === 1)
-              gradBadge = `<span style="font-size:10px;color:var(--text3);margin-left:5px;">Yr 1 of 2</span>`;
-            else
-              gradBadge = `<span style="font-size:10px;color:var(--text3);margin-left:5px;">Yr 0 (rookie)</span>`;
-          } else if (playerAge != null) {
-            // No years_exp set — infer urgency from age
-            if (playerAge >= 24)
-              gradBadge = `<span style="font-size:10px;background:rgba(255,201,77,.1);color:var(--yellow);border-radius:4px;padding:1px 6px;margin-left:5px;" title="Age ${playerAge} — check eligibility">⚠️ Check yr (age ${playerAge})</span>`;
+              gradBadge = `<span title="Year 2 — last year on taxi" style="font-size:13px;margin-left:4px;cursor:default;">⚠️</span>`;
+          } else if (playerAge != null && playerAge >= 24) {
+            gradBadge = `<span title="Age ${playerAge} — check eligibility" style="font-size:13px;margin-left:4px;cursor:default;">⚠️</span>`;
           }
           return `<div class="taxi-row">
             <div class="taxi-info">
