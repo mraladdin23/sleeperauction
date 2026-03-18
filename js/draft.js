@@ -2,6 +2,7 @@
 
 // ── Auth helpers ─────────────────────────────────────────────
 function leagueId()  { return localStorage.getItem('sb_leagueId') || ''; }
+function draftLeagueId() { return viewingDraftLeagueId || leagueId(); }
 function username()  { return localStorage.getItem('sb_username') || ''; }
 var COMM = 'mraladdin23';
 function isComm()    { return username().toLowerCase() === COMM; }
@@ -63,6 +64,91 @@ let availSearch = '';
 let draftInfo = null;
 
 // ── Load everything ───────────────────────────────────────────
+
+
+// ── Draft season history ───────────────────────────────────────
+async function loadDraftSeasons() {
+  if (draftSeasons.length) { renderDraftSeasonBar(); return; }
+  const lid = leagueId();
+
+  // First try Sleeper's previous_league_id chain
+  try {
+    const currentLeague = await Sleeper.fetchLeague(lid);
+    const currentSeason = currentLeague.season || new Date().getFullYear();
+    draftSeasons = [{ leagueId: lid, season: currentSeason, current: true }];
+
+    let prevId = currentLeague.previous_league_id;
+    let attempts = 0;
+    while (prevId && attempts < 10) {
+      attempts++;
+      try {
+        const prev = await Sleeper.fetchLeague(prevId);
+        draftSeasons.push({
+          leagueId: prevId,
+          season:   prev.season || (currentSeason - attempts),
+          current:  false,
+        });
+        prevId = prev.previous_league_id;
+      } catch(e) { break; }
+    }
+
+    // Fallback: Firebase manual registry
+    if (draftSeasons.length <= 1) {
+      try {
+        const snap = await db.ref(`leagues/${lid}/seasonHistory`).once('value');
+        const manual = snap.val();
+        if (manual && Array.isArray(manual)) {
+          manual.forEach(entry => {
+            if (entry.leagueId && entry.leagueId !== lid) {
+              draftSeasons.push({ leagueId: entry.leagueId, season: entry.season, current: false });
+            }
+          });
+          draftSeasons.sort((a, b) => (b.season || 0) - (a.season || 0));
+        }
+      } catch(e) {}
+    }
+  } catch(e) {}
+
+  if (draftSeasons.length > 1) renderDraftSeasonBar();
+}
+
+function renderDraftSeasonBar() {
+  let bar = document.getElementById('draft-season-bar');
+  if (!bar) {
+    // Insert before board-container
+    const bc = document.getElementById('board-container');
+    if (!bc) return;
+    bar = document.createElement('div');
+    bar.id = 'draft-season-bar';
+    bar.style.cssText = 'margin-bottom:14px;';
+    bc.parentNode.insertBefore(bar, bc);
+  }
+  const currentId = viewingDraftLeagueId || leagueId();
+  bar.innerHTML =
+    '<div style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;font-weight:600;">Season</div>' +
+    '<div style="display:flex;gap:6px;flex-wrap:wrap;">' +
+    draftSeasons.map(s =>
+      `<button onclick="switchDraftSeason('${s.leagueId}')"
+        style="padding:5px 12px;border-radius:var(--radius-sm);border:1px solid var(--border);
+        background:${s.leagueId===currentId?'var(--accent)':'var(--surface2)'};
+        color:${s.leagueId===currentId?'#fff':'var(--text2)'};font-size:12px;cursor:pointer;
+        font-family:var(--font-body);">${s.season}${s.current?' ★':''}</button>`
+    ).join('') +
+    '</div>';
+}
+
+async function switchDraftSeason(lid) {
+  viewingDraftLeagueId = lid === leagueId() ? null : lid;
+  renderDraftSeasonBar();
+
+  // For past seasons: hide the commissioner assign panel (read-only view)
+  const panel = document.getElementById('draft-action-panel');
+  if (panel) panel.style.display = (viewingDraftLeagueId && !isComm()) ? 'none' :
+                                    viewingDraftLeagueId ? 'none' : // hide for historical
+                                    isComm() ? '' : 'none';
+  await refreshDraft();
+}
+
 async function init() {
   if (!leagueId()) {
     if (window.navigateTo) { navigateTo('home'); return; }
@@ -89,6 +175,8 @@ async function init() {
 let slotOwners = {};   // "round-pick" → teamKey
 let rosterIdToTeam        = {};  // Sleeper roster_id (string) → our teamKey
 let rosterIdToDisplayName = {};  // Sleeper roster_id (string) → display name (fallback)
+var viewingDraftLeagueId  = null; // null = current season, else historical leagueId
+var draftSeasons          = [];   // [{leagueId, season, current}] newest-first
 
 async function loadRosterMapping() {
   rosterIdToTeam = {};
@@ -96,8 +184,8 @@ async function loadRosterMapping() {
   // Sleeper roster_id → username, then look up in DRAFT_DATA directly.
   try {
     const [rosters, users] = await Promise.all([
-      fetch(`https://api.sleeper.app/v1/league/${leagueId()}/rosters`).then(r=>r.json()),
-      fetch(`https://api.sleeper.app/v1/league/${leagueId()}/users`).then(r=>r.json()),
+      fetch(`https://api.sleeper.app/v1/league/${draftLeagueId()}/rosters`).then(r=>r.json()),
+      fetch(`https://api.sleeper.app/v1/league/${draftLeagueId()}/users`).then(r=>r.json()),
     ]);
     const userById = {};
     (users||[]).forEach(u => { userById[u.user_id] = u; });
@@ -138,7 +226,7 @@ async function refreshDraft() {
 
   try {
     // 1. GET all drafts for this league
-    const drafts = await fetch(`https://api.sleeper.app/v1/league/${leagueId()}/drafts`).then(r=>r.json());
+    const drafts = await fetch(`https://api.sleeper.app/v1/league/${draftLeagueId()}/drafts`).then(r=>r.json());
     if (!drafts?.length) throw new Error('no drafts');
 
     // Prefer rookie/linear type over startup
@@ -185,7 +273,7 @@ async function refreshDraft() {
       // Also need user_id → roster_id mapping
       const userIdToRosterId = {};
       try {
-        const rosters = await fetch(`https://api.sleeper.app/v1/league/${leagueId()}/rosters`).then(r=>r.json());
+        const rosters = await fetch(`https://api.sleeper.app/v1/league/${draftLeagueId()}/rosters`).then(r=>r.json());
         (rosters||[]).forEach(r => { userIdToRosterId[r.owner_id] = r.roster_id; });
       } catch(e) { console.warn('Could not fetch rosters for draft_order mapping:', e); }
 
@@ -291,9 +379,12 @@ async function refreshDraft() {
   (document.getElementById('draft-loading') || document.getElementById('loading')).style.display = 'none';
   (document.getElementById('draft-app') || document.getElementById('app')).style.display = '';
 
-  // Only show assign/order panels to commissioner
+  // Only show assign/order panels for current season commissioner
   const draftPanelEl = document.getElementById('draft-action-panel');
-  if (draftPanelEl) draftPanelEl.style.display = isComm() ? '' : 'none';
+  if (draftPanelEl) draftPanelEl.style.display = (!viewingDraftLeagueId && isComm()) ? '' : 'none';
+
+  // Load season history bar (non-blocking)
+  loadDraftSeasons();
   } catch(e) {
     console.error('refreshDraft:', e);
     const bc2 = document.getElementById('board-container');

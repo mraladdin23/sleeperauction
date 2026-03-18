@@ -79,6 +79,10 @@ async function loadStandingsData(forceRefresh) {
         standingsData = cached.data;
         currentWeek   = cached.currentWeek || 1;
         renderStandingsTab();
+        // Also load historical seasons if not already loaded
+        if (!historicalLeagues.length && cached.data?.league) {
+          loadHistoricalSeasons(cached.data.league);
+        }
         return;
       }
     } catch(e) { /* fall through to fresh fetch */ }
