@@ -30,7 +30,7 @@ function renderStandingsShell() {
       <div class="nav-tab"        onclick="switchStandingsTab('matchups')"  data-tab="matchups">🏈 Matchups</div>
       <div class="nav-tab"        onclick="switchStandingsTab('playoffs')"  data-tab="playoffs">🏆 Playoffs</div>
     </div>
-    <div class="nav-dropdown-wrap">
+    <div class="nav-dd-wrap">
       <select class="nav-dd" id="standings-nav-dd" onchange="switchStandingsTab(this.value)">
         <option value="standings">📊 Standings</option>
         <option value="matchups">🏈 Matchups</option>
@@ -442,7 +442,15 @@ function renderMatchupCards(matchups, week) {
   const fmt = n => (n || 0).toFixed(2);
 
   // Get player name lookup from App state
-  const players = window.App?.state?.players || {};
+  // Get player lookup -- try App.state first, then localStorage cache
+  let players = (window.App && window.App.state && window.App.state.players) || null;
+  if (!players || !Object.keys(players).length) {
+    try {
+      const raw = localStorage.getItem('sb_players');
+      if (raw) players = JSON.parse(raw);
+    } catch(e) {}
+  }
+  players = players || {};
   function pName(id) {
     const p = players[id];
     return p ? `${p.first_name||''} ${p.last_name||''}`.trim() : id;
@@ -573,10 +581,7 @@ async function loadBracket() {
   if (!el) return;
 
   try {
-    const [winners, losers] = await Promise.all([
-      Sleeper.fetchWinnersBracket(lid),
-      Sleeper.fetchLosersBracket(lid),
-    ]);
+    const winners = await Sleeper.fetchWinnersBracket(lid);
 
     if (!winners || !winners.length) {
       el.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text3);">
@@ -613,9 +618,8 @@ async function loadBracket() {
     }
 
     // Group by round
-    const wByRound = {}, lByRound = {};
+    const wByRound = {};
     winners.forEach(m => { const r = m.r||1; if(!wByRound[r]) wByRound[r]=[]; wByRound[r].push(m); });
-    (losers||[]).forEach(m => { const r = m.r||1; if(!lByRound[r]) lByRound[r]=[]; lByRound[r].push(m); });
 
     const wRounds  = Object.keys(wByRound).map(Number).sort((a,b)=>a-b);
     const maxWRound = Math.max(...wRounds);
@@ -640,36 +644,10 @@ async function loadBracket() {
       </div>`;
     }).join('');
 
-    // Build consolation / 3rd place HTML
-    const lRounds   = Object.keys(lByRound).map(Number).sort((a,b)=>a-b);
-    const maxLRound = lRounds.length ? Math.max(...lRounds) : 0;
-    let consolHTML  = '';
-    if (lRounds.length) {
-      function lRoundLabel(r, total) {
-        if (r === total) return '🥉 3rd Place';
-        if (r === total - 1 && total > 2) return '5th Place Semis';
-        return 'Consolation';
-      }
-      const cols = lRounds.map(r => {
-        const lbl = lRoundLabel(r, maxLRound);
-        return `<div class="bracket-round">
-          <div class="bracket-round-label">${lbl}</div>
-          ${lByRound[r].map(m => bracketMatch(m, null)).join('')}
-        </div>`;
-      }).join('');
-      consolHTML = `
-        <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border);">
-          <div style="font-size:12px;font-weight:600;color:var(--text3);text-transform:uppercase;
-            letter-spacing:.5px;margin-bottom:12px;">Consolation Bracket</div>
-          <div class="bracket-container">${cols}</div>
-        </div>`;
-    }
-
     el.innerHTML = `
       <div style="padding:16px 0 8px;">
         <div style="font-size:15px;font-weight:600;margin-bottom:16px;">🏆 Playoff Bracket</div>
         <div class="bracket-container">${wBracketCols}</div>
-        ${consolHTML}
       </div>`;
   } catch(e) {
     if (el) el.innerHTML = `<div style="padding:30px;text-align:center;color:var(--red);">
