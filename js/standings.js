@@ -146,7 +146,7 @@ async function loadHistoricalSeasons(currentLeague) {
     current:  true,
   });
 
-  // Walk back through previous_league_id chain
+  // Walk back through previous_league_id chain (auto-linked via Sleeper renewal)
   let prevId = currentLeague.previous_league_id;
   let attempts = 0;
   while (prevId && attempts < 10) {
@@ -161,6 +161,29 @@ async function loadHistoricalSeasons(currentLeague) {
       });
       prevId = league.previous_league_id;
     } catch(e) { break; }
+  }
+
+  // Fallback: check Firebase for manually registered seasons
+  // (needed when league was created fresh each year instead of renewed via Sleeper)
+  if (historicalLeagues.length <= 1) {
+    try {
+      const snap = await db.ref(`leagues/${standingsLeagueId()}/seasonHistory`).once('value');
+      const manual = snap.val();
+      if (manual && Array.isArray(manual)) {
+        manual.forEach(entry => {
+          if (entry.leagueId && entry.leagueId !== standingsLeagueId()) {
+            historicalLeagues.push({
+              leagueId: entry.leagueId,
+              season:   entry.season,
+              name:     entry.name || String(entry.season),
+              current:  false,
+            });
+          }
+        });
+        // Sort newest first
+        historicalLeagues.sort((a, b) => (b.season || 0) - (a.season || 0));
+      }
+    } catch(e) { /* no manual registry */ }
   }
 
   // Only show season bar if there are multiple seasons
