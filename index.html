@@ -200,6 +200,31 @@ body.light-mode .login-card{box-shadow:0 4px 24px rgba(0,0,0,.08);}
   if(localStorage.getItem('sb_theme')==='light')
     document.documentElement.classList.add('light-mode-pre');
 })();
+function toggleAvatarMenu() {
+  const dd = document.getElementById('avatar-dropdown');
+  if (!dd) return;
+  if (dd.classList.contains('open')) {
+    dd.classList.remove('open');
+  } else {
+    const nameEl   = document.getElementById('avatar-dd-name');
+    const leagueEl = document.getElementById('avatar-dd-league');
+    if (nameEl)   nameEl.textContent   = localStorage.getItem('sb_username') || '—';
+    if (leagueEl) leagueEl.textContent = localStorage.getItem('sb_leagueName') || '—';
+    const themeBtn = document.getElementById('avatar-dd-theme');
+    if (themeBtn) {
+      const isLight = document.body.classList.contains('light-mode');
+      themeBtn.innerHTML = (isLight ? '🌙' : '☀️') + ' <span>' + (isLight ? 'Dark Mode' : 'Light Mode') + '</span>';
+    }
+    dd.classList.add('open');
+  }
+}
+function closeAvatarMenu() {
+  document.getElementById('avatar-dropdown')?.classList.remove('open');
+}
+document.addEventListener('click', function(e) {
+  const wrap = document.getElementById('avatar-menu-wrap');
+  if (wrap && !wrap.contains(e.target)) closeAvatarMenu();
+});
 function toggleTheme(){
   const light=document.body.classList.toggle('light-mode');
   localStorage.setItem('sb_theme',light?'light':'dark');
@@ -340,12 +365,37 @@ window.addEventListener('DOMContentLoaded',function(){
     </nav>
     <div class="app-bar-right">
       <div class="league-badge" id="league-name-badge">League</div>
-      <button class="topbar-icon-btn" onclick="App.enableNotifications()" title="Notifications">🔔</button>
-      <button class="topbar-icon-btn" onclick="App.openChangePassword()" title="Change Password" id="change-pw-btn" style="display:none;">🔑</button>
-      <button class="topbar-icon-btn" onclick="App.switchLeague()" title="Switch League" id="switch-league-btn" style="display:none;">🏈</button>
-      <button class="topbar-icon-btn" onclick="toggleTheme()" id="theme-btn" title="Toggle theme">☀️</button>
-      <div class="avatar" id="user-avatar"></div>
-      <button class="topbar-icon-btn" onclick="App.logout()" title="Log out">↩</button>
+      <!-- Avatar menu trigger -->
+      <div class="avatar-menu-wrap" id="avatar-menu-wrap">
+        <div class="avatar" id="user-avatar" onclick="toggleAvatarMenu()" title="Account menu"></div>
+        <div class="avatar-dropdown" id="avatar-dropdown">
+          <div class="avatar-dd-header">
+            <div class="avatar-dd-name" id="avatar-dd-name">—</div>
+            <div class="avatar-dd-league" id="avatar-dd-league">—</div>
+          </div>
+          <div class="avatar-dd-divider"></div>
+          <button class="avatar-dd-item" onclick="closeAvatarMenu();App.switchLeague()">
+            🏈 <span>Switch League</span>
+          </button>
+          <button class="avatar-dd-item" id="avatar-dd-addleague" onclick="closeAvatarMenu();App.switchLeague()">
+            ➕ <span>Add / Register League</span>
+          </button>
+          <div class="avatar-dd-divider"></div>
+          <button class="avatar-dd-item" onclick="closeAvatarMenu();toggleTheme()" id="avatar-dd-theme">
+            ☀️ <span>Toggle Theme</span>
+          </button>
+          <button class="avatar-dd-item" onclick="closeAvatarMenu();App.enableNotifications()">
+            🔔 <span>Notifications</span>
+          </button>
+          <button class="avatar-dd-item" id="avatar-dd-changepw" style="display:none;" onclick="closeAvatarMenu();App.openChangePassword()">
+            🔑 <span>Change Password</span>
+          </button>
+          <div class="avatar-dd-divider"></div>
+          <button class="avatar-dd-item avatar-dd-logout" onclick="closeAvatarMenu();App.logout()">
+            ↩ <span>Log Out</span>
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 
