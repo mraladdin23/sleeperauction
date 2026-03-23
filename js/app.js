@@ -90,7 +90,7 @@ const App = (() => {
       const sleeperLeagues = await Sleeper.fetchUserLeagues(state.user.user_id, season);
 
       // Fetch registered leagues from Firebase
-      const regSnap = await db.ref('leagueRegistry').once('value');
+      const regSnap = await db.ref('leagues/_registry').once('value');
       const registry = regSnap.val() || {};
 
       // Cross-reference: only show leagues that are in both Sleeper and Firebase registry
@@ -285,7 +285,7 @@ const App = (() => {
       }
 
       // Write to registry
-      await db.ref(`leagueRegistry/${lid}`).set({
+      await db.ref(`leagues/_registry/${lid}`).set({
         name:      league.name,
         season:    league.season,
         status:    league.status,
@@ -570,7 +570,7 @@ const App = (() => {
       // Auto-register this league in the registry
       try {
         const league = await Sleeper.fetchLeague(lid);
-        await db.ref(`leagueRegistry/${lid}`).set({
+        await db.ref(`leagues/_registry/${lid}`).set({
           name:      league.name,
           season:    league.season,
           status:    league.status,
@@ -758,7 +758,7 @@ const App = (() => {
 
     // Show switch-league button (only if multiple leagues registered)
     try {
-      const regSnap = await db.ref('leagueRegistry').once('value');
+      const regSnap = await db.ref('leagues/_registry').once('value');
       const regCount = Object.keys(regSnap.val() || {}).length;
       const swBtn = document.getElementById('switch-league-btn');
       if (swBtn) swBtn.style.display = regCount > 1 ? '' : 'none';
