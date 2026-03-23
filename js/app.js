@@ -72,6 +72,236 @@ const App = (() => {
   }
 
   // ── Boot ────────────────────────────────────────────────
+
+  // ── League Registry & Picker ────────────────────────────────
+
+  async function showLeaguePicker() {
+    UI.showScreen('picker');
+    UI.setAvatar(document.getElementById('picker-avatar'), state.user);
+    const el       = document.getElementById('picker-leagues');
+    const subtitle = document.getElementById('picker-subtitle');
+    if (!el) return;
+
+    el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px 0;">Loading your leagues…</div>';
+
+    try {
+      const season = new Date().getFullYear();
+      // Fetch this user's leagues from Sleeper
+      const sleeperLeagues = await Sleeper.fetchUserLeagues(state.user.user_id, season);
+
+      // Fetch registered leagues from Firebase
+      const regSnap = await db.ref('leagueRegistry').once('value');
+      const registry = regSnap.val() || {};
+
+      // Cross-reference: only show leagues that are in both Sleeper and Firebase registry
+      const matches = (sleeperLeagues || []).filter(l => registry[l.league_id]);
+
+      // Also include leagues where this user is NOT in Sleeper leagues but is registered
+      // (e.g. they were added manually or league hasn't started yet)
+      // Show ALL registered leagues they have access to
+      const registeredIds = Object.keys(registry);
+      const sleeperIds    = new Set((sleeperLeagues || []).map(l => l.league_id));
+      const extraIds      = registeredIds.filter(id => !sleeperIds.has(id));
+
+      // Build display list
+      const displayLeagues = [
+        ...matches.map(l => ({
+          id:     l.league_id,
+          name:   registry[l.league_id]?.name || l.name,
+          season: l.season || season,
+          status: l.status,
+          avatar: l.avatar,
+          meta:   registry[l.league_id],
+        })),
+        ...extraIds.map(id => ({
+          id,
+          name:   registry[id]?.name || `League ${id}`,
+          season: registry[id]?.season || season,
+          status: registry[id]?.status || 'unknown',
+          meta:   registry[id],
+        })),
+      ];
+
+      // Sort: active first, then by name
+      displayLeagues.sort((a,b) => {
+        const aActive = a.status === 'in_season' || a.status === 'pre_draft';
+        const bActive = b.status === 'in_season' || b.status === 'pre_draft';
+        if (aActive !== bActive) return aActive ? -1 : 1;
+        return (a.name||'').localeCompare(b.name||'');
+      });
+
+      if (!displayLeagues.length) {
+        el.innerHTML = `
+          <div style="padding:32px;text-align:center;background:var(--surface);border:1px solid var(--border);
+            border-radius:var(--radius);color:var(--text3);">
+            <div style="font-size:24px;margin-bottom:12px;">🏈</div>
+            <div style="font-size:14px;font-weight:600;margin-bottom:6px;">No registered leagues found</div>
+            <div style="font-size:12px;">Register your league using the form below.</div>
+          </div>`;
+        if (subtitle) subtitle.textContent = 'No leagues registered yet';
+        return;
+      }
+
+      if (subtitle) subtitle.textContent = `${displayLeagues.length} league${displayLeagues.length!==1?'s':''} available`;
+
+      el.innerHTML = displayLeagues.map(l => {
+        const statusColor = { in_season:'var(--green)', pre_draft:'var(--yellow)',
+          drafting:'var(--accent2)', complete:'var(--text3)' }[l.status] || 'var(--text3)';
+        const statusLabel = { in_season:'🟢 In Season', pre_draft:'🟡 Pre-Draft',
+          drafting:'🟣 Drafting', complete:'⚪ Complete' }[l.status] || l.status || '—';
+        const features    = l.meta?.features || {};
+        const featureTags = Object.entries(features)
+          .filter(([,v]) => v)
+          .map(([k]) => `<span style="font-size:10px;padding:2px 7px;border-radius:99px;
+            background:var(--surface2);color:var(--text3);border:1px solid var(--border);">${k}</span>`)
+          .join('');
+        return `
+          <div onclick="App.pickLeague('${l.id}')"
+            style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+            padding:16px 18px;cursor:pointer;transition:border-color .15s;"
+            onmouseover="this.style.borderColor='var(--accent)'"
+            onmouseout="this.style.borderColor='var(--border)'">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+              <div style="min-width:0;">
+                <div style="font-size:15px;font-weight:600;margin-bottom:3px;">${l.name}</div>
+                <div style="font-size:12px;color:var(--text3);">${l.season} Season</div>
+                ${featureTags ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;">${featureTags}</div>` : ''}
+              </div>
+              <div style="text-align:right;flex-shrink:0;">
+                <div style="font-size:12px;color:${statusColor};font-weight:500;">${statusLabel}</div>
+                <div style="font-size:11px;color:var(--text3);margin-top:2px;">ID: ${l.id.slice(-8)}</div>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+
+    } catch(e) {
+      el.innerHTML = `<div style="color:var(--red);font-size:13px;">Error loading leagues: ${e.message}</div>`;
+    }
+  }
+
+  async function pickLeague(leagueId) {
+    // Check password for this specific league before entering
+    const username = (state.user?.username || '').toLowerCase();
+    try {
+      const pwSnap = await db.ref(`leagues/${leagueId}/passwords/${username}`).once('value');
+      if (pwSnap.val()) {
+        // Password required for this league
+        window._pendingLoginUser = state.user;
+        window._pendingLoginHash = pwSnap.val();
+        window._pendingLeagueId  = leagueId;
+        // Check mustChange
+        const mcSnap = await db.ref(`leagues/${leagueId}/passwordMustChange/${username}`).once('value');
+        if (mcSnap.val()) {
+          showChangePasswordModal(username, leagueId, true);
+          return;
+        }
+        // Show password prompt overlay
+        showLeaguePasswordPrompt(leagueId, username);
+        return;
+      }
+    } catch(e) {}
+
+    // No password — load directly
+    state.leagueId   = leagueId;
+    session.leagueId = leagueId;
+    UI.showScreen('loading');
+    UI.setLoading('Loading league…');
+    await initApp();
+  }
+
+  function showLeaguePasswordPrompt(leagueId, username) {
+    if (!document.getElementById('league-pw-modal')) {
+      const overlay = document.createElement('div');
+      overlay.id = 'league-pw-modal';
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
+      overlay.innerHTML = `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+          padding:28px 24px;width:340px;max-width:90vw;">
+          <div style="font-size:15px;font-weight:600;margin-bottom:16px;">🔑 League Password</div>
+          <input type="password" id="league-pw-input" placeholder="Enter your team password"
+            style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);
+            border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:14px;
+            outline:none;box-sizing:border-box;margin-bottom:10px;"
+            onkeydown="if(event.key==='Enter')App.submitLeaguePassword()"/>
+          <div id="league-pw-error" style="font-size:12px;color:var(--red);min-height:16px;margin-bottom:12px;"></div>
+          <div style="display:flex;gap:8px;">
+            <button onclick="App.submitLeaguePassword()"
+              style="flex:1;padding:9px;background:var(--accent);border:none;border-radius:var(--radius-sm);
+              color:#fff;font-size:13px;font-weight:600;cursor:pointer;font-family:var(--font-body);">Enter</button>
+            <button onclick="document.getElementById('league-pw-modal').remove()"
+              style="padding:9px 14px;background:var(--surface2);border:1px solid var(--border);
+              border-radius:var(--radius-sm);color:var(--text2);font-size:13px;cursor:pointer;
+              font-family:var(--font-body);">Cancel</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+    }
+    document.getElementById('league-pw-input').value = '';
+    document.getElementById('league-pw-error').textContent = '';
+    setTimeout(() => document.getElementById('league-pw-input')?.focus(), 50);
+    window._pendingLeagueId = leagueId;
+    window._pendingPwUsername = username;
+  }
+
+  async function submitLeaguePassword() {
+    const pw      = (document.getElementById('league-pw-input')?.value || '').trim();
+    const errEl   = document.getElementById('league-pw-error');
+    if (!pw) { if(errEl) errEl.textContent = 'Enter your password.'; return; }
+    const hash    = await hashPassword(pw);
+    if (hash !== window._pendingLoginHash) {
+      if(errEl) errEl.textContent = 'Incorrect password.';
+      document.getElementById('league-pw-input').value = '';
+      return;
+    }
+    document.getElementById('league-pw-modal')?.remove();
+    state.leagueId   = window._pendingLeagueId;
+    session.leagueId = window._pendingLeagueId;
+    window._pendingLeagueId  = null;
+    window._pendingLoginHash = null;
+    UI.showScreen('loading');
+    UI.setLoading('Loading league…');
+    await initApp();
+  }
+
+  async function registerLeague() {
+    const lid    = (document.getElementById('picker-league-id')?.value || '').trim();
+    const errEl  = document.getElementById('picker-register-error');
+    if (!lid) { if(errEl) errEl.textContent = 'Enter a league ID.'; return; }
+    if(errEl) errEl.textContent = '';
+
+    try {
+      // Fetch league info from Sleeper to verify it exists
+      const league = await Sleeper.fetchLeague(lid);
+      if (!league?.league_id) throw new Error('League not found on Sleeper.');
+
+      // Check if user is a member of this league (commissioner check)
+      const rosters = await Sleeper.fetchRosters(lid);
+      const users   = await Sleeper.fetchLeagueUsers(lid);
+      const myUser  = users?.find(u => u.user_id === state.user?.user_id);
+      if (!myUser && !state.isCommissioner) {
+        if(errEl) errEl.textContent = 'You must be a member of this league to register it.';
+        return;
+      }
+
+      // Write to registry
+      await db.ref(`leagueRegistry/${lid}`).set({
+        name:      league.name,
+        season:    league.season,
+        status:    league.status,
+        addedBy:   state.user?.username,
+        addedAt:   Date.now(),
+        features:  { auctions: true, rosters: true, standings: true, draft: true },
+      });
+
+      if(errEl) errEl.textContent = '';
+      if(document.getElementById('picker-league-id')) document.getElementById('picker-league-id').value = '';
+      showLeaguePicker(); // refresh
+    } catch(e) {
+      if(errEl) errEl.textContent = 'Error: ' + (e.message || e);
+    }
+  }
+
   async function boot() {
     if (session.username && session.leagueId) {
       UI.showScreen('loading');
@@ -103,6 +333,17 @@ const App = (() => {
         await initApp();
         return;
       } catch (e) { /* fall through */ }
+    }
+    // If we have a username but no leagueId, show picker after re-auth
+    if (session.username) {
+      try {
+        UI.showScreen('loading');
+        UI.setLoading('Reconnecting…');
+        state.user = await Sleeper.fetchUser(session.username);
+        session.setUser(state.user);
+        await showLeaguePicker();
+        return;
+      } catch(e) {}
     }
     UI.showScreen('login');
     if (session.username) document.getElementById('login-username').value = session.username;
@@ -149,14 +390,8 @@ const App = (() => {
         } catch(e) {}
       }
 
-      // No password — proceed normally
-      if (session.leagueId) {
-        state.leagueId = session.leagueId;
-        await initApp();
-      } else {
-        UI.showScreen('setup');
-        UI.setAvatar(document.getElementById('setup-avatar'), state.user);
-      }
+      // No password — go to league picker
+      await showLeaguePicker();
     } catch (e) {
       UI.showScreen('login');
       showLoginError('Username not found. Check spelling and try again.');
@@ -190,20 +425,12 @@ const App = (() => {
     showLoginError('');
 
     if (mustChange) {
-      // Show change-password modal before entering app
       showChangePasswordModal(username, lid, true);
       return;
     }
 
-    UI.showScreen('loading');
-    UI.setLoading('Connecting…');
-    if (session.leagueId) {
-      state.leagueId = session.leagueId;
-      await initApp();
-    } else {
-      UI.showScreen('setup');
-      UI.setAvatar(document.getElementById('setup-avatar'), state.user);
-    }
+    // Password verified — go to league picker
+    await showLeaguePicker();
   }
 
   // ── Change Password flow ──────────────────────────────────────
@@ -306,6 +533,19 @@ const App = (() => {
     showChangePasswordModal(username, state.leagueId, false);
   }
 
+  async function switchLeague() {
+    // Unsubscribe from current league, then show picker
+    if (state.leagueId) Auction.unsubscribe(state.leagueId);
+    // Reset state except user
+    Object.assign(state, {
+      leagueId: null, leagueSettings: null,
+      scoringSettings: {}, rosterPositions: [],
+      teams: [], statsMap: {}, freeAgents: [],
+      auctions: [], faabOverrides: {}, activityFeed: [], watchlist: {},
+    });
+    await showLeaguePicker();
+  }
+
   async function hashPassword(pw) {
     const enc  = new TextEncoder().encode(pw);
     const buf  = await crypto.subtle.digest('SHA-256', enc);
@@ -325,8 +565,20 @@ const App = (() => {
     const btn = document.querySelector('#setup-screen .btn-primary');
     btn.textContent = 'Loading…'; btn.disabled = true;
     try {
-      state.leagueId = lid;
+      state.leagueId   = lid;
       session.leagueId = lid;
+      // Auto-register this league in the registry
+      try {
+        const league = await Sleeper.fetchLeague(lid);
+        await db.ref(`leagueRegistry/${lid}`).set({
+          name:      league.name,
+          season:    league.season,
+          status:    league.status,
+          addedBy:   state.user?.username,
+          addedAt:   Date.now(),
+          features:  { auctions: true, rosters: true, standings: true, draft: true },
+        });
+      } catch(e) { /* registry write failed -- not critical */ }
       await initApp();
     } catch (e) {
       showSetupError('Could not load league: ' + e.message);
@@ -342,8 +594,14 @@ const App = (() => {
 
   // ── Logout ──────────────────────────────────────────────
   function logout() {
+    const savedLeagueId = session.leagueId; // preserve for next login
     Auction.unsubscribe(state.leagueId);
-    session.clear();
+    session.clear(); // clears username + leagueId
+    // Restore leagueId so the next user logging in on this browser
+    // goes straight to the app (and password check) without the setup screen
+    if (savedLeagueId) {
+      localStorage.setItem('sb_leagueId', savedLeagueId);
+    }
     Object.assign(state, {
       user: null, leagueId: null, leagueSettings: null,
       scoringSettings: {}, rosterPositions: [],
@@ -497,6 +755,14 @@ const App = (() => {
 
     UI.showScreen('app');
     UI.renderPauseBanner();
+
+    // Show switch-league button (only if multiple leagues registered)
+    try {
+      const regSnap = await db.ref('leagueRegistry').once('value');
+      const regCount = Object.keys(regSnap.val() || {}).length;
+      const swBtn = document.getElementById('switch-league-btn');
+      if (swBtn) swBtn.style.display = regCount > 1 ? '' : 'none';
+    } catch(e) {}
 
     // Guest mode: show a persistent banner with Login button
     if (state.isGuest) {
@@ -1303,7 +1569,7 @@ const App = (() => {
     doSetup,
     switchTab,
     setFilter, renderFreeAgents, loadFreeAgents,
-    browseAsGuest, submitPassword, submitChangePassword, openChangePassword, refreshAll, renderAll, updateHomeFeed, faSort, setStatYear,
+    browseAsGuest, submitPassword, submitChangePassword, openChangePassword, switchLeague, showLeaguePicker, pickLeague, registerLeague, submitLeaguePassword, refreshAll, renderAll, updateHomeFeed, faSort, setStatYear,
     enableNotifications,
     computeCustomPts,
     toggleWatch,

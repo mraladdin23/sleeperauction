@@ -119,5 +119,12 @@ const Sleeper = (() => {
     return r.json();
   }
 
-  return { fetchUser, fetchLeague, fetchRosters, fetchLeagueUsers, fetchPlayers, fetchStats, calculatePoints, invalidatePlayerCache, fetchMatchups, fetchWinnersBracket, fetchLosersBracket };
+
+  async function fetchUserLeagues(userId, season) {
+    const r = await fetch(`${BASE}/user/${userId}/leagues/nfl/${season}`);
+    if (!r.ok) return [];
+    return r.json();
+  }
+
+    return { fetchUser, fetchLeague, fetchRosters, fetchLeagueUsers, fetchPlayers, fetchStats, calculatePoints, invalidatePlayerCache, fetchUserLeagues, fetchMatchups, fetchWinnersBracket, fetchLosersBracket };
 })();

@@ -6,7 +6,7 @@ const UI = (() => {
 
   // ── Screens ─────────────────────────────────────────────
   function showScreen(name) {
-    const screens = { login:'login-screen', loading:'loading-screen', setup:'setup-screen', app:'app' };
+    const screens = { login:'login-screen', loading:'loading-screen', setup:'setup-screen', picker:'picker-screen', app:'app' };
     Object.entries(screens).forEach(([key, id]) => {
       document.getElementById(id).classList.toggle('hidden', key !== name);
     });
