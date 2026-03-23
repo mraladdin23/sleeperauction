@@ -866,7 +866,18 @@ const UI = (() => {
   }
 
   function getMyTeam(state) {
-    return state.teams.find(t => t.owner_id === state.user?.user_id) || null;
+    const uid = state.user?.user_id;
+    if (!uid) return null;
+    // Primary owner match
+    const primary = state.teams.find(t => t.owner_id === uid);
+    if (primary) return primary;
+    // Sleeper co-manager match
+    const co = state.teams.find(t => (t.co_owners || []).includes(uid));
+    if (co) return co;
+    // Firebase co-manager override: leagues/{id}/coManagers/{username} = roster_id
+    const coRid = window._coManagerRosterId;
+    if (coRid) return state.teams.find(t => t.roster_id === coRid) || null;
+    return null;
   }
 
   function getTeamName(rosterId, state) {

@@ -31,6 +31,7 @@ const App = (() => {
   const state = {
     user:            null,
     leagueId:        null,
+    isGuest:         false,
     leagueName:      '',
     leagueSettings:  null,
     scoringSettings: {},
@@ -88,6 +89,17 @@ const App = (() => {
   }
 
   // ── Login ───────────────────────────────────────────────
+  async function browseAsGuest() {
+    state.isGuest  = true;
+    state.user     = { username: 'guest', user_id: null };
+    state.leagueId = session.leagueId || localStorage.getItem('sb_leagueId') || '';
+    if (!state.leagueId) {
+      showLoginError('No league set up yet. Ask the commissioner to log in first.');
+      return;
+    }
+    await initApp();
+  }
+
   async function doLogin() {
     const username = document.getElementById('login-username').value.trim();
     if (!username) { showLoginError('Enter your Sleeper username.'); return; }
@@ -98,6 +110,26 @@ const App = (() => {
       state.user = await Sleeper.fetchUser(username);
       session.username = username;
       session.setUser(state.user);
+
+      // Check if this user has a password in Firebase
+      const lid = session.leagueId || localStorage.getItem('sb_leagueId') || '';
+      if (lid) {
+        try {
+          const pwSnap = await db.ref(`leagues/${lid}/passwords/${username.toLowerCase()}`).once('value');
+          if (pwSnap.val()) {
+            UI.showScreen('login');
+            const pwWrap = document.getElementById('login-password-wrap');
+            if (pwWrap) { pwWrap.style.display = ''; }
+            document.getElementById('login-password')?.focus();
+            window._pendingLoginUser = state.user;
+            window._pendingLoginHash = pwSnap.val();
+            showLoginError('');
+            return;
+          }
+        } catch(e) {}
+      }
+
+      // No password — proceed normally
       if (session.leagueId) {
         state.leagueId = session.leagueId;
         await initApp();
@@ -109,6 +141,37 @@ const App = (() => {
       UI.showScreen('login');
       showLoginError('Username not found. Check spelling and try again.');
     }
+  }
+
+  async function submitPassword() {
+    const pw = (document.getElementById('login-password')?.value || '').trim();
+    if (!pw) { showLoginError('Enter your team password.'); return; }
+    const hash = await hashPassword(pw);
+    if (hash !== window._pendingLoginHash) {
+      showLoginError('Incorrect password. Try again.');
+      document.getElementById('login-password').value = '';
+      return;
+    }
+    state.user = window._pendingLoginUser;
+    session.setUser(state.user);
+    window._pendingLoginUser = null;
+    window._pendingLoginHash = null;
+    showLoginError('');
+    UI.showScreen('loading');
+    UI.setLoading('Connecting…');
+    if (session.leagueId) {
+      state.leagueId = session.leagueId;
+      await initApp();
+    } else {
+      UI.showScreen('setup');
+      UI.setAvatar(document.getElementById('setup-avatar'), state.user);
+    }
+  }
+
+  async function hashPassword(pw) {
+    const enc  = new TextEncoder().encode(pw);
+    const buf  = await crypto.subtle.digest('SHA-256', enc);
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
   }
 
   function showLoginError(msg) {
@@ -197,6 +260,20 @@ const App = (() => {
 
     state.leagueName      = league.name;
     localStorage.setItem('sb_leagueName', league.name);
+
+    // Load auction start time setting
+    try {
+      const astSnap = await db.ref(`leagues/${state.leagueId}/settings/auctionStartTime`).once('value');
+      window._auctionStartTime = astSnap.val() || null;
+    } catch(e) {}
+
+    // Load Firebase co-manager overrides: {username: roster_id}
+    try {
+      const cmSnap = await db.ref(`leagues/${state.leagueId}/coManagers`).once('value');
+      const cmMap  = cmSnap.val() || {};
+      const myUser = (state.user?.username || '').toLowerCase();
+      window._coManagerRosterId = cmMap[myUser] || null;
+    } catch(e) {}
     state.leagueSettings  = league;
     state.scoringSettings = league.scoring_settings || {};
     state.rosterPositions = league.roster_positions || [];
@@ -212,6 +289,7 @@ const App = (() => {
       return {
         roster_id:    r.roster_id,
         owner_id:     r.owner_id,
+        co_owners:    r.co_owners || [],  // Sleeper co-manager user IDs
         username:     u.display_name || u.username || `Team ${r.roster_id}`,
         display_name: u.display_name || u.username || `Team ${r.roster_id}`,
         avatar:       u.avatar,
@@ -271,6 +349,23 @@ const App = (() => {
 
     UI.showScreen('app');
     UI.renderPauseBanner();
+
+    // Guest mode: show a persistent banner with Login button
+    if (state.isGuest) {
+      const bar = document.querySelector('.app-bar-right');
+      if (bar && !document.getElementById('guest-login-btn')) {
+        const btn = document.createElement('button');
+        btn.id = 'guest-login-btn';
+        btn.textContent = '🔑 Login';
+        btn.style.cssText = 'padding:5px 12px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body);';
+        btn.onclick = () => {
+          state.isGuest = false;
+          session.clear ? session.clear() : localStorage.removeItem('sb_username');
+          window.location.reload();
+        };
+        bar.prepend(btn);
+      }
+    }
 
     // ── Firebase subscriptions ───────────────────────────
     // Set up ALL subscriptions before firing sb:ready so that when
@@ -620,6 +715,7 @@ const App = (() => {
 
   // ── Nominate modal ───────────────────────────────────────
   function openNomModal(playerId) {
+    if (state.isGuest) { UI.toast('Log in to nominate players.', 'error'); return; }
     const myTeam = UI.getMyTeam(state);
     if (!myTeam) { UI.toast('You are not in this league.', 'error'); return; }
 
@@ -680,6 +776,13 @@ const App = (() => {
     if (!nomTeam) return;
 
     const now = Date.now();
+
+    // Auction start time gate
+    if (window._auctionStartTime && now < window._auctionStartTime && !state.isCommissioner) {
+      showNomError('Auctions open on ' + new Date(window._auctionStartTime).toLocaleString());
+      return;
+    }
+
     const teamActiveNom = state.auctions.find(a =>
       !a.processed && !a.cancelled && a.expiresAt > now && a.nominatedBy === nomTeam.roster_id
     );
@@ -717,6 +820,7 @@ const App = (() => {
 
   // ── Bid modal ────────────────────────────────────────────
   function openBidModal(auctionId) {
+    if (state.isGuest) { UI.toast('Log in to place bids.', 'error'); return; }
     const myTeam = UI.getMyTeam(state);
     if (!myTeam) { UI.toast('You are not in this league.', 'error'); return; }
 
@@ -1051,7 +1155,7 @@ const App = (() => {
     doSetup,
     switchTab,
     setFilter, renderFreeAgents, loadFreeAgents,
-    refreshAll, renderAll, updateHomeFeed, faSort, setStatYear,
+    browseAsGuest, submitPassword, refreshAll, renderAll, updateHomeFeed, faSort, setStatYear,
     enableNotifications,
     computeCustomPts,
     toggleWatch,

@@ -1287,6 +1287,102 @@ async function rookieClearPick(key) {
 
 
 // ── COMMISSIONER TAB ─────────────────────────────────────────
+
+
+async function loadPasswordList() {
+  const el = document.getElementById('pw-list');
+  if (!el) return;
+  try {
+    const snap = await db.ref(`leagues/${leagueId()}/passwords`).once('value');
+    const stored = snap.val() || {};
+    el.innerHTML = Object.keys(DATA).map(username => {
+      const hasPass = stored[username] ? '🔒 Set' : '—';
+      const passColor = stored[username] ? 'var(--green)' : 'var(--text3)';
+      return `<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);">
+        <span style="font-size:13px;min-width:140px;font-weight:500;">${DATA[username]?.team_name || username}</span>
+        <span style="font-size:11px;color:${passColor};min-width:50px;">${hasPass}</span>
+        <input type="password" placeholder="New password (blank to remove)"
+          id="pw-input-${username}"
+          style="padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:4px;color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;width:200px;"/>
+        <button onclick="commSavePassword('${username}')"
+          style="padding:5px 12px;background:var(--accent);border:none;border-radius:4px;color:#fff;font-size:11px;cursor:pointer;font-family:var(--font-body);">Save</button>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--red);">Error loading passwords.</div>';
+  }
+}
+
+async function commSavePassword(username) {
+  const inp = document.getElementById(`pw-input-${username}`);
+  const pw  = inp?.value || '';
+  const ref = db.ref(`leagues/${leagueId()}/passwords/${username}`);
+  if (!pw) {
+    await ref.remove();
+    showToast(`Password removed for ${username}`, 'info');
+  } else {
+    // Hash with SHA-256 via SubtleCrypto
+    const enc  = new TextEncoder().encode(pw);
+    const buf  = await crypto.subtle.digest('SHA-256', enc);
+    const hash = Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+    await ref.set(hash);
+    showToast(`Password set for ${username}`, 'success');
+  }
+  inp.value = '';
+  loadPasswordList();
+}
+
+async function loadCoManagers() {
+  const el = document.getElementById('co-manager-list');
+  if (!el) return;
+  try {
+    const snap = await db.ref(`leagues/${leagueId()}/coManagers`).once('value');
+    const map  = snap.val() || {};
+    if (!Object.keys(map).length) {
+      el.innerHTML = '<div style="font-size:12px;color:var(--text3);">No co-managers added yet.</div>';
+      return;
+    }
+    el.innerHTML = Object.entries(map).map(([username, rosterId]) => {
+      const team = DATA[username]?.team_name || Object.entries(DATA).find(([,t])=>t.roster_id==rosterId)?.[1]?.team_name || rosterId;
+      return `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid rgba(255,255,255,.04);">
+        <div>
+          <span style="font-size:13px;font-weight:500;">${username}</span>
+          <span style="font-size:11px;color:var(--text3);margin-left:8px;">→ ${team}</span>
+        </div>
+        <button onclick="commRemoveCoManager('${username}')"
+          style="font-size:11px;padding:3px 9px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--red);cursor:pointer;">Remove</button>
+      </div>`;
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="font-size:12px;color:var(--red);">Error loading co-managers.</div>';
+  }
+}
+
+async function commAddCoManager() {
+  const teamKey = document.getElementById('cm-team-select')?.value;
+  const username = (document.getElementById('cm-username-input')?.value || '').trim().toLowerCase();
+  const statusEl = document.getElementById('cm-status');
+  if (!teamKey || !username) { if(statusEl) statusEl.textContent = 'Select a team and enter a username.'; return; }
+  try {
+    // Verify Sleeper username exists
+    const user = await Sleeper.fetchUser(username);
+    if (!user?.user_id) throw new Error('User not found');
+    const rosterId = DATA[teamKey] ? Object.keys(DATA).indexOf(teamKey) + 1 : null;
+    await db.ref(`leagues/${leagueId()}/coManagers/${username}`).set(rosterId || teamKey);
+    if(statusEl) statusEl.textContent = '✅ Added ' + username;
+    document.getElementById('cm-username-input').value = '';
+    loadCoManagers();
+  } catch(e) {
+    const statusEl = document.getElementById('cm-status');
+    if(statusEl) statusEl.textContent = '❌ ' + (e.message || 'Failed');
+  }
+}
+
+async function commRemoveCoManager(username) {
+  await db.ref(`leagues/${leagueId()}/coManagers/${username}`).remove();
+  loadCoManagers();
+}
+
 function renderCommish() {
   if (!isComm()) { document.getElementById('tab-commish').innerHTML='<div style="padding:40px;text-align:center;color:var(--text3);">Commissioner only.</div>'; return; }
   const el = document.getElementById('tab-commish');
@@ -1394,11 +1490,52 @@ function renderCommish() {
           <button onclick="commToggleOffseason()" style="padding:7px 16px;background:${offBg};border:none;border-radius:var(--radius-sm);color:${offClr};font-size:13px;font-weight:500;cursor:pointer;font-family:var(--font-body);">${offLabel}</button>
           <span style="font-size:12px;color:var(--text3);">${offseasonMode ? 'Offseason: teams must cut below '+fmtM(cutCap)+' (70% of cap)' : 'Regular season mode'}</span>
         </div>
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+          <div style="font-size:13px;color:var(--text2);min-width:120px;">Auction Opens</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+            <input type="datetime-local" id="comm-auction-start"
+              value="${window._auctionStartTime ? new Date(window._auctionStartTime).toISOString().slice(0,16) : ''}"
+              style="padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:13px;outline:none;"/>
+            <button onclick="commSaveAuctionStart()" style="padding:6px 14px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-size:12px;cursor:pointer;font-family:var(--font-body);">Save</button>
+            <button onclick="commClearAuctionStart()" style="padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);font-size:12px;cursor:pointer;font-family:var(--font-body);">Clear</button>
+            <span style="font-size:12px;color:var(--text3);">${window._auctionStartTime ? (Date.now() < window._auctionStartTime ? '🔒 Auctions locked until ' + new Date(window._auctionStartTime).toLocaleString() : '🟢 Auctions open') : '🟢 Open (no start time set)'}</span>
+          </div>
+        </div>
       </div>
       ${offseasonMode ? `<div style="border-top:1px solid var(--border);">
         <div style="padding:10px 16px;background:var(--surface2);font-size:12px;font-weight:600;color:var(--yellow);">⚠️ Teams over 70% offseason cap (${fmtM(cutCap)})</div>
         ${overCapWarnings}
       </div>` : ''}
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px;">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface2);">
+        <span style="font-size:14px;font-weight:600;">👥 Co-Managers</span>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;">Add a Sleeper username who can manage a team (bid, nominate) as a co-manager</div>
+      </div>
+      <div style="padding:16px;display:flex;flex-direction:column;gap:10px;" id="co-manager-list">
+        <div style="font-size:12px;color:var(--text3);">Loading…</div>
+      </div>
+      <div style="padding:0 16px 16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <select id="cm-team-select" style="padding:7px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:13px;outline:none;">
+          <option value="">— Select team —</option>
+          ${Object.entries(DATA).map(([k,t])=>`<option value="${k}">${t.team_name}</option>`).join('')}
+        </select>
+        <input id="cm-username-input" type="text" placeholder="sleeper_username"
+          style="padding:7px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:13px;outline:none;width:180px;"/>
+        <button onclick="commAddCoManager()" style="padding:7px 14px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-size:12px;cursor:pointer;font-family:var(--font-body);">Add</button>
+        <span id="cm-status" style="font-size:12px;color:var(--green);"></span>
+      </div>
+    </div>
+
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px;">
+      <div style="padding:12px 16px;border-bottom:1px solid var(--border);background:var(--surface2);">
+        <span style="font-size:14px;font-weight:600;">🔑 Team Passwords</span>
+        <div style="font-size:11px;color:var(--text3);margin-top:2px;">Optionally require a password per team. Leave blank to remove.</div>
+      </div>
+      <div style="padding:16px;display:flex;flex-direction:column;gap:8px;" id="pw-list">
+        <div style="font-size:12px;color:var(--text3);">Loading…</div>
+      </div>
     </div>
 
     <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:24px;">
@@ -1485,6 +1622,8 @@ function renderCommish() {
   </div>`;
 
   loadRosterIdMap();
+  loadCoManagers();
+  loadPasswordList();
   // Wire trade multi-select preview after render
   setTimeout(() => {
     ['a','b'].forEach(side => {
@@ -1495,6 +1634,22 @@ function renderCommish() {
 
 
 // ── CAP & OFFSEASON SETTINGS ──────────────────────────────────
+async function commSaveAuctionStart() {
+  const inp = document.getElementById('comm-auction-start');
+  if (!inp?.value) { alert('Pick a date/time first.'); return; }
+  const ts = new Date(inp.value).getTime();
+  if (isNaN(ts)) { alert('Invalid date.'); return; }
+  window._auctionStartTime = ts;
+  await db.ref(`leagues/${leagueId()}/settings/auctionStartTime`).set(ts);
+  renderTab('commish');
+}
+
+async function commClearAuctionStart() {
+  window._auctionStartTime = null;
+  await db.ref(`leagues/${leagueId()}/settings/auctionStartTime`).remove();
+  renderTab('commish');
+}
+
 async function commSaveCap() {
   const inp = document.getElementById('comm-cap-input');
   const val = parseFloat(inp?.value);
