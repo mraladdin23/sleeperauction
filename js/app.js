@@ -152,11 +152,29 @@ const App = (() => {
       document.getElementById('login-password').value = '';
       return;
     }
+    // Password correct -- check if they must change it
+    const username = (window._pendingLoginUser?.username || '').toLowerCase();
+    const lid = session.leagueId || localStorage.getItem('sb_leagueId') || '';
+    let mustChange = false;
+    if (lid && username) {
+      try {
+        const mcSnap = await db.ref(`leagues/${lid}/passwordMustChange/${username}`).once('value');
+        mustChange = !!mcSnap.val();
+      } catch(e) {}
+    }
+
     state.user = window._pendingLoginUser;
     session.setUser(state.user);
     window._pendingLoginUser = null;
     window._pendingLoginHash = null;
     showLoginError('');
+
+    if (mustChange) {
+      // Show change-password modal before entering app
+      showChangePasswordModal(username, lid, true);
+      return;
+    }
+
     UI.showScreen('loading');
     UI.setLoading('Connecting…');
     if (session.leagueId) {
@@ -166,6 +184,106 @@ const App = (() => {
       UI.showScreen('setup');
       UI.setAvatar(document.getElementById('setup-avatar'), state.user);
     }
+  }
+
+  // ── Change Password flow ──────────────────────────────────────
+  function showChangePasswordModal(username, leagueId, isFirstTime) {
+    // Inject modal if not already present
+    if (!document.getElementById('change-pw-modal')) {
+      const overlay = document.createElement('div');
+      overlay.id = 'change-pw-modal';
+      overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:9999;display:flex;align-items:center;justify-content:center;';
+      overlay.innerHTML = `
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+          padding:28px 24px;width:360px;max-width:90vw;box-shadow:0 8px 32px rgba(0,0,0,.4);">
+          <div style="font-size:16px;font-weight:600;margin-bottom:6px;" id="cpw-title">Set Your Password</div>
+          <div style="font-size:13px;color:var(--text3);margin-bottom:20px;" id="cpw-subtitle"></div>
+          <div style="margin-bottom:12px;">
+            <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:5px;">New Password</label>
+            <input type="password" id="cpw-new" placeholder="Choose a password"
+              style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);
+              border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:14px;
+              outline:none;box-sizing:border-box;"/>
+          </div>
+          <div style="margin-bottom:18px;">
+            <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:5px;">Confirm Password</label>
+            <input type="password" id="cpw-confirm" placeholder="Confirm password"
+              style="width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);
+              border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:14px;
+              outline:none;box-sizing:border-box;"
+              onkeydown="if(event.key==='Enter')App.submitChangePassword()"/>
+          </div>
+          <div id="cpw-error" style="font-size:12px;color:var(--red);min-height:18px;margin-bottom:10px;"></div>
+          <div style="display:flex;gap:10px;">
+            <button onclick="App.submitChangePassword()"
+              style="flex:1;padding:10px;background:var(--accent);border:none;border-radius:var(--radius-sm);
+              color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-body);">
+              Set Password
+            </button>
+            ${!isFirstTime ? `<button onclick="document.getElementById('change-pw-modal').remove()"
+              style="padding:10px 16px;background:var(--surface2);border:1px solid var(--border);
+              border-radius:var(--radius-sm);color:var(--text2);font-size:13px;cursor:pointer;
+              font-family:var(--font-body);">Cancel</button>` : ''}
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+    }
+    document.getElementById('cpw-title').textContent = isFirstTime ? '🔑 Set Your Password' : '🔑 Change Password';
+    document.getElementById('cpw-subtitle').textContent = isFirstTime
+      ? 'The commissioner set a temporary password for you. Choose your own now.'
+      : 'Enter a new password for your account.';
+    document.getElementById('cpw-error').textContent = '';
+    document.getElementById('cpw-new').value = '';
+    document.getElementById('cpw-confirm').value = '';
+    document.getElementById('change-pw-modal').style.display = 'flex';
+    // Store context for submit
+    window._cpwUsername   = username;
+    window._cpwLeagueId   = leagueId;
+    window._cpwFirstTime  = isFirstTime;
+    setTimeout(() => document.getElementById('cpw-new')?.focus(), 50);
+  }
+
+  async function submitChangePassword() {
+    const newPw  = (document.getElementById('cpw-new')?.value || '').trim();
+    const confPw = (document.getElementById('cpw-confirm')?.value || '').trim();
+    const errEl  = document.getElementById('cpw-error');
+    if (!newPw)              { if(errEl) errEl.textContent = 'Enter a new password.'; return; }
+    if (newPw.length < 6)    { if(errEl) errEl.textContent = 'Password must be at least 6 characters.'; return; }
+    if (newPw !== confPw)    { if(errEl) errEl.textContent = 'Passwords do not match.'; return; }
+
+    const hash = await hashPassword(newPw);
+    const username  = window._cpwUsername;
+    const lid       = window._cpwLeagueId;
+    const firstTime = window._cpwFirstTime;
+
+    try {
+      await db.ref(`leagues/${lid}/passwords/${username}`).set(hash);
+      if (firstTime) {
+        await db.ref(`leagues/${lid}/passwordMustChange/${username}`).remove();
+      }
+      document.getElementById('change-pw-modal')?.remove();
+      UI.toast('Password updated!', 'success');
+
+      // If first-time change, now proceed to load the app
+      if (firstTime) {
+        UI.showScreen('loading');
+        UI.setLoading('Connecting…');
+        if (session.leagueId) {
+          state.leagueId = session.leagueId;
+          await initApp();
+        } else {
+          UI.showScreen('setup');
+          UI.setAvatar(document.getElementById('setup-avatar'), state.user);
+        }
+      }
+    } catch(e) {
+      if(errEl) errEl.textContent = 'Failed to save: ' + (e.message || e);
+    }
+  }
+
+  function openChangePassword() {
+    const username = (state.user?.username || '').toLowerCase();
+    showChangePasswordModal(username, state.leagueId, false);
   }
 
   async function hashPassword(pw) {
@@ -274,6 +392,16 @@ const App = (() => {
       const myUser = (state.user?.username || '').toLowerCase();
       window._coManagerRosterId = cmMap[myUser] || null;
     } catch(e) {}
+
+    // Show change-password button if this user has a password set
+    if (!state.isGuest) {
+      const myUser = (state.user?.username || '').toLowerCase();
+      try {
+        const pwSnap = await db.ref(`leagues/${state.leagueId}/passwords/${myUser}`).once('value');
+        const cpwBtn = document.getElementById('change-pw-btn');
+        if (cpwBtn) cpwBtn.style.display = pwSnap.val() ? '' : 'none';
+      } catch(e) {}
+    }
     state.leagueSettings  = league;
     state.scoringSettings = league.scoring_settings || {};
     state.rosterPositions = league.roster_positions || [];
@@ -1155,7 +1283,7 @@ const App = (() => {
     doSetup,
     switchTab,
     setFilter, renderFreeAgents, loadFreeAgents,
-    browseAsGuest, submitPassword, refreshAll, renderAll, updateHomeFeed, faSort, setStatYear,
+    browseAsGuest, submitPassword, submitChangePassword, openChangePassword, refreshAll, renderAll, updateHomeFeed, faSort, setStatYear,
     enableNotifications,
     computeCustomPts,
     toggleWatch,

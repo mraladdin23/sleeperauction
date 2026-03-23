@@ -1326,7 +1326,9 @@ async function commSavePassword(username) {
     const buf  = await crypto.subtle.digest('SHA-256', enc);
     const hash = Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
     await ref.set(hash);
-    showToast(`Password set for ${username}`, 'success');
+    // Mark as must-change so user sets their own password on first login
+    await db.ref(`leagues/${leagueId()}/passwordMustChange/${username}`).set(true);
+    showToast(`Password set for ${username} — they will be prompted to change it on login`, 'success');
   }
   inp.value = '';
   loadPasswordList();
