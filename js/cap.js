@@ -1293,8 +1293,12 @@ async function loadPasswordList() {
   const el = document.getElementById('pw-list');
   if (!el) return;
   try {
-    const snap = await db.ref(`leagues/${leagueId()}/passwords`).once('value');
-    const stored = snap.val() || {};
+    // Read password status per user from global users/ path
+    const userKeys = Object.keys(DATA);
+    const pwChecks = await Promise.all(
+      userKeys.map(u => db.ref(`users/${u}/password`).once('value').then(s => [u, !!s.val()]))
+    );
+    const stored = Object.fromEntries(pwChecks.map(([u, has]) => [u, has]));
     el.innerHTML = Object.keys(DATA).map(username => {
       const hasPass = stored[username] ? '🔒 Set' : '—';
       const passColor = stored[username] ? 'var(--green)' : 'var(--text3)';
@@ -1316,7 +1320,7 @@ async function loadPasswordList() {
 async function commSavePassword(username) {
   const inp = document.getElementById(`pw-input-${username}`);
   const pw  = inp?.value || '';
-  const ref = db.ref(`leagues/${leagueId()}/passwords/${username}`);
+  const ref = db.ref(`users/${username}/password`);
   if (!pw) {
     await ref.remove();
     showToast(`Password removed for ${username}`, 'info');
@@ -1327,7 +1331,7 @@ async function commSavePassword(username) {
     const hash = Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
     await ref.set(hash);
     // Mark as must-change so user sets their own password on first login
-    await db.ref(`leagues/${leagueId()}/passwordMustChange/${username}`).set(true);
+    await db.ref(`users/${username}/passwordMustChange`).set(true);
     showToast(`Password set for ${username} — they will be prompted to change it on login`, 'success');
   }
   inp.value = '';

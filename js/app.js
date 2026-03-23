@@ -184,14 +184,14 @@ const App = (() => {
     // Check password for this specific league before entering
     const username = (state.user?.username || '').toLowerCase();
     try {
-      const pwSnap = await db.ref(`leagues/${leagueId}/passwords/${username}`).once('value');
+      const pwSnap = await db.ref(`users/${username}/password`).once('value');
       if (pwSnap.val()) {
         // Password required for this league
         window._pendingLoginUser = state.user;
         window._pendingLoginHash = pwSnap.val();
         window._pendingLeagueId  = leagueId;
         // Check mustChange
-        const mcSnap = await db.ref(`leagues/${leagueId}/passwordMustChange/${username}`).once('value');
+        const mcSnap = await db.ref(`users/${username}/passwordMustChange`).once('value');
         if (mcSnap.val()) {
           showChangePasswordModal(username, leagueId, true);
           return;
@@ -314,10 +314,10 @@ const App = (() => {
         // Check if this user has a password set and must change it
         const username = session.username.toLowerCase();
         try {
-          const pwSnap = await db.ref(`leagues/${session.leagueId}/passwords/${username}`).once('value');
+          const pwSnap = await db.ref(`users/${username}/password`).once('value');
           if (pwSnap.val()) {
             // Has a password -- check mustChange flag
-            const mcSnap = await db.ref(`leagues/${session.leagueId}/passwordMustChange/${username}`).once('value');
+            const mcSnap = await db.ref(`users/${username}/passwordMustChange`).once('value');
             if (mcSnap.val()) {
               // Must change password before entering -- show login screen with password prompt
               UI.showScreen('login');
@@ -376,7 +376,7 @@ const App = (() => {
       const lid = session.leagueId || localStorage.getItem('sb_leagueId') || '';
       if (lid) {
         try {
-          const pwSnap = await db.ref(`leagues/${lid}/passwords/${username.toLowerCase()}`).once('value');
+          const pwSnap = await db.ref(`users/${username.toLowerCase()}/password`).once('value');
           if (pwSnap.val()) {
             UI.showScreen('login');
             const pwWrap = document.getElementById('login-password-wrap');
@@ -413,7 +413,7 @@ const App = (() => {
     let mustChange = false;
     if (lid && username) {
       try {
-        const mcSnap = await db.ref(`leagues/${lid}/passwordMustChange/${username}`).once('value');
+        const mcSnap = await db.ref(`users/${username}/passwordMustChange`).once('value');
         mustChange = !!mcSnap.val();
       } catch(e) {}
     }
@@ -504,9 +504,9 @@ const App = (() => {
     const firstTime = window._cpwFirstTime;
 
     try {
-      await db.ref(`leagues/${lid}/passwords/${username}`).set(hash);
+      await db.ref(`users/${username}/password`).set(hash);
       if (firstTime) {
-        await db.ref(`leagues/${lid}/passwordMustChange/${username}`).remove();
+        await db.ref(`users/${username}/passwordMustChange`).remove();
       }
       document.getElementById('change-pw-modal')?.remove();
       UI.toast('Password updated!', 'success');
@@ -675,7 +675,7 @@ const App = (() => {
     if (!state.isGuest) {
       const myUser = (state.user?.username || '').toLowerCase();
       try {
-        const pwSnap = await db.ref(`leagues/${state.leagueId}/passwords/${myUser}`).once('value');
+        const pwSnap = await db.ref(`users/${myUser}/password`).once('value');
         const cpwItem = document.getElementById('avatar-dd-changepw');
         if (cpwItem) cpwItem.style.display = pwSnap.val() ? '' : 'none';
       } catch(e) {}
