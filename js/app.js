@@ -80,6 +80,26 @@ const App = (() => {
         state.user     = await Sleeper.fetchUser(session.username);
         session.setUser(state.user);
         state.leagueId = session.leagueId;
+
+        // Check if this user has a password set and must change it
+        const username = session.username.toLowerCase();
+        try {
+          const pwSnap = await db.ref(`leagues/${session.leagueId}/passwords/${username}`).once('value');
+          if (pwSnap.val()) {
+            // Has a password -- check mustChange flag
+            const mcSnap = await db.ref(`leagues/${session.leagueId}/passwordMustChange/${username}`).once('value');
+            if (mcSnap.val()) {
+              // Must change password before entering -- show login screen with password prompt
+              UI.showScreen('login');
+              document.getElementById('login-username').value = session.username;
+              window._pendingLoginUser = state.user;
+              window._pendingLoginHash = pwSnap.val();
+              showChangePasswordModal(username, session.leagueId, true);
+              return;
+            }
+          }
+        } catch(e) { /* no password set, continue normally */ }
+
         await initApp();
         return;
       } catch (e) { /* fall through */ }
