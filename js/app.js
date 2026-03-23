@@ -671,13 +671,13 @@ const App = (() => {
       window._coManagerRosterId = cmMap[myUser] || null;
     } catch(e) {}
 
-    // Show change-password button if this user has a password set
+    // Configure avatar dropdown items based on user state
     if (!state.isGuest) {
       const myUser = (state.user?.username || '').toLowerCase();
       try {
         const pwSnap = await db.ref(`leagues/${state.leagueId}/passwords/${myUser}`).once('value');
-        const cpwBtn = document.getElementById('change-pw-btn');
-        if (cpwBtn) cpwBtn.style.display = pwSnap.val() ? '' : 'none';
+        const cpwItem = document.getElementById('avatar-dd-changepw');
+        if (cpwItem) cpwItem.style.display = pwSnap.val() ? '' : 'none';
       } catch(e) {}
     }
     state.leagueSettings  = league;
@@ -756,29 +756,12 @@ const App = (() => {
     UI.showScreen('app');
     UI.renderPauseBanner();
 
-    // Show switch-league button (only if multiple leagues registered)
-    try {
-      const regSnap = await db.ref('leagues/_registry').once('value');
-      const regCount = Object.keys(regSnap.val() || {}).length;
-      const swBtn = document.getElementById('switch-league-btn');
-      if (swBtn) swBtn.style.display = regCount > 1 ? '' : 'none';
-    } catch(e) {}
+    // Avatar dropdown is always available -- no extra button logic needed
 
-    // Guest mode: show a persistent banner with Login button
+    // Guest mode: update avatar dropdown logout to say "Login"
     if (state.isGuest) {
-      const bar = document.querySelector('.app-bar-right');
-      if (bar && !document.getElementById('guest-login-btn')) {
-        const btn = document.createElement('button');
-        btn.id = 'guest-login-btn';
-        btn.textContent = '🔑 Login';
-        btn.style.cssText = 'padding:5px 12px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font-body);';
-        btn.onclick = () => {
-          state.isGuest = false;
-          session.clear ? session.clear() : localStorage.removeItem('sb_username');
-          window.location.reload();
-        };
-        bar.prepend(btn);
-      }
+      const logoutItem = document.querySelector('.avatar-dd-logout');
+      if (logoutItem) logoutItem.innerHTML = '🔑 <span>Login</span>';
     }
 
     // ── Firebase subscriptions ───────────────────────────
