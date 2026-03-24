@@ -218,6 +218,54 @@ function toggleAvatarMenu() {
     dd.classList.add('open');
   }
 }
+// ── League Setup Wizard ───────────────────────────────────────
+function initWizard(leagueName, leagueMeta, sleeperLeague) {
+  document.getElementById('wizard-league-name').textContent = leagueName;
+  document.getElementById('wizard-league-meta').textContent = leagueMeta;
+  document.getElementById('wizard-error').textContent = '';
+
+  // Pre-fill from Sleeper settings
+  const settings = sleeperLeague?.settings || {};
+  const taxiSlots = settings.taxi_slots || 0;
+  const hasIR = (sleeperLeague?.roster_positions || []).includes('BN'); // heuristic
+  document.getElementById('wiz-max-taxi').value = taxiSlots || 8;
+  document.getElementById('wiz-max-ir').value   = settings.reserve_slots || 2;
+  if (settings.waiver_budget > 0) {
+    // Has FAAB -- suggest salary+auction
+    const salEl = document.querySelector('input[value="salary_auction"]');
+    if (salEl) { salEl.checked = true; updateWizardSections('salary_auction'); }
+  }
+
+  // Wire radio buttons to show/hide sections
+  document.querySelectorAll('input[name="wiz-type"]').forEach(r => {
+    r.addEventListener('change', () => updateWizardSections(r.value));
+  });
+  // Wire wizard option labels for highlight effect
+  document.querySelectorAll('.wizard-opt').forEach(lbl => {
+    lbl.querySelector('input')?.addEventListener('change', () => {
+      const group = lbl.dataset.group;
+      document.querySelectorAll(`.wizard-opt[data-group="${group}"]`).forEach(l => {
+        l.style.borderColor = l.querySelector('input')?.checked ? 'var(--accent)' : 'var(--border)';
+      });
+    });
+  });
+
+  document.getElementById('league-setup-wizard').style.display = 'flex';
+}
+
+function updateWizardSections(type) {
+  const isSalary   = type === 'salary_auction';
+  const isDynasty  = type === 'dynasty_no_auction';
+  document.getElementById('wizard-salary-section').style.display = isSalary ? '' : 'none';
+  document.getElementById('wizard-cap-section').style.display    = isSalary ? '' : 'none';
+  document.getElementById('wizard-slots-section').style.display  = (isSalary || isDynasty) ? '' : 'none';
+  // Pre-check features based on type
+  document.getElementById('wiz-feat-auctions').checked  = isSalary;
+  document.getElementById('wiz-feat-rosters').checked   = isSalary || isDynasty;
+  document.getElementById('wiz-feat-standings').checked = true;
+  document.getElementById('wiz-feat-draft').checked     = isSalary || isDynasty;
+}
+
 function closeAvatarMenu() {
   document.getElementById('avatar-dropdown')?.classList.remove('open');
 }
@@ -1145,5 +1193,116 @@ if('serviceWorker' in navigator){
   });
 }
 </script>
+
+<!-- League Setup Wizard Modal -->
+<div id="league-setup-wizard" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);
+  z-index:9999;display:none;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    width:520px;max-width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 12px 48px rgba(0,0,0,.5);">
+    <div style="padding:20px 24px;border-bottom:1px solid var(--border);background:var(--surface2);
+      display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <div style="font-size:16px;font-weight:700;" id="wizard-league-name">League Setup</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px;" id="wizard-league-meta"></div>
+      </div>
+      <button onclick="document.getElementById('league-setup-wizard').style.display='none'"
+        style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;padding:4px;">✕</button>
+    </div>
+    <div style="padding:20px 24px;display:flex;flex-direction:column;gap:20px;">
+
+      <!-- Q1: League Type -->
+      <div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">What type of league is this?</div>
+        <div style="display:flex;flex-direction:column;gap:6px;" id="wizard-league-type">
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:border-color .15s;" class="wizard-opt" data-group="type" data-val="salary_auction">
+            <input type="radio" name="wiz-type" value="salary_auction" style="margin-top:2px;accent-color:var(--accent);"/>
+            <div><div style="font-size:13px;font-weight:500;">💰 Salary + Auction</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Teams have salary caps. Players are acquired via FAAB proxy auctions.</div></div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:border-color .15s;" class="wizard-opt" data-group="type" data-val="dynasty_no_auction">
+            <input type="radio" name="wiz-type" value="dynasty_no_auction" style="margin-top:2px;accent-color:var(--accent);"/>
+            <div><div style="font-size:13px;font-weight:500;">🏆 Dynasty (no auctions)</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Track rosters and standings. No salary cap or auction system.</div></div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;transition:border-color .15s;" class="wizard-opt" data-group="type" data-val="redraft">
+            <input type="radio" name="wiz-type" value="redraft" style="margin-top:2px;accent-color:var(--accent);"/>
+            <div><div style="font-size:13px;font-weight:500;">🔄 Redraft</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Annual redraft league. Standings and matchups only.</div></div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Q2: Salary setup (shown only for salary leagues) -->
+      <div id="wizard-salary-section" style="display:none;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Salary setup</div>
+        <div style="display:flex;flex-direction:column;gap:6px;">
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;" class="wizard-opt" data-group="salary" data-val="existing">
+            <input type="radio" name="wiz-salary" value="existing" style="margin-top:2px;accent-color:var(--accent);"/>
+            <div><div style="font-size:13px;font-weight:500;">Existing salaries</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Teams already have salaries. I'll enter them in the Commish tab.</div></div>
+          </label>
+          <label style="display:flex;align-items:flex-start;gap:10px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;" class="wizard-opt" data-group="salary" data-val="new">
+            <input type="radio" name="wiz-salary" value="new" style="margin-top:2px;accent-color:var(--accent);"/>
+            <div><div style="font-size:13px;font-weight:500;">New league / startup</div><div style="font-size:11px;color:var(--text3);margin-top:2px;">Starting fresh — salaries will be assigned as players are auctioned.</div></div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Q3: Slot limits (shown for salary/dynasty leagues) -->
+      <div id="wizard-slots-section" style="display:none;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Roster slot limits</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+          <div>
+            <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px;">Max IR slots per team</label>
+            <input type="number" id="wiz-max-ir" value="2" min="0" max="10"
+              style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);
+              border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:14px;outline:none;"/>
+          </div>
+          <div>
+            <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px;">Max Taxi slots per team</label>
+            <input type="number" id="wiz-max-taxi" value="8" min="0" max="15"
+              style="width:100%;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);
+              border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:14px;outline:none;"/>
+          </div>
+        </div>
+      </div>
+
+      <!-- Q4: Salary cap (shown for salary leagues) -->
+      <div id="wizard-cap-section" style="display:none;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Salary cap</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span style="color:var(--text3);">$</span>
+          <input type="number" id="wiz-cap" value="301.2" min="1" step="0.1"
+            style="width:120px;padding:8px 10px;background:var(--surface2);border:1px solid var(--border);
+            border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:14px;outline:none;"/>
+          <span style="font-size:13px;color:var(--text3);">million</span>
+        </div>
+      </div>
+
+      <!-- Q5: Features -->
+      <div>
+        <div style="font-size:13px;font-weight:600;margin-bottom:8px;">Enable features</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;" id="wizard-features">
+          <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;">
+            <input type="checkbox" id="wiz-feat-auctions" style="accent-color:var(--accent);"/> Auctions
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;">
+            <input type="checkbox" id="wiz-feat-rosters" checked style="accent-color:var(--accent);"/> Rosters / Cap
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;">
+            <input type="checkbox" id="wiz-feat-standings" checked style="accent-color:var(--accent);"/> Standings
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--surface2);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;">
+            <input type="checkbox" id="wiz-feat-draft" checked style="accent-color:var(--accent);"/> Draft Board
+          </label>
+        </div>
+      </div>
+
+      <div id="wizard-error" style="font-size:12px;color:var(--red);min-height:16px;"></div>
+      <button onclick="App.submitLeagueSetup()"
+        style="width:100%;padding:12px;background:var(--accent);border:none;border-radius:var(--radius-sm);
+        color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-body);">
+        Register League →
+      </button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
