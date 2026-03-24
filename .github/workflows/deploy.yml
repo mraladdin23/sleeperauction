@@ -1,26 +1,28 @@
 name: Deploy SleeperBid
-
 on:
   push:
     branches: [ main ]
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
       - name: Stamp cache-bust timestamp into sw.js
         run: |
-          TIMESTAMP=$(date -u +"%Y%m%d-%H%M%S")
+          TIMESTAMP=$(date +%s)
           echo "Stamping: sleeperbid-$TIMESTAMP"
           sed -i "s/__TIMESTAMP__/$TIMESTAMP/g" sw.js
 
-      - name: Commit updated sw.js
-        run: |
-          git config user.name  "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add sw.js
-          git diff --staged --quiet || git commit -m "chore: cache-bust sw.js [skip ci]"
-          git push
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .
+          publish_branch: gh-pages
+          exclude_assets: '.github,*.md,*.yml'
