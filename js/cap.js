@@ -49,7 +49,7 @@ function subscribeRosters() {
     const cached = localStorage.getItem('sb_players');
     if (cached) {
       const players = JSON.parse(cached);
-      window._playerById = window._playerById || {};
+      window._playerById = {};  // always rebuild fresh
       Object.entries(players).forEach(([playerId, p]) => {
         // Build reverse lookup: player_id -> player data
         if (p.first_name && p.last_name) {
@@ -824,6 +824,8 @@ function openTeamPanelDynasty(key, t) {
   if (!appTeam) return;
 
   const byId     = window._playerById || {};
+  console.log('[dynasty panel] byId size:', Object.keys(byId).length, 'first player id:', appTeam?.players?.[0]);
+  if (appTeam?.players?.[0]) console.log('[dynasty panel] lookup result:', byId[appTeam.players[0]]);
   const taxiSet  = new Set(appTeam.taxi    || []);
   const resSet   = new Set(appTeam.reserve || []);
   const allIds   = appTeam.players || [];
