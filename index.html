@@ -647,7 +647,10 @@ function initAuctionView() {
 // ── Roster/cap view ───────────────────────────────────────────
 function initRosterView() {
   const container = document.getElementById('view-roster');
+  // Pass league type to cap.js before it runs
+  window._capLeagueType = window.App?.state?.leagueType || 'salary_auction';
   if (viewsLoaded.roster) {
+    applyCapTabVisibility();
     if (window.setTab) setTab(window.tab || 'overview');
     return;
   }
@@ -655,8 +658,34 @@ function initRosterView() {
   viewsLoaded.roster = true;
   if (window.capInit) {
     capInit();
+    applyCapTabVisibility();
   } else {
-    loadScript('js/cap.js', () => { if (window.capInit) capInit(); });
+    loadScript('js/cap.js', () => {
+      if (window.capInit) {
+        capInit();
+        applyCapTabVisibility();
+      }
+    });
+  }
+}
+
+function applyCapTabVisibility() {
+  const isSalary = (window._capLeagueType || 'salary_auction') === 'salary_auction';
+  // Tabs only relevant to salary leagues
+  ['compare','toppaid'].forEach(tab => {
+    const btn = document.querySelector(`[data-tab="${tab}"]`);
+    if (btn) btn.style.display = isSalary ? '' : 'none';
+    // Also hide from dropdown
+    const opt = document.querySelector(`#nav-dd option[value="${tab}"]`);
+    if (opt) opt.style.display = isSalary ? '' : 'none';
+  });
+  // Taxi tab -- only show for salary/dynasty leagues that have taxi
+  const taxiBtn = document.querySelector('[data-tab="taxi"]');
+  if (taxiBtn) taxiBtn.style.display = isSalary ? '' : 'none';
+  // If current tab is now hidden, switch to overview
+  const activeTab = document.querySelector('.nav-tab.active')?.dataset?.tab;
+  if (activeTab && ['compare','toppaid','taxi'].includes(activeTab) && !isSalary) {
+    if (window.setTab) setTab('overview');
   }
 }
 
