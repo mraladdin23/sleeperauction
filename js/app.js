@@ -311,22 +311,26 @@ const App = (() => {
         session.setUser(state.user);
         state.leagueId = session.leagueId;
 
-        // Check if this user has a password set and must change it
+        // Check if this user has a password -- require it even on reconnect
         const username = session.username.toLowerCase();
         try {
           const pwSnap = await db.ref(`users/${username}/password`).once('value');
           if (pwSnap.val()) {
-            // Has a password -- check mustChange flag
+            // Check mustChange flag first
             const mcSnap = await db.ref(`users/${username}/passwordMustChange`).once('value');
+            UI.showScreen('login');
+            document.getElementById('login-username').value = session.username;
+            window._pendingLoginUser = state.user;
+            window._pendingLoginHash = pwSnap.val();
             if (mcSnap.val()) {
-              // Must change password before entering -- show login screen with password prompt
-              UI.showScreen('login');
-              document.getElementById('login-username').value = session.username;
-              window._pendingLoginUser = state.user;
-              window._pendingLoginHash = pwSnap.val();
               showChangePasswordModal(username, session.leagueId, true);
-              return;
+            } else {
+              // Show password field to re-authenticate
+              const pwWrap = document.getElementById('login-password-wrap');
+              if (pwWrap) { pwWrap.style.display = ''; }
+              document.getElementById('login-password')?.focus();
             }
+            return;
           }
         } catch(e) { /* no password set, continue normally */ }
 
@@ -372,23 +376,20 @@ const App = (() => {
       session.username = username;
       session.setUser(state.user);
 
-      // Check if this user has a password in Firebase
-      const lid = session.leagueId || localStorage.getItem('sb_leagueId') || '';
-      if (lid) {
-        try {
-          const pwSnap = await db.ref(`users/${username.toLowerCase()}/password`).once('value');
-          if (pwSnap.val()) {
-            UI.showScreen('login');
-            const pwWrap = document.getElementById('login-password-wrap');
-            if (pwWrap) { pwWrap.style.display = ''; }
-            document.getElementById('login-password')?.focus();
-            window._pendingLoginUser = state.user;
-            window._pendingLoginHash = pwSnap.val();
-            showLoginError('');
-            return;
-          }
-        } catch(e) {}
-      }
+      // Check if this user has a global password in Firebase
+      try {
+        const pwSnap = await db.ref(`users/${username.toLowerCase()}/password`).once('value');
+        if (pwSnap.val()) {
+          UI.showScreen('login');
+          const pwWrap = document.getElementById('login-password-wrap');
+          if (pwWrap) { pwWrap.style.display = ''; }
+          document.getElementById('login-password')?.focus();
+          window._pendingLoginUser = state.user;
+          window._pendingLoginHash = pwSnap.val();
+          showLoginError('');
+          return;
+        }
+      } catch(e) {}
 
       // No password — go to league picker
       await showLeaguePicker();
