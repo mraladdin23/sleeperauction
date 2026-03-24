@@ -181,28 +181,7 @@ const App = (() => {
   }
 
   async function pickLeague(leagueId) {
-    // Check password for this specific league before entering
-    const username = (state.user?.username || '').toLowerCase();
-    try {
-      const pwSnap = await db.ref(`users/${username}/password`).once('value');
-      if (pwSnap.val()) {
-        // Password required for this league
-        window._pendingLoginUser = state.user;
-        window._pendingLoginHash = pwSnap.val();
-        window._pendingLeagueId  = leagueId;
-        // Check mustChange
-        const mcSnap = await db.ref(`users/${username}/passwordMustChange`).once('value');
-        if (mcSnap.val()) {
-          showChangePasswordModal(username, leagueId, true);
-          return;
-        }
-        // Show password prompt overlay
-        showLeaguePasswordPrompt(leagueId, username);
-        return;
-      }
-    } catch(e) {}
-
-    // No password — load directly
+    // Password already verified at login -- go straight to the league
     state.leagueId   = leagueId;
     session.leagueId = leagueId;
     UI.showScreen('loading');
@@ -711,7 +690,8 @@ const App = (() => {
         faab_budget:  leagueFaabBudget,
         faab_used:    used,
         players:      r.players || [],
-        taxi:         r.taxi   || [],
+        taxi:         r.taxi    || [],
+        reserve:      r.reserve || [],  // IR players
       };
     });
 

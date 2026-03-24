@@ -552,8 +552,18 @@ const UI = (() => {
       const winningCount = leadingOn.length;
 
       const ROSTER_CAP  = 25;
-      const manualCount = rosterSizes[t.roster_id];
-      const openSpots   = manualCount != null ? Math.max(0, ROSTER_CAP - manualCount - winningCount) : null;
+      // Active roster = all players minus taxi and IR
+      // Fall back to manual Firebase value if Sleeper data not available
+      let rosterCount = null;
+      if (t.players != null) {
+        const taxiSet    = new Set(t.taxi    || []);
+        const reserveSet = new Set(t.reserve || []);
+        const activeCount = (t.players || []).filter(id => !taxiSet.has(id) && !reserveSet.has(id)).length;
+        rosterCount = activeCount;
+      } else {
+        rosterCount = rosterSizes[t.roster_id] ?? null;
+      }
+      const openSpots = rosterCount != null ? Math.max(0, ROSTER_CAP - rosterCount - winningCount) : null;
 
       const spotsHtml = openSpots !== null
         ? `<div class="team-stat">
@@ -822,14 +832,22 @@ const UI = (() => {
     const rosterBulk = document.getElementById('comm-roster-bulk');
     if (rosterBulk) {
       rosterBulk.innerHTML = state.teams.map(t => {
-        const current = (state.rosterSizes || {})[t.roster_id] ?? '';
-        return `<div class="roster-bulk-row" data-roster-id="${t.roster_id}" style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--border);">
-          <div style="flex:1;font-size:13px;font-weight:500;">${t.display_name || t.username}</div>
-          <div style="font-size:11px;color:var(--text3);margin-right:4px;">players:</div>
-          <input type="number" min="0" max="25" value="${current}" placeholder="0"
-            style="padding:7px 10px;font-family:var(--font-mono);font-size:15px;width:65px;text-align:center;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);outline:none;" />
+        const ROSTER_CAP   = 25;
+        const taxiSet      = new Set(t.taxi    || []);
+        const reserveSet   = new Set(t.reserve || []);
+        const activeCount  = t.players != null
+          ? (t.players || []).filter(id => !taxiSet.has(id) && !reserveSet.has(id)).length
+          : null;
+        const taxiCount    = (t.taxi    || []).length;
+        const irCount      = (t.reserve || []).length;
+        const openSpots    = activeCount != null ? Math.max(0, ROSTER_CAP - activeCount) : '—';
+        const spotsColor   = openSpots === 0 ? 'var(--red)' : openSpots <= 2 ? 'var(--yellow)' : 'var(--green)';
+        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);flex-wrap:wrap;">
+          <div style="flex:1;font-size:13px;font-weight:500;min-width:120px;">${t.display_name || t.username}</div>
+          <div style="font-size:11px;color:var(--text3);">${activeCount ?? '—'} active · ${taxiCount} taxi · ${irCount} IR</div>
+          <div style="font-size:12px;font-weight:600;min-width:64px;text-align:right;color:${spotsColor};">${openSpots} open</div>
         </div>`;
-      }).join('');
+      }).join('') + '<div style="font-size:11px;color:var(--text3);margin-top:8px;">Active roster only — taxi and IR excluded · Live from Sleeper</div>';
     }
 
     if (bulk) {
