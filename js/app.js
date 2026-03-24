@@ -314,9 +314,7 @@ const App = (() => {
         // Check if this user has a password -- require it even on reconnect
         const username = session.username.toLowerCase();
         try {
-          console.log('[boot] checking password for:', username);
-          const pwSnap = await db.ref(`users/${username}/password`).once('value');
-          console.log('[boot] pwSnap.val():', pwSnap.val());
+            const pwSnap = await db.ref(`users/${username}/password`).once('value');
           if (pwSnap.val()) {
             // Check mustChange flag first
             const mcSnap = await db.ref(`users/${username}/passwordMustChange`).once('value');
@@ -334,7 +332,7 @@ const App = (() => {
             }
             return;
           }
-        } catch(e) { console.error('[boot] password check error:', e); /* no password set, continue normally */ }
+        } catch(e) { /* no password set, continue normally */ }
 
         await initApp();
         return;
@@ -380,9 +378,7 @@ const App = (() => {
 
       // Check if this user has a global password in Firebase
       try {
-        console.log('[doLogin] checking password for:', username.toLowerCase());
         const pwSnap = await db.ref(`users/${username.toLowerCase()}/password`).once('value');
-        console.log('[doLogin] pwSnap.val():', pwSnap.val());
         if (pwSnap.val()) {
           UI.showScreen('login');
           const pwWrap = document.getElementById('login-password-wrap');
@@ -393,7 +389,7 @@ const App = (() => {
           showLoginError('');
           return;
         }
-      } catch(e) { console.error('[doLogin] password check error:', e); }
+      } catch(e) {}
 
       // No password — go to league picker
       await showLeaguePicker();
@@ -516,17 +512,9 @@ const App = (() => {
       document.getElementById('change-pw-modal')?.remove();
       UI.toast('Password updated!', 'success');
 
-      // If first-time change, now proceed to load the app
+      // If first-time change, go to league picker
       if (firstTime) {
-        UI.showScreen('loading');
-        UI.setLoading('Connecting…');
-        if (session.leagueId) {
-          state.leagueId = session.leagueId;
-          await initApp();
-        } else {
-          UI.showScreen('setup');
-          UI.setAvatar(document.getElementById('setup-avatar'), state.user);
-        }
+        await showLeaguePicker();
       }
     } catch(e) {
       if(errEl) errEl.textContent = 'Failed to save: ' + (e.message || e);
