@@ -252,8 +252,64 @@ function renderTab(t) {
 }
 
 // ── OVERVIEW ─────────────────────────────────────────────────
+function renderOverviewDynasty() {
+  const el = document.getElementById('tab-overview');
+  if (!el || !DATA) return;
+  const teams = Object.values(DATA);
+
+  el.innerHTML = `
+    <div style="padding:16px 0;">
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;">
+        ${teams.map(t => {
+          const key = Object.keys(DATA).find(k => DATA[k] === t) || '';
+          const appTeam = (window._capTeams||[]).find(tm =>
+            (tm.username||'').toLowerCase() === key ||
+            (tm.display_name||'').toLowerCase() === (t.team_name||'').toLowerCase()
+          );
+          const totalPlayers = appTeam ? appTeam.players.length : 0;
+          const taxiCount    = appTeam ? (appTeam.taxi||[]).length : 0;
+          const irCount      = appTeam ? (appTeam.reserve||[]).length : 0;
+          const activeCount  = totalPlayers - taxiCount - irCount;
+          const avatarUrl    = appTeam?.avatar
+            ? `https://sleepercdn.com/avatars/thumbs/${appTeam.avatar}`
+            : null;
+          const initials     = (t.team_name||'?')[0].toUpperCase();
+          return `<div onclick="openTeamPanel('${key}')" style="background:var(--surface);border:1px solid var(--border);
+            border-radius:var(--radius);padding:16px;cursor:pointer;transition:border-color .15s;"
+            onmouseover="this.style.borderColor='var(--accent)'"
+            onmouseout="this.style.borderColor='var(--border)'">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+              ${avatarUrl
+                ? '<img src="'+avatarUrl+'" style="width:36px;height:36px;border-radius:50%;object-fit:cover;">'
+                : '<div style="width:36px;height:36px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;color:#fff;">'+initials+'</div>'}
+              <div>
+                <div style="font-size:14px;font-weight:600;">${t.team_name}</div>
+                <div style="font-size:11px;color:var(--text3);">${key}</div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;">
+              <div style="background:var(--surface2);border-radius:6px;padding:8px 4px;">
+                <div style="font-size:16px;font-weight:700;">${activeCount}</div>
+                <div style="font-size:10px;color:var(--text3);">Active</div>
+              </div>
+              <div style="background:var(--surface2);border-radius:6px;padding:8px 4px;">
+                <div style="font-size:16px;font-weight:700;color:var(--text3);">${taxiCount}</div>
+                <div style="font-size:10px;color:var(--text3);">Taxi</div>
+              </div>
+              <div style="background:var(--surface2);border-radius:6px;padding:8px 4px;">
+                <div style="font-size:16px;font-weight:700;color:${irCount>0?'var(--red)':'var(--text3)'};">${irCount}</div>
+                <div style="font-size:10px;color:var(--text3);">IR</div>
+              </div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div>`;
+}
+
 function renderOverview() {
   const el = document.getElementById('tab-overview');
+  if (!isSalaryLeague()) { renderOverviewDynasty(); return; }
   const teams = Object.values(DATA);
   const spentArr = teams.map(t=>t.cap_spent), availArr = teams.map(t=>CAP-t.cap_spent);
   const avg = Math.round(spentArr.reduce((a,b)=>a+b)/teams.length);
@@ -2119,6 +2175,22 @@ async function deletePlayer(){
 function capInit() {
   const modal = document.getElementById('edit-modal');
   if (modal) modal.addEventListener('click', e => {});
+
+  // Immediately populate DATA from Sleeper teams so the view shows
+  // something even before Firebase responds
+  const earlyTeams = window._capTeams || [];
+  if (earlyTeams.length > 0 && !DATA) {
+    DATA = {};
+    earlyTeams.forEach(t => {
+      const key = (t.username || t.display_name || `team_${t.roster_id}`).toLowerCase().replace(/ /g,'_');
+      DATA[key] = {
+        team_name: t.display_name || t.username || `Team ${t.roster_id}`,
+        cap_spent: 0, starters: [], ir: [], taxi: [],
+      };
+    });
+    console.log('[cap.js] Early DATA from _capTeams:', Object.keys(DATA).length, 'teams');
+  }
+
   subscribeRosters();
 }
 

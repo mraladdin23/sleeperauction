@@ -1,6 +1,6 @@
 // SleeperBid Service Worker
 // Cache version is stamped by deploy.sh at deploy time — do not edit manually.
-const CACHE = 'sleeperbid-1774378798';
+const CACHE = 'sleeperbid-1774379352';
 
 const STATIC = [
   '/',
