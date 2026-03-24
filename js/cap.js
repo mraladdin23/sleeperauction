@@ -696,7 +696,7 @@ function apBuildShell(el) {
               '<th>NFL Team</th>' +
               '<th id="ap-th-pts" onclick="apSortBy(&quot;pts&quot;)"    style="cursor:pointer;user-select:none;">Pts <span id="ap-sort-pts"></span></th>' +
               '<th>Owner</th>' +
-              '<th id="ap-th-sal" onclick="apSortBy(&quot;salary&quot;)" style="cursor:pointer;user-select:none;text-align:right;">Salary <span id="ap-sort-sal">▼</span></th>' +
+              (isSalaryLeague() ? '<th id="ap-th-sal" onclick="apSortBy(&quot;salary&quot;)" style="cursor:pointer;user-select:none;text-align:right;">Salary <span id="ap-sort-sal">▼</span></th>' : '<th id="ap-th-sal" onclick="apSortBy(&quot;salary&quot;)" style="cursor:pointer;user-select:none;text-align:right;">Rank <span id="ap-sort-sal">▼</span></th>') +
               '<th style="text-align:right;"></th>' +
             '</tr></thead>' +
             '<tbody id="ap-rows"></tbody>' +
@@ -726,7 +726,7 @@ function renderAllPlayers() {
         const name = p.name  || `Player ${id}`;
         const pos  = p.pos   || '—';
         const slot = resSet.has(id) ? 'IR' : taxiSet.has(id) ? 'Taxi' : 'Active';
-        players.push({ name, pos, salary: 0, slot, teamName, teamKey: key, rank: p.rank || 9999 });
+        players.push({ name, pos, salary: 0, slot, teamName, teamKey: key, rank: p.rank || 9999, player_id: id });
       });
     });
   } else {
@@ -765,7 +765,7 @@ function renderAllPlayers() {
   // Build rows — identical structure to FA tab, with owner/salary/badges added
   const rows = filtered.map(p => {
     const lk       = PLAYER_LOOKUP[p.name.toLowerCase()] || {};
-    const pid      = lk.player_id || '';
+    const pid      = p.player_id || lk.player_id || '';
     const nflTeam  = lk.nfl_team  || '—';
     const ho       = (holdouts[p.teamKey]||{})[p.name];
     const starred  = !!wl[p.name];
@@ -807,7 +807,7 @@ function renderAllPlayers() {
       '<td style="color:var(--text2);">' + nflTeam + '</td>' +
       '<td style="color:var(--text2);font-family:var(--font-mono);font-size:13px;">' + pts + '</td>' +
       '<td style="color:var(--text2);">' +
-        '<span onclick="openTeamPanel(\'' + p.teamKey + '\')" style="cursor:pointer;">' + p.teamName + ' <span style="color:var(--accent2);font-size:10px;">↗</span></span>' +
+        '<span onclick="' + (isSalaryLeague() ? 'openTeamPanel' : 'openTeamPanelFromKey') + '(\'' + p.teamKey + '\')" style="cursor:pointer;">' + p.teamName + ' <span style="color:var(--accent2);font-size:10px;">↗</span></span>' +
       '</td>' +
       (isSalaryLeague() ?
         '<td style="text-align:right;font-family:var(--font-mono);font-size:13px;color:' + salClr + ';">' +
@@ -885,6 +885,21 @@ function capToggleWatch(nameOrBtn) {
 }
 
 // ── INLINE TEAM PANEL ────────────────────────────────────────
+function openTeamPanelFromKey(key) {
+  // For dynasty: find the appTeam and DATA entry by key
+  const t = DATA[key];
+  if (t) { openTeamPanelDynasty(key, t); return; }
+  // Key may not match DATA exactly -- find by username
+  const appTeam = (window._capTeams||[]).find(tm =>
+    (tm.username||'').toLowerCase().replace(/ /g,'_') === key ||
+    (tm.display_name||'').toLowerCase().replace(/ /g,'_') === key
+  );
+  if (appTeam) {
+    const fakeT = { team_name: appTeam.display_name||appTeam.username||key, starters:[], ir:[], taxi:[] };
+    openTeamPanelDynasty(key, fakeT);
+  }
+}
+
 async function openTeamPanelDynasty(key, t) {
   const appTeam = (window._capTeams||[]).find(tm =>
     (tm.username||'').toLowerCase() === key ||
@@ -904,7 +919,7 @@ async function openTeamPanelDynasty(key, t) {
             name: p.first_name + ' ' + p.last_name,
             pos:  (p.fantasy_positions||[])[0] || p.position || '—',
             team: p.team || '—',
-            rank: p.search_rank || p.rank || 9999,
+            rank: p.rank || p.search_rank || 9999,
           };
         }
       });
@@ -1468,7 +1483,9 @@ async function fetchRookiePlayers() {
   } catch(e) { return []; }
 }
 
-async function renderRookieDraft() {
+let _rookieDraftYear = null; // currently selected year
+
+async function renderRookieDraft(selectedDraftId) {
   const el = document.getElementById('tab-rookiedraft');
   _rookiePlayers = null;
   el.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text3);"><div class="spinner"></div><div style="margin-top:12px;">Loading draft board…</div></div>`;
@@ -1476,11 +1493,29 @@ async function renderRookieDraft() {
   let draftData = null, sleeperPicks = {};
   if (leagueId()) {
     try {
-      const drafts = await fetch(`https://api.sleeper.app/v1/league/${leagueId()}/drafts`).then(r=>r.json());
-      if (drafts && drafts.length) {
-        // Prefer rookie/linear draft over startup
-        const rookie = drafts.find(d => d.type === 'rookie' || d.type === 'linear')
-                    || drafts.find(d => d.type !== 'startup')
+      const allDrafts = await fetch(`https://api.sleeper.app/v1/league/${leagueId()}/drafts`).then(r=>r.json());
+      // Filter to rookie/non-startup drafts across all years
+      const drafts = (allDrafts||[]).filter(d => d.type !== 'startup');
+
+      // Build year selector if multiple drafts exist
+      if (drafts.length > 1) {
+        const sorted = [...drafts].sort((a,b) => (b.season||0) - (a.season||0));
+        const yearBar = sorted.map(d =>
+          `<button onclick="renderRookieDraft('${d.draft_id}')"
+            style="padding:4px 10px;font-size:12px;background:${'${d.draft_id}'===selectedDraftId?'var(--accent)':'var(--surface2)'};
+            border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;
+            color:${'${d.draft_id}'===selectedDraftId?'#fff':'var(--text2)'};font-family:var(--font-body);">
+            ${d.season||d.draft_id}
+          </button>`
+        ).join('');
+        el.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;padding:12px 0 4px;">${yearBar}</div>
+          <div id="rookie-board-inner"><div class="spinner"></div></div>`;
+      }
+
+      if (drafts.length) {
+        // Use selectedDraftId if provided, else most recent rookie/linear or last
+        const rookie = (selectedDraftId && drafts.find(d => d.draft_id === selectedDraftId))
+                    || drafts.find(d => d.type === 'rookie' || d.type === 'linear')
                     || drafts[drafts.length - 1];
         if (rookie) {
           draftData = rookie;
@@ -1514,7 +1549,8 @@ async function renderRookieDraft() {
 
   const rookies = await fetchRookiePlayers();
 
-  el.innerHTML = buildRookieDraftUI(draftData, board, rookies);
+  const boardEl = document.getElementById('rookie-board-inner') || el;
+  boardEl.innerHTML = buildRookieDraftUI(draftData, board, rookies);
 }
 
 function buildRookieDraftUI(draftData, board, rookies) {
@@ -1527,7 +1563,7 @@ function buildRookieDraftUI(draftData, board, rookies) {
   // ── Draft board grid ──────────────────────────────────────
   let gridHTML = '';
   for (let r = 1; r <= ROUNDS; r++) {
-    const salLabel = r===1?'$15M / $10M' : r===2?'$7.5M / $5M' : r===3?'$3M / $2M' : '$1M';
+    const salLabel = isSalaryLeague() ? (r===1?'$15M / $10M' : r===2?'$7.5M / $5M' : r===3?'$3M / $2M' : '$1M') : '';
     gridHTML += `<div style="margin-bottom:24px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
         <span style="font-size:13px;font-weight:600;color:var(--text2);">Round ${r}</span>
@@ -1545,7 +1581,7 @@ function buildRookieDraftUI(draftData, board, rookies) {
       gridHTML += `<div style="background:var(--surface);border:1px solid ${assigned?'var(--accent)':'var(--border)'};border-radius:var(--radius-sm);padding:10px 12px;min-height:80px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <span style="font-size:11px;font-weight:600;color:var(--accent2);">Pick ${r}.${p < 10 ? '0'+p : p}</span>
-          <span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);">${fmtM(sal)}</span>
+          ${isSalaryLeague() ? '<span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);">' + fmtM(sal) + '</span>' : ''}
         </div>
         ${assigned
           ? `<div style="font-size:13px;font-weight:500;line-height:1.3;">${pick.player}</div>
@@ -1569,7 +1605,19 @@ function buildRookieDraftUI(draftData, board, rookies) {
                <button onclick="rookieAssignPick('${key}',${sal})" style="padding:5px 8px;background:var(--accent);border:none;border-radius:4px;color:#fff;font-size:12px;cursor:pointer;font-family:var(--font-body);">Assign to Taxi</button>
              </div>
 `
-          : `<div style="font-size:12px;color:var(--text3);">Open</div>`
+          : (() => {
+          // Show current owner of this pick slot
+          const slotToRoster = window._sleeperSlotToRoster || {};
+          const rosterId = slotToRoster[String(p)];
+          const ownerTeam = rosterId
+            ? ((window._capTeams||[]).find(tm => String(tm.roster_id) === String(rosterId)))
+            : null;
+          const ownerName = ownerTeam ? (ownerTeam.display_name||ownerTeam.username||'') : '';
+          return ownerName
+            ? `<div style="font-size:11px;color:var(--accent2);margin-bottom:2px;">${ownerName}</div>
+               <div style="font-size:12px;color:var(--text3);">Open</div>`
+            : `<div style="font-size:12px;color:var(--text3);">Open</div>`;
+        })()
         }
       </div>`;
     }
