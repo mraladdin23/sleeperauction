@@ -468,10 +468,10 @@ const App = (() => {
               color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-body);">
               Set Password
             </button>
-            ${!isFirstTime ? `<button onclick="document.getElementById('change-pw-modal').remove()"
+            <button onclick="App.skipChangePassword()"
               style="padding:10px 16px;background:var(--surface2);border:1px solid var(--border);
               border-radius:var(--radius-sm);color:var(--text2);font-size:13px;cursor:pointer;
-              font-family:var(--font-body);">Cancel</button>` : ''}
+              font-family:var(--font-body);">${isFirstTime ? 'Skip for now' : 'Cancel'}</button>
           </div>
         </div>`;
       document.body.appendChild(overlay);
@@ -519,6 +519,18 @@ const App = (() => {
     } catch(e) {
       if(errEl) errEl.textContent = 'Failed to save: ' + (e.message || e);
     }
+  }
+
+  async function skipChangePassword() {
+    // Clear mustChange flag and proceed to app without changing password
+    const username = window._cpwUsername;
+    if (username) {
+      try {
+        await db.ref(`users/${username}/passwordMustChange`).remove();
+      } catch(e) {}
+    }
+    document.getElementById('change-pw-modal')?.remove();
+    await showLeaguePicker();
   }
 
   function openChangePassword() {
@@ -1545,7 +1557,7 @@ const App = (() => {
     doSetup,
     switchTab,
     setFilter, renderFreeAgents, loadFreeAgents,
-    browseAsGuest, submitPassword, submitChangePassword, openChangePassword, switchLeague, showLeaguePicker, pickLeague, registerLeague, submitLeaguePassword, refreshAll, renderAll, updateHomeFeed, faSort, setStatYear,
+    browseAsGuest, submitPassword, submitChangePassword, openChangePassword, skipChangePassword, switchLeague, showLeaguePicker, pickLeague, registerLeague, submitLeaguePassword, refreshAll, renderAll, updateHomeFeed, faSort, setStatYear,
     enableNotifications,
     computeCustomPts,
     toggleWatch,
