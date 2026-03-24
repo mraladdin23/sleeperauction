@@ -266,6 +266,7 @@ function renderOverview() {
         <div class="tp-left">${badge(p.pos)}<span class="tp-name">${p.name}</span></div>
         <span class="tp-sal">${fmtM(p.salary)}</span>
       </div>`).join('')}
+      ${(t.ir||[]).filter(p=>p.name).length ? `<div style="margin-top:6px;padding:4px 8px;background:rgba(255,77,106,.1);border-radius:4px;font-size:11px;color:var(--red);font-weight:500;">🏥 ${(t.ir||[]).filter(p=>p.name).length} on IR — 75% cap hit</div>` : ''}
     </div>`;
   }).join('');
 
@@ -694,6 +695,13 @@ function openTeamPanel(key) {
   const comm=isComm(), sp=t.cap_spent, av=CAP-sp, pct=(sp/CAP*100).toFixed(1), clr=capClr(sp);
   const maxSal=Math.max(...(t.starters||[]).map(p=>p.salary),1);
   const teamHO=holdouts[key]||{}, teamPromos=promos[key]||{};
+
+  // Build Sleeper IR set for this team from live app state
+  const appTeams   = window.App?.state?.teams || [];
+  // Match by username key (DATA key = Sleeper username)
+  const appTeam    = appTeams.find(tm => (tm.username||'').toLowerCase() === key.toLowerCase()
+                                      || (tm.display_name||'').toLowerCase() === (t.team_name||'').toLowerCase());
+  const sleeperReserveSet = new Set(appTeam?.reserve || []);
   const posTotals={QB:0,RB:0,WR:0,TE:0},posCounts={QB:0,RB:0,WR:0,TE:0};
   (t.starters||[]).forEach(p=>{if(posTotals[p.pos]!==undefined){posTotals[p.pos]+=p.salary;posCounts[p.pos]++;}});
   let rHTML='';
@@ -710,13 +718,55 @@ function openTeamPanel(key) {
     const photo=pid
       ?`<img src="https://sleepercdn.com/content/nfl/players/thumb/${pid}.jpg" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display='none'" />`
       :`<div style="width:26px;height:26px;border-radius:50%;background:${posClr}22;flex-shrink:0;"></div>`;
-    return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;gap:8px;">
+    const pid2 = PLAYER_LOOKUP[p.name.toLowerCase()]?.player_id;
+    const onSleeperIR = pid2 && sleeperReserveSet.has(pid2);
+    const irCapHit = onSleeperIR ? Math.round(p.salary * 0.75) : null;
+    return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;gap:8px;${onSleeperIR?'opacity:.75;':''}">
       ${photo}
-      <div style="flex:1;font-size:13px;">${p.name}${ageBadge(p.name)}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:4px;">🔥</span>':''}</div>
-      <div style="font-family:var(--font-mono);font-size:12px;flex-shrink:0;">${fmtM(p.salary)}</div>
+      <div style="flex:1;font-size:13px;">${p.name}${ageBadge(p.name)}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:4px;">🔥</span>':''}${onSleeperIR?'<span style="font-size:10px;color:var(--red);margin-left:4px;" title="On Sleeper IR — move to IR in Commish tab for 75% cap hit">🏥 IR*</span>':''}</div>
+      <div style="font-family:var(--font-mono);font-size:12px;flex-shrink:0;${onSleeperIR?'color:var(--red);':''}">
+        ${onSleeperIR?`<span style="text-decoration:line-through;opacity:.5;">${fmtM(p.salary)}</span> ${fmtM(irCapHit)}`:fmtM(p.salary)}
+      </div>
     </div>`;
   }).join('');
   });
+  // ── IR section ──────────────────────────────────────────────
+  const irArr=(t.ir||[]).filter(p=>p.name);
+  if(irArr.length){
+    const irTotal=irArr.reduce((s,p)=>s+Math.round(p.salary*.75),0);
+    rHTML+=`<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--red);padding:10px 0 4px;border-top:1px solid var(--border);margin-top:6px;">🏥 IR · 75% cap hit · ${fmtM(irTotal)}</div>`;
+    rHTML+=irArr.sort((a,b)=>b.salary-a.salary).map(p=>{
+      const capHit=Math.round(p.salary*.75);
+      const lk=PLAYER_LOOKUP[p.name.toLowerCase()]||{};
+      const pid=lk.player_id;
+      const pc=POS_COLORS[p.pos]||'#888';
+      const photo=pid
+        ?`<img src="https://sleepercdn.com/content/nfl/players/thumb/${pid}.jpg" style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;" onerror="this.style.display='none'" />`
+        :`<div style="width:26px;height:26px;border-radius:50%;background:${pc}22;flex-shrink:0;"></div>`;
+      return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;gap:8px;">
+        ${photo}
+        <div style="flex:1;font-size:13px;color:var(--text2);">${p.name}${ageBadge(p.name)}${p.pos&&p.pos!=='—'?`<span style="font-size:10px;background:${pc}22;color:${pc};padding:0 4px;border-radius:3px;margin-left:4px;">${p.pos}</span>`:''}
+          <span style="font-size:10px;color:var(--text3);margin-left:4px;">(${fmtM(p.salary)} → 75%)</span></div>
+        <div style="font-family:var(--font-mono);font-size:12px;color:var(--red);flex-shrink:0;">${fmtM(capHit)}</div>
+      </div>`;
+    }).join('');
+  }
+
+  // ── Sleeper IR warning -- starters on Sleeper IR not yet in Firebase ir[] ──
+  const irPlayerIds = new Set((t.ir||[]).map(p => PLAYER_LOOKUP[p.name?.toLowerCase()]?.player_id).filter(Boolean));
+  const unrecordedIR = (t.starters||[]).filter(p => {
+    const pid2 = PLAYER_LOOKUP[p.name?.toLowerCase()]?.player_id;
+    return pid2 && sleeperReserveSet.has(pid2) && !irPlayerIds.has(pid2);
+  });
+  if (unrecordedIR.length) {
+    rHTML += `<div style="background:rgba(255,77,106,.08);border:1px solid rgba(255,77,106,.3);
+      border-radius:6px;padding:8px 10px;margin-top:8px;font-size:12px;color:var(--red);">
+      ⚠️ ${unrecordedIR.map(p=>p.name).join(', ')} ${unrecordedIR.length===1?'is':'are'} on Sleeper IR
+      but still in active roster. Move to IR in the Commish tab to apply 75% cap hit.
+    </div>`;
+  }
+
+  // ── Taxi section ─────────────────────────────────────────────
   const taxiArr=(t.taxi||[]).filter(p=>p.name);
   if(taxiArr.length){
     rHTML+=`<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);padding:10px 0 4px;border-top:1px solid var(--border);margin-top:6px;">Taxi · no cap hit</div>`;
@@ -745,6 +795,7 @@ function openTeamPanel(key) {
       <div style="text-align:center;"><div style="font-family:var(--font-mono);font-size:18px;font-weight:600;color:${clr};">${fmtM(sp)}</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:2px;">Spent (${pct}%)</div></div>
       <div style="text-align:center;"><div style="font-family:var(--font-mono);font-size:18px;font-weight:600;color:var(--green);">${fmtM(av)}</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:2px;">Available</div></div>
       <div style="text-align:center;"><div style="font-family:var(--font-mono);font-size:18px;font-weight:600;">${(t.starters||[]).length}</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:2px;">Active</div></div>
+      ${(t.ir||[]).filter(p=>p.name).length ? `<div style="text-align:center;"><div style="font-family:var(--font-mono);font-size:18px;font-weight:600;color:var(--red);">${(t.ir||[]).filter(p=>p.name).length}</div><div style="font-size:10px;color:var(--red);text-transform:uppercase;margin-top:2px;">IR</div></div>` : ''}
     </div>
     <div style="background:var(--surface3);border-radius:99px;height:5px;overflow:hidden;margin-bottom:4px;"><div style="height:100%;width:${pct}%;background:${clr};border-radius:99px;"></div></div>
     <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:18px;">${fmtM(sp)} spent · cap ${fmtM(CAP)}</div>
