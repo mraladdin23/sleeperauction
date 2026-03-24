@@ -454,23 +454,23 @@ window.addEventListener('DOMContentLoaded',function(){
       <div class="home-league-sub">2026 Season · FAAB Proxy Auctions</div>
 
       <div class="home-grid">
-        <div class="home-card" onclick="navigateTo('roster')">
+        <div class="home-card" id="home-card-roster" onclick="navigateTo('roster')">
           <div class="home-card-icon hci-roster">💰</div>
           <div class="home-card-title">Rosters</div>
           <div class="home-card-sub" id="home-sub-roster">Salary cap · tracking</div>
         </div>
-        <div class="home-card" onclick="navigateTo('standings')">
+        <div class="home-card" id="home-card-standings" onclick="navigateTo('standings')">
           <div class="home-card-icon hci-standings">📊</div>
           <div class="home-card-title">Standings</div>
           <div class="home-card-sub" id="home-sub-standings">W/L · matchups · playoffs</div>
         </div>
-        <div class="home-card" onclick="navigateTo('auction')">
+        <div class="home-card" id="home-card-auction" onclick="navigateTo('auction')">
           <div class="hc-badge hcb-live" id="home-badge-auction" style="display:none;"></div>
           <div class="home-card-icon hci-auction">🏷️</div>
           <div class="home-card-title">Auction</div>
           <div class="home-card-sub" id="home-sub-auction">FAAB proxy bidding</div>
         </div>
-        <div class="home-card" onclick="navigateTo('draft')">
+        <div class="home-card" id="home-card-draft" onclick="navigateTo('draft')">
           <div class="home-card-icon hci-draft">🎓</div>
           <div class="home-card-title">Rookie Draft</div>
           <div class="home-card-sub">2026 draft board</div>
