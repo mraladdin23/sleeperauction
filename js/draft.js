@@ -347,13 +347,18 @@ async function refreshDraft() {
           // pk.roster_id = slot owner (who the pick belongs to)
           // pk.picked_by = who actually made the pick (may differ if traded)
           const actualPicker = pk.picked_by || pk.roster_id;
+          const resolvedTeam = rosterIdToTeam[String(actualPicker)] ||
+                               rosterIdToDisplayName[String(actualPicker)] || null;
+          if (pk.round === 1 && pk.draft_slot <= 3) {
+            console.log(`[draft] Pick ${pk.round}-${pk.draft_slot}: player=${name}, roster_id=${pk.roster_id}, picked_by=${pk.picked_by}, actualPicker=${actualPicker}, resolvedTeam=${resolvedTeam}`);
+            console.log(`[draft] rosterIdToTeam keys:`, Object.keys(rosterIdToTeam).slice(0,5));
+            console.log(`[draft] teamDisplayNames keys:`, Object.keys(teamDisplayNames).slice(0,5));
+          }
           draftPicks[key] = {
             player: name,
             sleeperPick: true,
             rosterId: pk.roster_id,
-            // Resolve actual drafter -- use picked_by if available
-            pickedByTeam: rosterIdToTeam[String(actualPicker)] ||
-                          rosterIdToDisplayName[String(actualPicker)] || null,
+            pickedByTeam: resolvedTeam,
           };
         }
       });
@@ -587,7 +592,7 @@ function renderBoard() {
     html += `<div class="round-section">
       <div class="round-header">
         <span class="round-label">Round ${r}</span>
-        <span class="round-salary">${salLabel}</span>
+        ${salLabel ? `<span class="round-salary">${salLabel}</span>` : ""}
       </div>
       <div class="picks-grid">`;
 

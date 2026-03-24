@@ -809,14 +809,9 @@ function renderAllPlayers() {
       '<td style="color:var(--text2);">' + nflTeam + '</td>' +
       '<td style="color:var(--text2);font-family:var(--font-mono);font-size:13px;">' + pts + '</td>' +
       '<td style="color:var(--text2);">' +
-        (() => {
-      const displayName = p.teamName || ((window._capTeams||[]).find(tm =>
-        (tm.username||'').toLowerCase().replace(/ /g,'_') === p.teamKey ||
-        (tm.display_name||'').toLowerCase().replace(/ /g,'_') === p.teamKey
-      )?.display_name) || p.teamKey || '—';
-      const fn = isSalaryLeague() ? 'openTeamPanel' : 'openTeamPanelFromKey';
-      return '<span onclick="' + fn + '(\'' + p.teamKey + '\')" style="cursor:pointer;">' + displayName + ' <span style="color:var(--accent2);font-size:10px;">↗</span></span>';
-    })() +
+('<span onclick="' + (isSalaryLeague() ? 'openTeamPanel' : 'openTeamPanelFromKey') + '(\'' + p.teamKey + '\')" style="cursor:pointer;">' +
+        (p.teamName || p.teamKey || '—') +
+        ' <span style="color:var(--accent2);font-size:10px;">↗</span></span>') +
       '</td>' +
       (isSalaryLeague() ?
         '<td style="text-align:right;font-family:var(--font-mono);font-size:13px;color:' + salClr + ';">' +
