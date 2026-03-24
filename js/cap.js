@@ -287,7 +287,7 @@ function renderOverviewDynasty() {
                 <div style="font-size:11px;color:var(--text3);">${key}</div>
               </div>
             </div>
-            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;">
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;text-align:center;margin-bottom:10px;">
               <div style="background:var(--surface2);border-radius:6px;padding:8px 4px;">
                 <div style="font-size:16px;font-weight:700;">${activeCount}</div>
                 <div style="font-size:10px;color:var(--text3);">Active</div>
@@ -301,6 +301,22 @@ function renderOverviewDynasty() {
                 <div style="font-size:10px;color:var(--text3);">IR</div>
               </div>
             </div>
+            ${(() => {
+              const allPl = window.App?.state?.players || {};
+              const activePlayerIds = (appTeam?.players||[])
+                .filter(id => !(appTeam.taxi||[]).includes(id) && !(appTeam.reserve||[]).includes(id));
+              const top4 = activePlayerIds.slice(0, 4).map(id => {
+                const p = allPl[id] || {};
+                const name = p.first_name && p.last_name ? p.first_name[0]+'. '+p.last_name : 'Unknown';
+                const pos  = p.fantasy_positions?.[0] || p.position || '—';
+                const pc   = POS_COLORS[pos] || '#888';
+                return '<div style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:11px;">'
+                  + '<span style="background:'+pc+'22;color:'+pc+';padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;">'+pos+'</span>'
+                  + '<span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">'+name+'</span>'
+                  + '</div>';
+              }).join('');
+              return top4 ? '<div style="border-top:1px solid var(--border);padding-top:8px;">'+top4+'</div>' : '';
+            })()}
           </div>`;
         }).join('')}
       </div>
@@ -787,8 +803,79 @@ function capToggleWatch(nameOrBtn) {
 }
 
 // ── INLINE TEAM PANEL ────────────────────────────────────────
+function openTeamPanelDynasty(key, t) {
+  const appTeam = (window._capTeams||[]).find(tm =>
+    (tm.username||'').toLowerCase() === key ||
+    (tm.display_name||'').toLowerCase() === (t.team_name||'').toLowerCase()
+  );
+  if (!appTeam) return;
+
+  const players   = window.App?.state?.players || {};
+  const taxiSet   = new Set(appTeam.taxi    || []);
+  const reserveSet= new Set(appTeam.reserve || []);
+  const allIds    = appTeam.players || [];
+  const activeIds = allIds.filter(id => !taxiSet.has(id) && !reserveSet.has(id));
+  const taxiIds   = allIds.filter(id => taxiSet.has(id));
+  const irIds     = allIds.filter(id => reserveSet.has(id));
+
+  function playerRow(id, dimmed) {
+    const p    = players[id] || {};
+    const name = p.first_name && p.last_name ? `${p.first_name} ${p.last_name}` : `ID:${id}`;
+    const pos  = p.fantasy_positions?.[0] || p.position || '—';
+    const team = p.team || '—';
+    const pc   = POS_COLORS[pos] || '#888';
+    const photo= id ? `<img src="https://sleepercdn.com/content/nfl/players/thumb/${id}.jpg"
+      style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;"
+      onerror="this.style.display='none'" />` : '';
+    return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;${dimmed?'opacity:.6;':''}">
+      ${photo}
+      <div style="flex:1;font-size:13px;">${name}${ageBadge(name)}</div>
+      <span style="font-size:10px;background:${pc}22;color:${pc};padding:1px 5px;border-radius:3px;">${pos}</span>
+      <span style="font-size:10px;color:var(--text3);">${team}</span>
+    </div>`;
+  }
+
+  function section(label, ids, dimmed) {
+    if (!ids.length) return '';
+    return `<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;
+      color:var(--text3);padding:10px 0 4px;border-top:1px solid var(--border);margin-top:6px;">
+      ${label} (${ids.length})</div>
+      ${ids.map(id => playerRow(id, dimmed)).join('')}`;
+  }
+
+  const rHTML = section('Active Roster', activeIds, false)
+              + section('🚕 Taxi Squad', taxiIds, true)
+              + section('🏥 IR', irIds, true);
+
+  document.getElementById('team-panel-title').textContent = t.team_name;
+  document.getElementById('team-panel-body').innerHTML = `
+    <div style="display:flex;gap:16px;margin-bottom:18px;flex-wrap:wrap;">
+      <div style="text-align:center;">
+        <div style="font-family:var(--font-mono);font-size:18px;font-weight:600;">${activeIds.length}</div>
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:2px;">Active</div>
+      </div>
+      ${taxiIds.length ? `<div style="text-align:center;">
+        <div style="font-family:var(--font-mono);font-size:18px;font-weight:600;color:var(--text3);">${taxiIds.length}</div>
+        <div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:2px;">Taxi</div>
+      </div>` : ''}
+      ${irIds.length ? `<div style="text-align:center;">
+        <div style="font-family:var(--font-mono);font-size:18px;font-weight:600;color:var(--red);">${irIds.length}</div>
+        <div style="font-size:10px;color:var(--red);text-transform:uppercase;margin-top:2px;">IR</div>
+      </div>` : ''}
+    </div>
+    ${rHTML}`;
+  document.getElementById('team-panel').style.display = '';
+}
+
 function openTeamPanel(key) {
   const t = DATA[key]; if (!t) return;
+
+  // For non-salary leagues, show a player-list panel from Sleeper live data
+  if (!isSalaryLeague()) {
+    openTeamPanelDynasty(key, t);
+    return;
+  }
+
   const comm=isComm(), sp=t.cap_spent, av=CAP-sp, pct=(sp/CAP*100).toFixed(1), clr=capClr(sp);
   const maxSal=Math.max(...(t.starters||[]).map(p=>p.salary),1);
   const teamHO=holdouts[key]||{}, teamPromos=promos[key]||{};
