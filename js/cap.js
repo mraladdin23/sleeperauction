@@ -92,6 +92,10 @@ function subscribeRosters() {
   };
   window._capRosterRef.on('value', snap => {
     const fbData = snap.val();
+    console.log('[cap.js] Firebase data:', fbData ? Object.keys(fbData).length + ' teams' : 'null');
+    console.log('[cap.js] _capLeagueType:', window._capLeagueType);
+    console.log('[cap.js] _capTeams:', window._capTeams ? window._capTeams.length + ' teams' : 'null');
+    console.log('[cap.js] isSalaryLeague:', isSalaryLeague());
     if (fbData && Object.keys(fbData).length > 0) {
       DATA = fbData;
       const _lu1 = document.getElementById('last-upd'); if(_lu1) _lu1.textContent = 'Live data';
@@ -99,6 +103,7 @@ function subscribeRosters() {
       // No Firebase roster data -- build from Sleeper live data if available
       // Build from Sleeper live teams -- window._capTeams set by app.js before capInit
       const appTeams = window._capTeams || window.App?.state?.teams || [];
+      console.log('[cap.js] appTeams for fallback:', appTeams.length);
       if (appTeams.length > 0) {
         DATA = {};
         appTeams.forEach(t => {
