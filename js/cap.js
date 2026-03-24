@@ -1554,7 +1554,7 @@ function renderCommish() {
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
           <div style="font-size:13px;color:var(--text2);min-width:120px;">Max IR Slots</div>
           <div style="display:flex;align-items:center;gap:8px;">
-            <input id="comm-max-ir" type="number" value="${MAX_IR}" min="0" max="10" step="1"
+            <input id="comm-max-ir" type="number" value="${MAX_IR}" min="0" max="20" step="1"
               style="width:70px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:14px;outline:none;"/>
             <button onclick="commSaveSlotLimits()" style="padding:6px 14px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-size:12px;cursor:pointer;font-family:var(--font-body);">Save</button>
             <span style="font-size:12px;color:var(--text3);">per team (currently ${MAX_IR})</span>
@@ -1563,8 +1563,9 @@ function renderCommish() {
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
           <div style="font-size:13px;color:var(--text2);min-width:120px;">Max Taxi Slots</div>
           <div style="display:flex;align-items:center;gap:8px;">
-            <input id="comm-max-taxi" type="number" value="${MAX_TAXI}" min="0" max="15" step="1"
+            <input id="comm-max-taxi" type="number" value="${MAX_TAXI}" min="0" max="20" step="1"
               style="width:70px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:14px;outline:none;"/>
+            <button onclick="commSaveSlotLimits()" style="padding:6px 14px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-size:12px;cursor:pointer;font-family:var(--font-body);">Save</button>
             <span style="font-size:12px;color:var(--text3);">per team (currently ${MAX_TAXI})</span>
           </div>
         </div>
