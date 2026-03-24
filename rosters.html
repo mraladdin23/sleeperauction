@@ -1,0 +1,398 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="SleeperBid"/>
+<link rel="manifest" href="/manifest.json"/>
+<link rel="apple-touch-icon" href="/icons/icon-192.png"/>
+<title>SleeperBid — Salary Cap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet"/>
+<style>
+:root{--bg:#0d0f14;--surface:#161820;--surface2:#1e2029;--surface3:#252733;--border:#2e3040;--border2:#3a3d52;--accent:#7c5cfc;--accent2:#9d7ffe;--green:#18e07a;--red:#ff4d6a;--yellow:#ffc94d;--cyan:#00d4ff;--text:#e8eaf0;--text2:#9296a8;--text3:#5a5e72;--font-display:'Bebas Neue',sans-serif;--font-body:'DM Sans',sans-serif;--font-mono:'JetBrains Mono',monospace;--radius:10px;--radius-sm:6px;}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{overflow-x:hidden;}
+body{background:var(--bg);color:var(--text);font-family:var(--font-body);font-size:14px;min-height:100vh;overflow-x:hidden;}
+::-webkit-scrollbar{width:5px;height:5px;}::-webkit-scrollbar-track{background:var(--bg);}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:99px;}
+
+/* ── APP SWITCHER (top nav across all pages) ── */
+.app-bar{display:flex;align-items:center;justify-content:space-between;padding:0 16px;height:48px;background:rgba(13,15,20,.97);border-bottom:2px solid var(--accent);position:sticky;top:0;z-index:200;backdrop-filter:blur(12px);}
+.app-bar-logo{font-family:var(--font-display);font-size:20px;letter-spacing:1px;color:var(--text);}
+.app-bar-logo span{color:var(--accent);}
+.app-bar-nav{display:flex;align-items:center;gap:4px;}
+.app-btn{display:flex;align-items:center;gap:5px;padding:5px 10px;border-radius:var(--radius-sm);border:none;background:none;color:var(--text3);font-size:12px;font-weight:500;font-family:var(--font-body);cursor:pointer;text-decoration:none;white-space:nowrap;transition:all .15s;}
+.app-btn:hover{background:var(--surface2);color:var(--text);}
+.app-btn.current{background:rgba(124,92,252,.15);color:var(--accent2);}
+.app-btn-icon{font-size:15px;}
+.app-bar-right{display:flex;align-items:center;gap:4px;}
+.tibtn{background:none;border:none;cursor:pointer;font-size:17px;padding:6px;border-radius:var(--radius-sm);color:var(--text2);display:flex;align-items:center;justify-content:center;transition:background .15s;line-height:1;}
+.tibtn:hover{background:var(--surface2);}
+.last-upd{font-size:11px;color:var(--text3);}
+
+/* ── TAB NAV ── */
+.nav-tabs{display:flex;border-bottom:1px solid var(--border);background:var(--surface);padding:0 16px;overflow-x:auto;}
+.nav-tab{padding:10px 16px;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;border-bottom:2px solid transparent;transition:all .15s;white-space:nowrap;background:none;border-top:none;border-left:none;border-right:none;font-family:var(--font-body);}
+.nav-tab.active{color:var(--accent2);border-bottom-color:var(--accent);}
+.nav-tab:hover:not(.active){color:var(--text);}
+.nav-dd-wrap{display:none;}
+.nav-dd{width:100%;padding:10px 14px;background:var(--surface2);border:none;border-bottom:1px solid var(--border);color:var(--text);font-family:var(--font-body);font-size:14px;font-weight:500;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%239296a8' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
+
+.main{padding:20px;max-width:1500px;margin:0 auto;}
+.loading{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:300px;gap:12px;color:var(--text3);}
+.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+@keyframes slideIn{from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
+
+/* LIGHT MODE */
+body.light-mode{--bg:#f4f5f8;--surface:#fff;--surface2:#eef0f5;--surface3:#e4e7ef;--border:#d4d8e8;--border2:#bbbfcf;--text:#18192a;--text2:#4a4e6a;--text3:#8a8eaa;}
+body.light-mode .app-bar{background:rgba(255,255,255,.97);}
+body.light-mode .nav-tabs{background:var(--surface);}
+body.light-mode .sec-row td{background:rgba(200,205,225,.4);}
+
+@media(max-width:600px){
+  html,body{overscroll-behavior:none;}
+  .app-bar{padding:0 10px;height:46px;}
+  .app-btn span:not(.app-btn-icon){display:none;}
+  .app-btn{padding:5px 8px;}
+  .main{padding:14px 10px 80px;}
+  .nav-tabs{display:none;}
+  .nav-dd-wrap{display:block;}
+  .overview-grid,.top-paid-grid{grid-template-columns:1fr;}
+  .pos-grid{grid-template-columns:repeat(2,1fr);}
+  .league-summary{grid-template-columns:repeat(2,1fr);}
+}
+
+/* ── All the cap-specific CSS ── */
+.league-summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:20px;}
+.sum-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:13px 16px;}
+.sum-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px;}
+.sum-val{font-family:var(--font-mono);font-size:17px;font-weight:600;}
+.sum-sub{font-size:10px;color:var(--text3);margin-top:2px;}
+.overview-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:15px;}
+.ov-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;transition:border-color .2s;cursor:pointer;}
+.ov-card:hover{border-color:var(--border2);}
+.ov-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px;}
+.ov-name{font-weight:600;font-size:15px;}
+.ov-user{font-size:11px;color:var(--text3);margin-top:1px;}
+.cap-bar{height:5px;background:var(--surface3);border-radius:99px;overflow:hidden;margin-bottom:10px;}
+.cap-bar-fill{height:100%;border-radius:99px;}
+.ov-money{display:flex;gap:14px;font-size:12px;color:var(--text2);margin-bottom:12px;}
+.ov-money strong{font-family:var(--font-mono);}
+.pos-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:5px;margin-bottom:12px;}
+.pos-blk{background:var(--surface2);border-radius:var(--radius-sm);padding:6px;text-align:center;}
+.pos-lbl{font-size:9px;text-transform:uppercase;letter-spacing:.3px;margin-bottom:2px;}
+.pos-val{font-family:var(--font-mono);font-size:12px;font-weight:600;}
+.top-player{display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid rgba(46,48,64,.4);}
+.top-player:last-child{border-bottom:none;}
+.tp-left{display:flex;align-items:center;gap:6px;min-width:0;}
+.tp-name{font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tp-sal{font-family:var(--font-mono);font-size:11px;color:var(--text2);flex-shrink:0;}
+.roster-controls{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap;}
+.team-select{padding:8px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;font-family:var(--font-body);cursor:pointer;outline:none;min-width:220px;}
+.det-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:20px;}
+.det-header{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;}
+.det-title{font-size:17px;font-weight:600;cursor:pointer;}
+.det-user{font-size:12px;color:var(--text3);}
+.det-cap-row{display:flex;gap:20px;align-items:center;}
+.det-cap-item{text-align:right;}
+.det-cap-label{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;}
+.det-cap-val{font-family:var(--font-mono);font-size:14px;font-weight:600;}
+.roster-table{width:100%;border-collapse:collapse;}
+.roster-table th{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:7px 18px;border-bottom:1px solid var(--border);text-align:left;font-weight:500;background:var(--surface2);}
+.roster-table th:last-child{text-align:right;}
+.roster-table td{padding:7px 14px;border-bottom:1px solid rgba(46,48,64,.4);font-size:13px;vertical-align:middle;}
+.roster-table tr:last-child td{border-bottom:none;}
+.roster-table tr:hover td{background:rgba(255,255,255,.015);}
+.roster-table td.sal-cell{text-align:right;font-family:var(--font-mono);font-size:12px;}
+.roster-table td.act-cell{text-align:right;width:60px;}
+.sec-row td{background:rgba(30,32,41,.7);color:var(--text3);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;padding:5px 18px;}
+.sec-row td.sec-add{text-align:right;padding-right:14px;}
+.pos-badge{display:inline-block;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600;letter-spacing:.2px;}
+.pb-QB{background:rgba(124,92,252,.2);color:#b89ffe;}.pb-RB{background:rgba(24,224,122,.15);color:#18e07a;}.pb-WR{background:rgba(0,212,255,.15);color:#00d4ff;}.pb-TE{background:rgba(255,201,77,.15);color:#ffc94d;}.pb-Taxi{background:rgba(90,94,114,.25);color:var(--text3);}.pb-IR{background:rgba(255,77,106,.15);color:#ff4d6a;}
+.sal-bar{height:3px;background:var(--surface3);border-radius:99px;overflow:hidden;margin-top:3px;width:100px;}
+.sal-bar-fill{height:100%;border-radius:99px;}
+.act-btn{background:none;border:none;cursor:pointer;padding:3px 5px;border-radius:4px;font-size:13px;opacity:.45;transition:opacity .15s;}
+.act-btn:hover{opacity:1;}
+.add-slot-btn{background:none;border:1px dashed var(--border2);border-radius:var(--radius-sm);color:var(--text3);cursor:pointer;font-size:11px;padding:3px 10px;transition:all .15s;font-family:var(--font-body);}
+.add-slot-btn:hover{border-color:var(--accent);color:var(--accent2);}
+.cmp-wrap{overflow-x:auto;}
+.cmp-table{width:100%;border-collapse:collapse;min-width:860px;}
+.cmp-table th{font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:9px 14px;border-bottom:1px solid var(--border);font-weight:500;white-space:nowrap;background:var(--surface2);}
+.cmp-table th:first-child{text-align:left;}
+.cmp-table td{padding:9px 14px;border-bottom:1px solid rgba(46,48,64,.35);font-size:13px;text-align:right;font-family:var(--font-mono);position:relative;}
+.cmp-table td:first-child{text-align:left;font-family:var(--font-body);font-weight:500;}
+.cmp-table tr:hover td{background:rgba(255,255,255,.02);}
+.heat{position:absolute;inset:0;pointer-events:none;}
+.best{color:var(--green)!important;}.worst{color:var(--red)!important;}
+.cmp-name{font-weight:600;}.cmp-user{font-size:11px;color:var(--text3);}
+.qb-h{color:#b89ffe;}.rb-h{color:#18e07a;}.wr-h{color:#00d4ff;}.te-h{color:#ffc94d;}
+.top-paid-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;}
+.tp-section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.tp-section-header{padding:12px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface2);}
+.tp-section-title{font-size:15px;font-weight:600;}
+.tp-section-sub{font-size:11px;color:var(--text3);}
+.tp-row{display:flex;align-items:center;padding:9px 18px;border-bottom:1px solid rgba(46,48,64,.4);gap:10px;}
+.tp-row:last-child{border-bottom:none;}
+.tp-rank{font-family:var(--font-mono);font-size:12px;color:var(--text3);width:20px;flex-shrink:0;text-align:right;}
+.tp-rank-1{color:var(--yellow)!important;}.tp-rank-2{color:var(--text2)!important;}.tp-rank-3{color:#cd7f32!important;}
+.tp-player-name{flex:1;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tp-team-lbl{font-size:11px;color:var(--text3);flex-shrink:0;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.tp-salary{font-family:var(--font-mono);font-size:13px;font-weight:600;flex-shrink:0;}
+.tp-sal-bar-bg{height:3px;background:var(--surface3);border-radius:99px;overflow:hidden;margin-top:2px;}
+.tp-sal-bar-fill{height:100%;border-radius:99px;}
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:300;align-items:center;justify-content:center;padding:20px;}
+.modal-box{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;max-width:480px;width:100%;}
+.modal-title{font-size:16px;font-weight:600;margin-bottom:16px;}
+.modal-field{margin-bottom:14px;}
+.modal-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;}
+.modal-input{width:100%;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;font-family:var(--font-body);outline:none;}
+.modal-input:focus{border-color:var(--accent);}
+.modal-select{width:100%;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-size:14px;font-family:var(--font-body);outline:none;cursor:pointer;}
+.modal-err{color:var(--red);font-size:12px;margin-top:6px;min-height:16px;}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;}
+.btn-cancel{padding:8px 16px;background:none;border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);font-size:13px;cursor:pointer;font-family:var(--font-body);}
+.btn-save{padding:8px 18px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-size:13px;cursor:pointer;font-family:var(--font-body);font-weight:500;}
+.btn-danger{padding:8px 14px;background:rgba(255,77,106,.15);border:1px solid rgba(255,77,106,.3);border-radius:var(--radius-sm);color:var(--red);font-size:13px;cursor:pointer;font-family:var(--font-body);margin-right:auto;}
+.search-wrap{display:flex;align-items:center;gap:7px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:0 10px;flex:1;max-width:260px;}
+.search-wrap input{background:none;border:none;outline:none;color:var(--text);font-family:var(--font-body);font-size:13px;padding:7px 0;width:100%;}
+.search-wrap input::placeholder{color:var(--text3);}
+.scar-zero{display:inline-block;font-size:10px;padding:1px 5px;border-radius:4px;background:rgba(255,77,106,.15);color:var(--red);margin-left:4px;font-weight:600;}
+.scar-one{display:inline-block;font-size:10px;padding:1px 5px;border-radius:4px;background:rgba(255,201,77,.15);color:var(--yellow);margin-left:4px;font-weight:600;}
+.holdout-badge{display:inline-block;font-size:10px;background:rgba(255,201,77,.15);color:var(--yellow);border-radius:4px;padding:1px 5px;margin-left:5px;}
+.promoted-badge{display:inline-block;font-size:10px;background:rgba(24,224,122,.12);color:var(--green);border-radius:4px;padding:1px 5px;margin-left:5px;}
+.taxi-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:14px;}
+.taxi-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;}
+.taxi-card-hdr{padding:10px 16px;border-bottom:1px solid var(--border);font-weight:600;font-size:13px;background:var(--surface2);display:flex;align-items:center;justify-content:space-between;}
+.taxi-row{display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid rgba(46,48,64,.35);}
+.taxi-row:last-child{border-bottom:none;}
+.taxi-info{flex:1;}
+.taxi-pname{font-size:13px;font-weight:500;}
+.taxi-psal{font-size:11px;color:var(--text3);font-family:var(--font-mono);}
+.taxi-pnote{font-size:11px;color:var(--text3);font-style:italic;margin-top:1px;}
+.promo-btn{font-size:11px;padding:3px 9px;border:1px solid rgba(24,224,122,.3);border-radius:4px;background:none;color:var(--green);cursor:pointer;font-family:var(--font-body);}
+.undo-btn{font-size:11px;padding:3px 9px;border:1px solid var(--border);border-radius:4px;background:none;color:var(--text3);cursor:pointer;font-family:var(--font-body);}
+.ap-chip{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:var(--surface2);color:var(--text2);cursor:pointer;font-size:13px;font-family:var(--font-body);font-weight:500;transition:all .15s;}
+.ap-chip:hover{border-color:var(--border2);color:var(--text);}
+.ap-chip.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.ir-note{font-size:10px;color:var(--red);margin-left:5px;}
+@media print{
+  body{background:#fff!important;color:#000!important;}
+  .app-bar,.nav-tabs,.nav-dd-wrap,.roster-controls,.search-wrap,.act-btn,.add-slot-btn,.promo-btn,.undo-btn,.modal-overlay{display:none!important;}
+  .main{padding:0!important;}
+  .det-card,.taxi-card,.ov-card,.tp-section{break-inside:avoid;}
+}
+
+/* ── FA-style table (All Players tab) ───────────────────────── */
+.pos-badge{display:inline-block;padding:1px 6px;border-radius:4px;font-size:10px;font-weight:600;font-family:var(--font-mono);text-transform:uppercase;}
+.pos-QB{background:rgba(252,176,69,.15);color:#fcb045;}
+.pos-RB{background:rgba(24,224,122,.15);color:var(--green);}
+.pos-WR{background:rgba(124,92,252,.15);color:var(--accent2);}
+.pos-TE{background:rgba(255,77,106,.15);color:var(--red);}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:var(--radius-sm);font-family:var(--font-body);font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;border:none;outline:none;}
+.btn-sm{padding:5px 10px;font-size:12px;}
+.btn-green{background:rgba(24,224,122,.15);color:var(--green);border:1px solid rgba(24,224,122,.3);}
+.filter-chip{padding:5px 13px;border-radius:99px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--text3);transition:all .15s;}
+.filter-chip:hover{color:var(--text2);border-color:var(--border2);}
+.filter-chip.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+.fa-filters{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+.fa-search{position:relative;margin-bottom:14px;}
+.fa-search input{font-family:var(--font-body);font-size:14px;padding:9px 14px 9px 38px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);width:100%;outline:none;}
+.fa-search input:focus{border-color:var(--accent);}
+.fa-search .search-icon{position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--text3);font-size:15px;}
+.fa-table{width:100%;border-collapse:collapse;}
+.fa-table th{text-align:left;font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:8px 12px;border-bottom:1px solid var(--border);white-space:nowrap;}
+.fa-table td{padding:10px 12px;border-bottom:1px solid var(--border);font-size:14px;vertical-align:middle;}
+.fa-table tr:last-child td{border-bottom:none;}
+.fa-table tr:hover td{background:var(--surface2);}
+.fa-table .player-cell{display:flex;align-items:center;gap:10px;}
+.fa-mini-avatar{width:32px;height:32px;border-radius:50%;background:var(--surface3);display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;overflow:hidden;}
+.fa-mini-avatar img{width:100%;height:100%;object-fit:cover;}
+</style>
+<script>
+function toggleTheme(){
+  const light=document.body.classList.toggle('light-mode');
+  localStorage.setItem('sb_theme',light?'light':'dark');
+  const btn=document.getElementById('theme-btn');
+  if(btn) btn.textContent=light?'🌙':'☀️';
+}
+window.addEventListener('DOMContentLoaded',function(){
+  if(localStorage.getItem('sb_theme')==='light'){
+    document.body.classList.add('light-mode');
+    const btn=document.getElementById('theme-btn');
+    if(btn) btn.textContent='🌙';
+  }
+});
+</script>
+</head>
+<body>
+
+<!-- APP SWITCHER BAR -->
+<div class="app-bar">
+  <div class="app-bar-logo">Sleeper<span>Bid</span></div>
+  <div class="app-bar-nav">
+    <div class="app-btn current">
+      <span class="app-btn-icon">💰</span><span>Salary Cap</span>
+    </div>
+    <button class="app-btn" onclick="window.location='index.html'">
+      <span class="app-btn-icon">🏷</span><span>Auctions</span>
+    </button>
+    <button class="app-btn" onclick="window.location='draft.html'">
+      <span class="app-btn-icon">🎓</span><span>Rookie Draft</span>
+    </button>
+    <button class="app-btn" style="opacity:.4;cursor:not-allowed;" title="Coming soon">
+      <span class="app-btn-icon">📅</span><span>Schedule</span>
+    </button>
+    <button class="app-btn" style="opacity:.4;cursor:not-allowed;" title="Coming soon">
+      <span class="app-btn-icon">🏆</span><span>Standings</span>
+    </button>
+  </div>
+  <div class="app-bar-right">
+    <span class="last-upd" id="last-upd"></span>
+    <button class="tibtn" onclick="window.print()" title="Print">🖨</button>
+    <button class="tibtn" id="theme-btn" onclick="toggleTheme()" title="Toggle theme">☀️</button>
+    <div class="avatar" id="cap-avatar" title="Logged in user" style="width:30px;height:30px;font-size:12px;cursor:default;"></div>
+    <button class="tibtn" onclick="capLogout()" title="Log out">↩</button>
+  </div>
+</div>
+
+<!-- CAP SUB-TABS -->
+<div class="nav-tabs" id="nav-tabs-bar">
+  <button class="nav-tab active" onclick="setTab('overview')"   data-tab="overview">Overview</button>
+  <button class="nav-tab" onclick="setTab('allplayers')"        data-tab="allplayers">All Players</button>
+  <button class="nav-tab" onclick="setTab('compare')"           data-tab="compare">Compare</button>
+  <button class="nav-tab" onclick="setTab('toppaid')"           data-tab="toppaid">Top Paid</button>
+  <button class="nav-tab" onclick="setTab('taxi')"              data-tab="taxi">🚕 Taxi</button>
+  <button class="nav-tab" onclick="setTab('watchlist')"         data-tab="watchlist">⭐ Watchlist</button>
+  <button class="nav-tab" id="comm-tab" style="display:none;" onclick="setTab('commish')" data-tab="commish">⚙️ Commish</button>
+</div>
+<div class="nav-dd-wrap">
+  <select class="nav-dd" id="nav-dd" onchange="setTab(this.value)">
+    <option value="overview">Overview</option>
+    <option value="allplayers">All Players</option>
+    <option value="compare">Compare</option>
+    <option value="toppaid">Top Paid</option>
+    <option value="taxi">🚕 Taxi</option>
+    <option value="watchlist">⭐ Watchlist</option>
+  </select>
+</div>
+
+<div class="main">
+  <div id="loading" class="loading"><div class="spinner"></div><div>Connecting…</div></div>
+  <div id="app" style="display:none;">
+    <div id="tab-overview"></div>
+    <div id="tab-allplayers"  style="display:none;"></div>
+    <div id="tab-compare"     style="display:none;"></div>
+    <div id="tab-toppaid"     style="display:none;"></div>
+    <div id="tab-taxi"        style="display:none;"></div>
+    <div id="tab-watchlist"   style="display:none;"></div>
+    <div id="tab-rookiedraft" style="display:none;"></div>
+    <div id="tab-commish"     style="display:none;"></div>
+  </div>
+
+  <!-- Inline team detail panel -->
+  <div id="team-panel" style="display:none;position:fixed;top:0;right:0;bottom:0;width:min(520px,100vw);background:var(--surface);border-left:1px solid var(--border);z-index:200;overflow-y:auto;box-shadow:-8px 0 32px rgba(0,0,0,.4);">
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border);background:var(--surface2);position:sticky;top:0;z-index:10;">
+      <span id="team-panel-title" style="font-size:15px;font-weight:600;"></span>
+      <button onclick="closeTeamPanel()" style="background:none;border:none;color:var(--text2);font-size:20px;cursor:pointer;padding:2px 6px;">✕</button>
+    </div>
+    <div id="team-panel-body" style="padding:20px;"></div>
+  </div>
+</div>
+
+<!-- Edit / Add Player Modal -->
+<div class="modal-overlay" id="edit-modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-box">
+    <div class="modal-title" id="modal-title">Edit Player</div>
+    <div class="modal-field">
+      <div class="modal-label">Player Name</div>
+      <input class="modal-input" id="modal-name" type="text" placeholder="First Last"/>
+    </div>
+    <div class="modal-field" id="modal-pos-field">
+      <div class="modal-label">Position</div>
+      <select class="modal-select" id="modal-pos">
+        <option value="QB">QB</option><option value="RB">RB</option>
+        <option value="WR">WR</option><option value="TE">TE</option>
+      </select>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Salary</div>
+      <input class="modal-input" id="modal-salary" type="number" min="100000" step="100000" placeholder="e.g. 5000000"/>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Enter full dollar amount (e.g. 5000000 = $5M)</div>
+    </div>
+    <div class="modal-field">
+      <div class="modal-label">Roster Slot</div>
+      <select class="modal-select" id="modal-slot" onchange="document.getElementById('modal-yeexp-row').style.display=this.value==='taxi'?'':'none';">
+        <option value="starters">Active Roster</option>
+        <option value="ir">IR (75% cap hit)</option>
+        <option value="taxi">Taxi (no cap hit)</option>
+      </select>
+    </div>
+    <div class="modal-field" id="modal-yeexp-row" style="display:none;">
+      <div class="modal-label">Years Experience (taxi graduation)</div>
+      <select class="modal-select" id="modal-yeexp">
+        <option value="">— not set —</option>
+        <option value="0">0 — rookie year</option>
+        <option value="1">1 — second year</option>
+        <option value="2">2 — last year (must promote next)</option>
+        <option value="3">3 — must promote now</option>
+      </select>
+      <div style="font-size:11px;color:var(--text3);margin-top:4px;">Set this so graduation warnings appear on the Taxi tab.</div>
+    </div>
+    <div class="modal-err" id="modal-err"></div>
+    <div class="modal-footer">
+      <button class="btn-danger" id="modal-delete-btn" onclick="deletePlayer()" style="display:none;">🗑 Remove</button>
+      <button class="btn-cancel" onclick="closeModal()">Cancel</button>
+      <button class="btn-save" onclick="savePlayer()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script src="js/firebase-config.js"></script>
+<script>
+// Populate avatar from cached Sleeper user in localStorage
+(function() {
+  const el = document.getElementById('cap-avatar');
+  if (!el) return;
+  try {
+    const u = JSON.parse(localStorage.getItem('sb_user') || 'null');
+    const name = u?.display_name || u?.username || localStorage.getItem('sb_username') || '?';
+    const initial = name[0].toUpperCase();
+    if (u?.avatar) {
+      el.innerHTML = `<img src="https://sleepercdn.com/avatars/thumbs/${u.avatar}"
+        style="width:100%;height:100%;object-fit:cover;border-radius:50%;"
+        onerror="this.parentElement.textContent='${initial}'" />`;
+    } else {
+      el.textContent = initial;
+    }
+    el.title = name;
+  } catch(e) {
+    el.textContent = '?';
+  }
+})();
+
+function capLogout() {
+  localStorage.removeItem('sb_username');
+  localStorage.removeItem('sb_leagueId');
+  localStorage.removeItem('sb_user');
+  window.location = 'index.html';
+}
+</script>
+<script src="js/cap.js"></script>
+
+<!-- Service Worker -->
+<script>
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('/sw.js').catch(e=>console.warn('SW failed:',e));
+  });
+}
+</script>
+</body>
+</html>
