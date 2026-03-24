@@ -1,6 +1,7 @@
 
 var CAP      = 301_200_000; // loaded from Firebase leagues/{id}/settings/cap
 var MAX_IR   = 2;            // loaded from Firebase leagues/{id}/settings/maxIR
+function isSalaryLeague() { return (window.App?.state?.leagueType || 'salary_auction') === 'salary_auction'; }
 var MAX_TAXI = 8;            // loaded from Firebase leagues/{id}/settings/maxTaxi
 var COMM     = 'mraladdin23';
 const FB_PATH     = () => `leagues/${leagueId()}/rosterData`;
@@ -40,6 +41,7 @@ function subscribeRosters() {
     if (cfg.offseason) offseasonMode = cfg.offseason;
     if (cfg.maxIR   != null) MAX_IR   = cfg.maxIR;
     if (cfg.maxTaxi != null) MAX_TAXI = cfg.maxTaxi;
+    if (cfg.salarySetup) window._capSalarySetup = cfg.salarySetup;
   }).catch(()=>{});
 
   // Build player name lookup from cached Sleeper DB for age badges + photos
@@ -94,8 +96,25 @@ function subscribeRosters() {
       DATA = fbData;
       const _lu1 = document.getElementById('last-upd'); if(_lu1) _lu1.textContent = 'Live data';
     } else {
-      DATA = JSON.parse(JSON.stringify(FALLBACK));
-      const _lu2 = document.getElementById('last-upd'); if(_lu2) _lu2.textContent = 'Built-in data';
+      // No Firebase roster data -- build from Sleeper live data if available
+      const appTeams = window.App?.state?.teams || [];
+      if (appTeams.length > 0) {
+        DATA = {};
+        appTeams.forEach(t => {
+          const key = (t.username || t.display_name || `team_${t.roster_id}`).toLowerCase();
+          DATA[key] = {
+            team_name: t.display_name || t.username || `Team ${t.roster_id}`,
+            cap_spent: 0,
+            starters:  [],
+            ir:        [],
+            taxi:      [],
+          };
+        });
+        const _lu2 = document.getElementById('last-upd'); if(_lu2) _lu2.textContent = 'Sleeper data (no cap data yet)';
+      } else {
+        DATA = JSON.parse(JSON.stringify(FALLBACK));
+        const _lu2 = document.getElementById('last-upd'); if(_lu2) _lu2.textContent = 'Built-in data';
+      }
     }
     (document.getElementById('cap-loading') || document.getElementById('loading')).style.display = 'none';
     (document.getElementById('cap-app') || document.getElementById('app')).style.display = '';
@@ -229,14 +248,15 @@ function renderOverview() {
   const spentArr = teams.map(t=>t.cap_spent), availArr = teams.map(t=>CAP-t.cap_spent);
   const avg = Math.round(spentArr.reduce((a,b)=>a+b)/teams.length);
 
-  const summary = [
+  const summaryRows = isSalaryLeague() ? [
     ['Salary Cap',     fmtM(CAP),                  '$1 = $100,000',       'var(--accent2)'],
     ['Avg Cap Spent',  fmtM(avg),                  pctOf(avg)+' of cap',  'var(--yellow)'],
     ['Most Spent',     fmtM(Math.max(...spentArr)), '',                    'var(--red)'],
     ['Least Spent',    fmtM(Math.min(...spentArr)), '',                    'var(--green)'],
     ['Most Available', fmtM(Math.max(...availArr)), '',                    'var(--green)'],
     ['Least Available',fmtM(Math.min(...availArr)), '',                    'var(--red)'],
-  ].map(([l,v,s,c]) => `<div class="sum-card">
+  ] : [];
+  const summary = summaryRows.map(([l,v,s,c]) => `<div class="sum-card">
     <div class="sum-label">${l}</div>
     <div class="sum-val" style="color:${c};">${v}</div>
     ${s?`<div class="sum-sub">${s}</div>`:''}
@@ -251,32 +271,33 @@ function renderOverview() {
       if(cnt===1) return `<span class="scar-one">${pos}:1</span>`;
       return '';
     }).filter(Boolean).join('');
-    return `<div class="ov-card" onclick="openTeamPanel('${key}')" style="cursor:pointer;${sp>CAP?'border-color:var(--red);':''}">
-      ${sp>CAP ? `<div style="background:rgba(255,77,106,.12);border-bottom:1px solid rgba(255,77,106,.3);padding:4px 12px;font-size:11px;font-weight:600;color:var(--red);">⚠️ OVER CAP by ${fmtM(sp-CAP)}</div>` : ''}
+    const showSal = isSalaryLeague();
+  return `<div class="ov-card" onclick="openTeamPanel('${key}')" style="cursor:pointer;${showSal&&sp>CAP?'border-color:var(--red);':''}">
+      ${showSal&&sp>CAP ? `<div style="background:rgba(255,77,106,.12);border-bottom:1px solid rgba(255,77,106,.3);padding:4px 12px;font-size:11px;font-weight:600;color:var(--red);">⚠️ OVER CAP by ${fmtM(sp-CAP)}</div>` : ''}
       <div class="ov-header">
         <div><div class="ov-name">${t.team_name}</div><div class="ov-user">${key}</div></div>
-        <div style="text-align:right;">
+        ${showSal ? `<div style="text-align:right;">
           <div style="font-family:var(--font-mono);font-size:13px;font-weight:600;color:${clr};">${pctOf(sp)}</div>
           <div style="font-size:10px;color:var(--text3);">cap used</div>
-        </div>
+        </div>` : ''}
       </div>
-      <div class="cap-bar"><div class="cap-bar-fill" style="width:${Math.min((sp/CAP*100),100).toFixed(1)}%;background:${clr};"></div></div>
-      <div class="ov-money">
+      ${showSal ? `<div class="cap-bar"><div class="cap-bar-fill" style="width:${Math.min((sp/CAP*100),100).toFixed(1)}%;background:${clr};"></div></div>` : ''}
+      ${showSal ? `<div class="ov-money">
         <span><strong style="color:${clr};">${fmtM(sp)}</strong> spent</span>
         <span><strong style="color:var(--green);">${fmtM(av)}</strong> avail</span>
-      </div>
+      </div>` : ''}
       <div class="pos-grid">${POSITIONS.map(pos=>{
         const tot=posTotal(t,pos),cnt=t.starters.filter(p=>p.pos===pos).length;
         const c=cnt===0?'var(--red)':cnt===1?'var(--yellow)':POS_COLORS[pos];
-        return `<div class="pos-blk"><div class="pos-lbl" style="color:${c};">${pos}</div><div class="pos-val" style="color:${c};">${fmtM(tot)}</div></div>`;
+        return `<div class="pos-blk"><div class="pos-lbl" style="color:${c};">${pos}</div>${showSal?`<div class="pos-val" style="color:${c};">${fmtM(tot)}</div>`:''}</div>`;
       }).join('')}</div>
       ${scarBadges?`<div style="margin-bottom:8px;">${scarBadges}</div>`:''}
-      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;">Top Salaries</div>
+      <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;">${showSal ? 'Top Salaries' : 'Top Players'}</div>
       ${top3.map(p=>`<div class="top-player">
         <div class="tp-left">${badge(p.pos)}<span class="tp-name">${p.name}</span></div>
-        <span class="tp-sal">${fmtM(p.salary)}</span>
+        ${showSal ? `<span class="tp-sal">${fmtM(p.salary)}</span>` : ''}
       </div>`).join('')}
-      ${(t.ir||[]).filter(p=>p.name).length ? `<div style="margin-top:6px;padding:4px 8px;background:rgba(255,77,106,.1);border-radius:4px;font-size:11px;color:var(--red);font-weight:500;">🏥 ${(t.ir||[]).filter(p=>p.name).length} on IR — 75% cap hit</div>` : ''}
+      ${showSal && (t.ir||[]).filter(p=>p.name).length ? `<div style="margin-top:6px;padding:4px 8px;background:rgba(255,77,106,.1);border-radius:4px;font-size:11px;color:var(--red);font-weight:500;">🏥 ${(t.ir||[]).filter(p=>p.name).length} on IR — 75% cap hit</div>` : (t.ir||[]).filter(p=>p.name).length ? `<div style="margin-top:6px;padding:4px 8px;background:rgba(255,77,106,.1);border-radius:4px;font-size:11px;color:var(--red);font-weight:500;">🏥 ${(t.ir||[]).filter(p=>p.name).length} on IR</div>` : ''}
     </div>`;
   }).join('');
 
@@ -734,9 +755,9 @@ function openTeamPanel(key) {
     return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;gap:8px;${onSleeperIR?'opacity:.75;':''}">
       ${photo}
       <div style="flex:1;font-size:13px;">${p.name}${ageBadge(p.name)}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:4px;">🔥</span>':''}${onSleeperIR?'<span style="font-size:10px;color:var(--red);margin-left:4px;" title="On Sleeper IR — move to IR in Commish tab for 75% cap hit">🏥 IR*</span>':''}</div>
-      <div style="font-family:var(--font-mono);font-size:12px;flex-shrink:0;${onSleeperIR?'color:var(--red);':''}">
+      ${panelShowSal ? `<div style="font-family:var(--font-mono);font-size:12px;flex-shrink:0;${onSleeperIR?'color:var(--red);':''}">
         ${onSleeperIR?`<span style="text-decoration:line-through;opacity:.5;">${fmtM(p.salary)}</span> ${fmtM(irCapHit)}`:fmtM(p.salary)}
-      </div>
+      </div>` : ''}
     </div>`;
   }).join('');
   });
@@ -757,7 +778,7 @@ function openTeamPanel(key) {
         ${photo}
         <div style="flex:1;font-size:13px;color:var(--text2);">${p.name}${ageBadge(p.name)}${p.pos&&p.pos!=='—'?`<span style="font-size:10px;background:${pc}22;color:${pc};padding:0 4px;border-radius:3px;margin-left:4px;">${p.pos}</span>`:''}
           <span style="font-size:10px;color:var(--text3);margin-left:4px;">(${fmtM(p.salary)} → 75%)</span></div>
-        <div style="font-family:var(--font-mono);font-size:12px;color:var(--red);flex-shrink:0;">${fmtM(capHit)}</div>
+        ${panelShowSal ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--red);flex-shrink:0;">${fmtM(capHit)}</div>` : ''}
       </div>`;
     }).join('');
   }
@@ -795,22 +816,22 @@ function openTeamPanel(key) {
     }
     return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;gap:8px;">
       <div style="flex:1;font-size:13px;color:var(--text3);">${p.name}${ageBadge(p.name)}${gradBadge}${p.pos&&p.pos!=='—'?`<span style="font-size:10px;background:${pc}22;color:${pc};padding:0 4px;border-radius:3px;margin-left:4px;">${p.pos}</span>`:''}${promo?'<span style="font-size:10px;color:var(--green);margin-left:4px;">⬆️</span>':''}</div>
-      <div style="font-family:var(--font-mono);font-size:12px;color:var(--text3);flex-shrink:0;">${fmtM(p.salary)}</div>
+      ${panelShowSal ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--text3);flex-shrink:0;">${fmtM(p.salary)}</div>` : ''}
     </div>`;
   }).join('');
   }
   document.getElementById('team-panel-title').textContent=t.team_name;
   document.getElementById('team-panel-body').innerHTML=`
     <div style="display:flex;gap:16px;margin-bottom:18px;flex-wrap:wrap;">
-      <div style="text-align:center;"><div style="font-family:var(--font-mono);font-size:18px;font-weight:600;color:${clr};">${fmtM(sp)}</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:2px;">Spent (${pct}%)</div></div>
-      <div style="text-align:center;"><div style="font-family:var(--font-mono);font-size:18px;font-weight:600;color:var(--green);">${fmtM(av)}</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:2px;">Available</div></div>
+      ${panelShowSal ? `<div style="text-align:center;"><div style="font-family:var(--font-mono);font-size:18px;font-weight:600;color:${clr};">${fmtM(sp)}</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:2px;">Spent (${pct}%)</div></div>
+      <div style="text-align:center;"><div style="font-family:var(--font-mono);font-size:18px;font-weight:600;color:var(--green);">${fmtM(av)}</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:2px;">Available</div></div>` : ''}
       <div style="text-align:center;"><div style="font-family:var(--font-mono);font-size:18px;font-weight:600;">${(t.starters||[]).length}</div><div style="font-size:10px;color:var(--text3);text-transform:uppercase;margin-top:2px;">Active</div></div>
       ${(t.ir||[]).filter(p=>p.name).length ? `<div style="text-align:center;"><div style="font-family:var(--font-mono);font-size:18px;font-weight:600;color:var(--red);">${(t.ir||[]).filter(p=>p.name).length}</div><div style="font-size:10px;color:var(--red);text-transform:uppercase;margin-top:2px;">IR</div></div>` : ''}
     </div>
-    <div style="background:var(--surface3);border-radius:99px;height:5px;overflow:hidden;margin-bottom:4px;"><div style="height:100%;width:${pct}%;background:${clr};border-radius:99px;"></div></div>
-    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:18px;">${fmtM(sp)} spent · cap ${fmtM(CAP)}</div>
+    ${panelShowSal ? `<div style="background:var(--surface3);border-radius:99px;height:5px;overflow:hidden;margin-bottom:4px;"><div style="height:100%;width:${pct}%;background:${clr};border-radius:99px;"></div></div>
+    <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--text3);margin-bottom:18px;">${fmtM(sp)} spent · cap ${fmtM(CAP)}</div>` : ''}
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px;">
-      ${POSITIONS.map(pos=>`<div style="flex:1;min-width:60px;background:${(POS_COLORS[pos]||'#888')}22;color:${POS_COLORS[pos]||'var(--text3)'};border-radius:6px;padding:6px 8px;text-align:center;"><div style="font-size:10px;margin-bottom:2px;">${pos}</div><div style="font-family:var(--font-mono);font-size:13px;font-weight:600;">${fmtM(posTotals[pos])}</div><div style="font-size:10px;opacity:.7;">${posCounts[pos]}p</div></div>`).join('')}
+      ${POSITIONS.map(pos=>`<div style="flex:1;min-width:60px;background:${(POS_COLORS[pos]||'#888')}22;color:${POS_COLORS[pos]||'var(--text3)'};border-radius:6px;padding:6px 8px;text-align:center;"><div style="font-size:10px;margin-bottom:2px;">${pos}</div>${panelShowSal?`<div style="font-family:var(--font-mono);font-size:13px;font-weight:600;">${fmtM(posTotals[pos])}</div>`:''}<div style="font-size:10px;opacity:.7;">${posCounts[pos]}p</div></div>`).join('')}
     </div>
     ${rHTML}
     ${comm?`<div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border);"><button onclick="closeTeamPanel();setTab('commish');" style="width:100%;padding:9px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);cursor:pointer;font-size:13px;font-family:var(--font-body);">⚙️ Open Commish Tab</button></div>`:''}`;

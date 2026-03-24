@@ -846,20 +846,32 @@ This only removes it from the registry — all league data in Firebase is preser
     UI.showScreen('app');
     UI.renderPauseBanner();
 
-    // Apply feature flags to nav tabs
+    // Apply feature flags to nav tabs AND home cards
     const feats = state.leagueFeatures || {};
-    const navMap = {
-      'nav-auction':   feats.auctions  !== false,
-      'nav-roster':    feats.rosters   !== false,
-      'nav-standings': feats.standings !== false,
-      'nav-draft':     feats.draft     !== false,
+    const featVis = {
+      auction:   feats.auctions  !== false,
+      roster:    feats.rosters   !== false,
+      standings: feats.standings !== false,
+      draft:     feats.draft     !== false,
     };
-    Object.entries(navMap).forEach(([id, show]) => {
-      const el = document.getElementById(id);
-      if (el) el.style.display = show ? '' : 'none';
+    // Nav tabs
+    Object.entries(featVis).forEach(([key, show]) => {
+      const navEl  = document.getElementById(`nav-${key}`);
+      const cardEl = document.getElementById(`home-card-${key}`);
+      if (navEl)  navEl.style.display  = show ? '' : 'none';
+      if (cardEl) cardEl.style.display = show ? '' : 'none';
     });
+    // Update roster card subtitle based on league type
+    const rosterSub = document.getElementById('home-sub-roster');
+    if (rosterSub) {
+      rosterSub.textContent = state.leagueType === 'salary_auction'
+        ? 'Salary cap · tracking'
+        : state.leagueType === 'dynasty_no_auction'
+          ? 'Dynasty rosters · tracking'
+          : 'Rosters · tracking';
+    }
     // If current view is a disabled feature, redirect to home
-    if (currentView && !navMap[`nav-${currentView}`]) navigateTo('home');
+    if (currentView && !featVis[currentView]) navigateTo('home');
 
     // Avatar dropdown is always available -- no extra button logic needed
 
