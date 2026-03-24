@@ -638,7 +638,7 @@ let apSearch = '';
 // Keep search state + stats cache at module level so search input 
 // doesn't get destroyed on each keystroke
 let apStatsMap  = null;   // player_id -> stats for current year
-let apSort      = { col: 'salary', dir: -1 };  // col: 'salary'|'pts', dir: 1=asc -1=desc
+let apSort      = { col: 'pts', dir: -1 };  // col: 'name'|'pts'|'owner'|'salary'=desc
 let apStatYear  = 2025;   // 2023 | 2024 | 2025
 
 async function loadApStats(year) {
@@ -692,11 +692,11 @@ function apBuildShell(el) {
         '<div style="overflow-x:auto;">' +
           '<table class="fa-table">' +
             '<thead><tr>' +
-              '<th>Player</th>' +
+              '<th id="ap-th-name" onclick="apSortBy(&quot;name&quot;)" style="cursor:pointer;user-select:none;">Player <span id="ap-sort-name"></span></th>' +
               '<th>NFL Team</th>' +
               '<th id="ap-th-pts" onclick="apSortBy(&quot;pts&quot;)"    style="cursor:pointer;user-select:none;">Pts <span id="ap-sort-pts"></span></th>' +
-              '<th>Owner</th>' +
-              (isSalaryLeague() ? '<th id="ap-th-sal" onclick="apSortBy(&quot;salary&quot;)" style="cursor:pointer;user-select:none;text-align:right;">Salary <span id="ap-sort-sal">▼</span></th>' : '<th id="ap-th-sal" onclick="apSortBy(&quot;salary&quot;)" style="cursor:pointer;user-select:none;text-align:right;">Rank <span id="ap-sort-sal">▼</span></th>') +
+              '<th id="ap-th-owner" onclick="apSortBy(&quot;owner&quot;)" style="cursor:pointer;user-select:none;">Owner <span id="ap-sort-owner"></span></th>' +
+              (isSalaryLeague() ? '<th id="ap-th-sal" onclick="apSortBy(&quot;salary&quot;)" style="cursor:pointer;user-select:none;text-align:right;">Salary <span id="ap-sort-sal">▼</span></th>' : '') +
               '<th style="text-align:right;"></th>' +
             '</tr></thead>' +
             '<tbody id="ap-rows"></tbody>' +
@@ -718,7 +718,7 @@ function renderAllPlayers() {
     const byId = window._playerById || {};
     window._capTeams.forEach(tm => {
       const key      = (tm.username||tm.display_name||'').toLowerCase().replace(/ /g,'_');
-      const teamName = tm.display_name || tm.username || key;
+      const teamName = tm.display_name || tm.username || `Team ${tm.roster_id}` || key;
       const taxiSet  = new Set(tm.taxi    || []);
       const resSet   = new Set(tm.reserve || []);
       (tm.players || []).forEach(id => {
@@ -752,8 +752,10 @@ function renderAllPlayers() {
       const pb = (stats[PLAYER_LOOKUP[b.name.toLowerCase()]?.player_id||'']?.pts_ppr ?? -1);
       return -dir * (pb - pa);
     });
-  } else if (apSort.col === 'salary' && !isSalaryLeague()) {
-    filtered.sort((a, b) => dir * ((a.rank||9999) - (b.rank||9999)));
+  } else if (apSort.col === 'name') {
+    filtered.sort((a, b) => dir * a.name.localeCompare(b.name));
+  } else if (apSort.col === 'owner') {
+    filtered.sort((a, b) => dir * (a.teamName||'').localeCompare(b.teamName||''));
   } else {
     filtered.sort((a, b) => -dir * (b.salary - a.salary));
   }
@@ -807,15 +809,20 @@ function renderAllPlayers() {
       '<td style="color:var(--text2);">' + nflTeam + '</td>' +
       '<td style="color:var(--text2);font-family:var(--font-mono);font-size:13px;">' + pts + '</td>' +
       '<td style="color:var(--text2);">' +
-        '<span onclick="' + (isSalaryLeague() ? 'openTeamPanel' : 'openTeamPanelFromKey') + '(\'' + p.teamKey + '\')" style="cursor:pointer;">' + p.teamName + ' <span style="color:var(--accent2);font-size:10px;">↗</span></span>' +
+        (() => {
+      const displayName = p.teamName || ((window._capTeams||[]).find(tm =>
+        (tm.username||'').toLowerCase().replace(/ /g,'_') === p.teamKey ||
+        (tm.display_name||'').toLowerCase().replace(/ /g,'_') === p.teamKey
+      )?.display_name) || p.teamKey || '—';
+      const fn = isSalaryLeague() ? 'openTeamPanel' : 'openTeamPanelFromKey';
+      return '<span onclick="' + fn + '(\'' + p.teamKey + '\')" style="cursor:pointer;">' + displayName + ' <span style="color:var(--accent2);font-size:10px;">↗</span></span>';
+    })() +
       '</td>' +
       (isSalaryLeague() ?
         '<td style="text-align:right;font-family:var(--font-mono);font-size:13px;color:' + salClr + ';">' +
           fmtM(p.salary) + (p.rawSal ? '<br/><span style="font-size:10px;color:var(--text3);">(' + fmtM(p.rawSal) + ')</span>' : '') +
         '</td>' : '') +
-      '<td style="text-align:right;font-family:var(--font-mono);font-size:12px;color:var(--text3);">' +
-        (p.rank && p.rank < 9999 ? '#'+p.rank : '—') +
-      '</td>' +
+
       '<td style="text-align:right;">' +
         '<button class="btn btn-sm" data-pname="' + safeName + '" onclick="capToggleWatch(this)" ' +
           'style="background:transparent;border:1px solid var(--border);font-size:13px;padding:4px 7px;" ' +
@@ -839,10 +846,14 @@ function renderAllPlayers() {
   const ptsHeader = document.getElementById('ap-th-pts');
   if (ptsHeader) ptsHeader.innerHTML = apStatYear + ' Pts <span id="ap-sort-pts"></span>';
   // Update sort arrow indicators
-  const sortSal = document.getElementById('ap-sort-sal');
-  const sortPts = document.getElementById('ap-sort-pts');
-  if (sortSal) sortSal.textContent = apSort.col === 'salary' ? (apSort.dir < 0 ? '▼' : '▲') : '';
-  if (sortPts) sortPts.textContent = apSort.col === 'pts'    ? (apSort.dir < 0 ? '▼' : '▲') : '';
+  const sortSal   = document.getElementById('ap-sort-sal');
+  const sortPts   = document.getElementById('ap-sort-pts');
+  const sortName  = document.getElementById('ap-sort-name');
+  const sortOwner = document.getElementById('ap-sort-owner');
+  if (sortSal)   sortSal.textContent   = apSort.col === 'salary' ? (apSort.dir < 0 ? '▼' : '▲') : '';
+  if (sortPts)   sortPts.textContent   = apSort.col === 'pts'    ? (apSort.dir < 0 ? '▼' : '▲') : '';
+  if (sortName)  sortName.textContent  = apSort.col === 'name'   ? (apSort.dir < 0 ? '▼' : '▲') : '';
+  if (sortOwner) sortOwner.textContent = apSort.col === 'owner'  ? (apSort.dir < 0 ? '▼' : '▲') : '';
   // Highlight active year button
   [2023,2024,2025].forEach(y => {
     const btn = document.getElementById('ap-yr-' + y);

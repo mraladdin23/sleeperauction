@@ -582,7 +582,8 @@ function renderBoard() {
   let html = '';
 
   for (let r = 1; r <= ROUNDS; r++) {
-    const salLabel = r===1 ? '$15M / $10M' : r===2 ? '$7.5M / $5M' : r===3 ? '$3M / $2M' : '$1M';
+    const isSal = (window._capLeagueType || 'salary_auction') === 'salary_auction';
+    const salLabel = isSal ? (r===1 ? '$15M / $10M' : r===2 ? '$7.5M / $5M' : r===3 ? '$3M / $2M' : '$1M') : '';
     html += `<div class="round-section">
       <div class="round-header">
         <span class="round-label">Round ${r}</span>
@@ -606,7 +607,9 @@ function renderBoard() {
       // For Sleeper picks: resolve who actually made the pick (may differ from slot owner if traded)
       const pickedByKey  = pick.pickedByTeam || null;
       const pickedByName = pickedByKey
-        ? (window.viewingDraftLeagueId ? (teamDisplayNames[pickedByKey] || pickedByKey) : (DRAFT_DATA[pickedByKey]?.team_name || pickedByKey))
+        ? (window.viewingDraftLeagueId
+            ? (teamDisplayNames[pickedByKey] || pickedByKey)
+            : (DRAFT_DATA[pickedByKey]?.team_name || rosterIdToDisplayName[pickedByKey] || pickedByKey))
         : null;
       // Effective display name: for Sleeper picks use pickedByName, else assignedTeamName
       const displayTeam = isSleeper ? (pickedByName || ownerName || '') : (assignedTeamName || ownerName || '');
@@ -621,7 +624,7 @@ function renderBoard() {
       html += `<div class="pick-card ${cardCls}">
         <div class="pick-num">
           <span>Pick ${r}.${String(p).padStart(2,'0')}</span>
-          <span class="pick-sal">${fmtM(sal)}</span>
+          ${isSal ? `<span class="pick-sal">${fmtM(sal)}</span>` : ""}
         </div>`;
 
       if (assigned) {
