@@ -943,12 +943,36 @@ async function openTeamPanelDynasty(key, t) {
     </div>`;
   }
 
+  const POS_ORDER = ['QB','RB','WR','TE','K','DEF','DL','LB','DB'];
+
   function section(label, ids, dimmed) {
     if (!ids.length) return '';
+    // Group by position, sort each group by rank
+    const groups = {};
+    ids.forEach(id => {
+      const p   = byId[id] || {};
+      const pos = p.pos || 'OTH';
+      if (!groups[pos]) groups[pos] = [];
+      groups[pos].push(id);
+    });
+    // Sort ids within each group by rank
+    Object.keys(groups).forEach(pos => {
+      groups[pos].sort((a,b) => (byId[a]?.rank||9999) - (byId[b]?.rank||9999));
+    });
+    // Order positions
+    const orderedPos = [
+      ...POS_ORDER.filter(p => groups[p]),
+      ...Object.keys(groups).filter(p => !POS_ORDER.includes(p)).sort()
+    ];
+    const rows = orderedPos.map(pos => {
+      const posColor = POS_COLORS[pos] || '#888';
+      const posHeader = `<div style="font-size:10px;font-weight:600;color:${posColor};
+        padding:6px 0 2px;margin-top:4px;">${pos}</div>`;
+      return posHeader + groups[pos].map(id => playerRow(id, dimmed)).join('');
+    }).join('');
     return `<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;
       color:var(--text3);padding:10px 0 4px;border-top:1px solid var(--border);margin-top:6px;">
-      ${label} (${ids.length})</div>
-      ${ids.map(id => playerRow(id, dimmed)).join('')}`;
+      ${label} (${ids.length})</div>${rows}`;
   }
 
   const rHTML = section('Active Roster', activeIds, false)
