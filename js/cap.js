@@ -312,6 +312,19 @@ function renderOverviewDynasty() {
               </div>
             </div>
             ${(() => {
+              if (!window._playerById || Object.keys(window._playerById).length < 100) {
+                const _ap = window.App?.state?.players || {};
+                if (Object.keys(_ap).length > 0) {
+                  window._playerById = {};
+                  Object.entries(_ap).forEach(([id,p]) => {
+                    if (p.first_name && p.last_name) window._playerById[id] = {
+                      name: p.first_name+' '+p.last_name,
+                      pos: (p.fantasy_positions||[])[0]||p.position||'—',
+                      team: p.team||'—', rank: p.search_rank||9999
+                    };
+                  });
+                }
+              }
               const byIdOv = window._playerById || {};
               const activePlayerIds = (appTeam?.players||[])
                 .filter(id => !(appTeam.taxi||[]).includes(id) && !(appTeam.reserve||[]).includes(id));
@@ -823,9 +836,49 @@ function openTeamPanelDynasty(key, t) {
   );
   if (!appTeam) return;
 
+  // Build _playerById from any available source
+  function ensurePlayerById() {
+    // Already built and has entries?
+    if (window._playerById && Object.keys(window._playerById).length > 100) return;
+    window._playerById = {};
+    // Source 1: window.App.state.players (loaded by app.js)
+    const appPlayers = window.App?.state?.players || {};
+    if (Object.keys(appPlayers).length > 0) {
+      Object.entries(appPlayers).forEach(([id, p]) => {
+        if (p.first_name && p.last_name) {
+          window._playerById[id] = {
+            name: p.first_name + ' ' + p.last_name,
+            pos:  (p.fantasy_positions||[])[0] || p.position || '—',
+            team: p.team || '—',
+            rank: p.search_rank || p.rank || 9999,
+          };
+        }
+      });
+      console.log('[dynasty panel] _playerById built from App.state:', Object.keys(window._playerById).length);
+      return;
+    }
+    // Source 2: localStorage sb_players
+    try {
+      const cached = localStorage.getItem('sb_players');
+      if (cached) {
+        const players = JSON.parse(cached);
+        Object.entries(players).forEach(([id, p]) => {
+          if (p.first_name && p.last_name) {
+            window._playerById[id] = {
+              name: p.first_name + ' ' + p.last_name,
+              pos:  (p.fantasy_positions||[])[0] || p.position || '—',
+              team: p.team || '—',
+              rank: p.search_rank || p.rank || 9999,
+            };
+          }
+        });
+        console.log('[dynasty panel] _playerById built from localStorage:', Object.keys(window._playerById).length);
+      }
+    } catch(e) {}
+  }
+  ensurePlayerById();
   const byId     = window._playerById || {};
-  console.log('[dynasty panel] byId size:', Object.keys(byId).length, 'first player id:', appTeam?.players?.[0]);
-  if (appTeam?.players?.[0]) console.log('[dynasty panel] lookup result:', byId[appTeam.players[0]]);
+  console.log('[dynasty panel] byId size:', Object.keys(byId).length, 'sample id:', appTeam?.players?.[0], '-> ', byId[appTeam?.players?.[0]]?.name);
   const taxiSet  = new Set(appTeam.taxi    || []);
   const resSet   = new Set(appTeam.reserve || []);
   const allIds   = appTeam.players || [];
