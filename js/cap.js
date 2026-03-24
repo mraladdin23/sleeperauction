@@ -713,11 +713,29 @@ function renderAllPlayers() {
 
   // Build flat player list from all roster slots
   const players = [];
-  Object.entries(DATA).forEach(([key, t]) => {
-    (t.starters||[]).forEach(p => { if(p.name) players.push({name:p.name, pos:p.pos||'—', salary:p.salary, slot:'Active', teamName:t.team_name, teamKey:key}); });
-    (t.ir||[]).forEach(p =>     { if(p.name) players.push({name:p.name, pos:p.pos||'—', salary:Math.round(p.salary*.75), rawSal:p.salary, slot:'IR',     teamName:t.team_name, teamKey:key}); });
-    (t.taxi||[]).forEach(p =>   { if(p.name) players.push({name:p.name, pos:p.pos||'—', salary:p.salary, slot:'Taxi',   teamName:t.team_name, teamKey:key}); });
-  });
+  if (!isSalaryLeague() && window._capTeams && window._capTeams.length > 0) {
+    // Dynasty: use Sleeper live roster data
+    const byId = window._playerById || {};
+    window._capTeams.forEach(tm => {
+      const key      = (tm.username||tm.display_name||'').toLowerCase().replace(/ /g,'_');
+      const teamName = tm.display_name || tm.username || key;
+      const taxiSet  = new Set(tm.taxi    || []);
+      const resSet   = new Set(tm.reserve || []);
+      (tm.players || []).forEach(id => {
+        const p    = byId[id] || {};
+        const name = p.name  || `Player ${id}`;
+        const pos  = p.pos   || '—';
+        const slot = resSet.has(id) ? 'IR' : taxiSet.has(id) ? 'Taxi' : 'Active';
+        players.push({ name, pos, salary: 0, slot, teamName, teamKey: key, rank: p.rank || 9999 });
+      });
+    });
+  } else {
+    Object.entries(DATA).forEach(([key, t]) => {
+      (t.starters||[]).forEach(p => { if(p.name) players.push({name:p.name, pos:p.pos||'—', salary:p.salary, slot:'Active', teamName:t.team_name, teamKey:key}); });
+      (t.ir||[]).forEach(p =>     { if(p.name) players.push({name:p.name, pos:p.pos||'—', salary:Math.round(p.salary*.75), rawSal:p.salary, slot:'IR',     teamName:t.team_name, teamKey:key}); });
+      (t.taxi||[]).forEach(p =>   { if(p.name) players.push({name:p.name, pos:p.pos||'—', salary:p.salary, slot:'Taxi',   teamName:t.team_name, teamKey:key}); });
+    });
+  }
 
   // Filter
   const apNflFilter   = (document.getElementById('ap-nfl-filter')?.value   || '').toUpperCase();
@@ -734,6 +752,8 @@ function renderAllPlayers() {
       const pb = (stats[PLAYER_LOOKUP[b.name.toLowerCase()]?.player_id||'']?.pts_ppr ?? -1);
       return -dir * (pb - pa);
     });
+  } else if (apSort.col === 'salary' && !isSalaryLeague()) {
+    filtered.sort((a, b) => dir * ((a.rank||9999) - (b.rank||9999)));
   } else {
     filtered.sort((a, b) => -dir * (b.salary - a.salary));
   }
@@ -789,8 +809,12 @@ function renderAllPlayers() {
       '<td style="color:var(--text2);">' +
         '<span onclick="openTeamPanel(\'' + p.teamKey + '\')" style="cursor:pointer;">' + p.teamName + ' <span style="color:var(--accent2);font-size:10px;">↗</span></span>' +
       '</td>' +
-      '<td style="text-align:right;font-family:var(--font-mono);font-size:13px;color:' + salClr + ';">' +
-        fmtM(p.salary) + (p.rawSal ? '<br/><span style="font-size:10px;color:var(--text3);">(' + fmtM(p.rawSal) + ')</span>' : '') +
+      (isSalaryLeague() ?
+        '<td style="text-align:right;font-family:var(--font-mono);font-size:13px;color:' + salClr + ';">' +
+          fmtM(p.salary) + (p.rawSal ? '<br/><span style="font-size:10px;color:var(--text3);">(' + fmtM(p.rawSal) + ')</span>' : '') +
+        '</td>' : '') +
+      '<td style="text-align:right;font-family:var(--font-mono);font-size:12px;color:var(--text3);">' +
+        (p.rank && p.rank < 9999 ? '#'+p.rank : '—') +
       '</td>' +
       '<td style="text-align:right;">' +
         '<button class="btn btn-sm" data-pname="' + safeName + '" onclick="capToggleWatch(this)" ' +

@@ -201,6 +201,9 @@ const App = (() => {
 
     state.leagueId   = leagueId;
     session.leagueId = leagueId;
+    // Reset draft viewing state so draft shows correct league
+    window.viewingDraftLeagueId = null;
+    window.draftSeasons = null;
     UI.showScreen('loading');
     UI.setLoading('Loading league…');
     await initApp();

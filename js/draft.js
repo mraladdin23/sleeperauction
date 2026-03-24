@@ -344,12 +344,16 @@ async function refreshDraft() {
         const ln   = pk.metadata?.last_name  || '';
         const name = (fn || ln) ? `${fn} ${ln}`.trim() : null;
         if (name) {
+          // pk.roster_id = slot owner (who the pick belongs to)
+          // pk.picked_by = who actually made the pick (may differ if traded)
+          const actualPicker = pk.picked_by || pk.roster_id;
           draftPicks[key] = {
             player: name,
             sleeperPick: true,
             rosterId: pk.roster_id,
-            // Who actually made this pick (may differ from slot owner if traded)
-            pickedByTeam: rosterIdToTeam[String(pk.roster_id)] || null,
+            // Resolve actual drafter -- use picked_by if available
+            pickedByTeam: rosterIdToTeam[String(actualPicker)] ||
+                          rosterIdToDisplayName[String(actualPicker)] || null,
           };
         }
       });
@@ -599,6 +603,15 @@ function renderBoard() {
       const isSleeper = pick.sleeperPick && !pick.team;
       const assignedTeamKey  = pick.team || null;
       const assignedTeamName = assignedTeamKey ? (window.viewingDraftLeagueId ? (teamDisplayNames[assignedTeamKey] || assignedTeamKey) : (DRAFT_DATA[assignedTeamKey]?.team_name || assignedTeamKey)) : '';
+      // For Sleeper picks: resolve who actually made the pick (may differ from slot owner if traded)
+      const pickedByKey  = pick.pickedByTeam || null;
+      const pickedByName = pickedByKey
+        ? (window.viewingDraftLeagueId ? (teamDisplayNames[pickedByKey] || pickedByKey) : (DRAFT_DATA[pickedByKey]?.team_name || pickedByKey))
+        : null;
+      // Effective display name: for Sleeper picks use pickedByName, else assignedTeamName
+      const displayTeam = isSleeper ? (pickedByName || ownerName || '') : (assignedTeamName || ownerName || '');
+      // Was the pick traded? slot owner differs from picker
+      const wasTraded = isSleeper && pickedByKey && ownerKey && pickedByKey !== ownerKey;
       const isOverCap = assignedTeamKey && DRAFT_DATA[assignedTeamKey]?.cap_spent > CAP;
 
       const cardCls = assigned
@@ -613,13 +626,12 @@ function renderBoard() {
 
       if (assigned) {
         // Only show slot owner if it differs from who made the pick (traded pick)
-        if (ownerName && ownerName !== (assignedTeamName || ownerName)) {
-          html += `<div class="pick-owner" title="Original pick owner">${ownerName}</div>`;
-        }
+        // traded pick note now shown below the player name
         html += `<div class="pick-player">${pick.player}</div>
           <div class="pick-team" style="${isOverCap?'color:var(--red);font-weight:600;':''}">
-            ${assignedTeamName || ownerName || ''}${isOverCap?' ⚠️ OVER CAP':''}
+            ${displayTeam}${isOverCap?' ⚠️ OVER CAP':''}
           </div>
+          ${wasTraded ? `<div class="pick-owner" style="font-size:9px;color:var(--accent2);margin-top:1px;" title="Original slot owner">📦 via trade (${ownerName})</div>` : ''}
           ${comm ? `<button class="pick-clear" onclick="clearPick('${key}')">✕ Clear</button>` : ''}`;
       } else {
         // Show owner name on all unassigned picks
