@@ -262,9 +262,41 @@ function renderTab(t) {
 }
 
 // ── OVERVIEW ─────────────────────────────────────────────────
-function renderOverviewDynasty() {
+async function renderOverviewDynasty() {
   const el = document.getElementById('tab-overview');
   if (!el || !DATA) return;
+  // Ensure player lookup is ready
+  if (!window._playerById || Object.keys(window._playerById).length < 100) {
+    await (async function() {
+      const appP = window.App?.state?.players || {};
+      if (Object.keys(appP).length > 100) {
+        window._playerById = {};
+        Object.entries(appP).forEach(([id,p]) => {
+          if (p.first_name && p.last_name) window._playerById[id] = {
+            name: p.first_name+' '+p.last_name,
+            pos: (p.fantasy_positions||[])[0]||p.position||'—',
+            team: p.team||'—', rank: p.search_rank||9999
+          };
+        });
+      } else {
+        try {
+          const r = await fetch('https://api.sleeper.app/v1/players/nfl');
+          if (r.ok) {
+            const data = await r.json();
+            window._playerById = {};
+            Object.entries(data).forEach(([id,p]) => {
+              if (p.first_name && p.last_name) window._playerById[id] = {
+                name: p.first_name+' '+p.last_name,
+                pos: (p.fantasy_positions||[])[0]||p.position||'—',
+                team: p.team||'—', rank: p.search_rank||9999
+              };
+            });
+            try { localStorage.setItem('sb_players', JSON.stringify(data)); } catch(e) {}
+          }
+        } catch(e) {}
+      }
+    })();
+  }
   const teams = Object.values(DATA);
 
   el.innerHTML = `
@@ -351,7 +383,7 @@ function renderOverviewDynasty() {
 
 function renderOverview() {
   const el = document.getElementById('tab-overview');
-  if (!isSalaryLeague()) { renderOverviewDynasty(); return; }
+  if (!isSalaryLeague()) { renderOverviewDynasty(); return; } // async, fire and forget
   const teams = Object.values(DATA);
   const spentArr = teams.map(t=>t.cap_spent), availArr = teams.map(t=>CAP-t.cap_spent);
   const avg = Math.round(spentArr.reduce((a,b)=>a+b)/teams.length);
@@ -829,22 +861,20 @@ function capToggleWatch(nameOrBtn) {
 }
 
 // ── INLINE TEAM PANEL ────────────────────────────────────────
-function openTeamPanelDynasty(key, t) {
+async function openTeamPanelDynasty(key, t) {
   const appTeam = (window._capTeams||[]).find(tm =>
     (tm.username||'').toLowerCase() === key ||
     (tm.display_name||'').toLowerCase() === (t.team_name||'').toLowerCase()
   );
   if (!appTeam) return;
 
-  // Build _playerById from any available source
-  function ensurePlayerById() {
-    // Already built and has entries?
+  // Build _playerById from any available source (async -- fetches if needed)
+  async function ensurePlayerById() {
     if (window._playerById && Object.keys(window._playerById).length > 100) return;
     window._playerById = {};
-    // Source 1: window.App.state.players (loaded by app.js)
-    const appPlayers = window.App?.state?.players || {};
-    if (Object.keys(appPlayers).length > 0) {
-      Object.entries(appPlayers).forEach(([id, p]) => {
+
+    function buildFrom(playersObj) {
+      Object.entries(playersObj).forEach(([id, p]) => {
         if (p.first_name && p.last_name) {
           window._playerById[id] = {
             name: p.first_name + ' ' + p.last_name,
@@ -854,29 +884,39 @@ function openTeamPanelDynasty(key, t) {
           };
         }
       });
-      console.log('[dynasty panel] _playerById built from App.state:', Object.keys(window._playerById).length);
+    }
+
+    // Source 1: App.state.players
+    const appPlayers = window.App?.state?.players || {};
+    if (Object.keys(appPlayers).length > 100) {
+      buildFrom(appPlayers);
+      console.log('[dynasty panel] _playerById from App.state:', Object.keys(window._playerById).length);
       return;
     }
-    // Source 2: localStorage sb_players
+    // Source 2: localStorage
     try {
       const cached = localStorage.getItem('sb_players');
       if (cached) {
-        const players = JSON.parse(cached);
-        Object.entries(players).forEach(([id, p]) => {
-          if (p.first_name && p.last_name) {
-            window._playerById[id] = {
-              name: p.first_name + ' ' + p.last_name,
-              pos:  (p.fantasy_positions||[])[0] || p.position || '—',
-              team: p.team || '—',
-              rank: p.search_rank || p.rank || 9999,
-            };
-          }
-        });
-        console.log('[dynasty panel] _playerById built from localStorage:', Object.keys(window._playerById).length);
+        buildFrom(JSON.parse(cached));
+        if (Object.keys(window._playerById).length > 100) {
+          console.log('[dynasty panel] _playerById from localStorage:', Object.keys(window._playerById).length);
+          return;
+        }
       }
     } catch(e) {}
+    // Source 3: Fetch directly from Sleeper
+    try {
+      console.log('[dynasty panel] fetching players from Sleeper...');
+      const r = await fetch('https://api.sleeper.app/v1/players/nfl');
+      if (r.ok) {
+        const data = await r.json();
+        buildFrom(data);
+        try { localStorage.setItem('sb_players', JSON.stringify(data)); } catch(e) {}
+        console.log('[dynasty panel] _playerById from Sleeper fetch:', Object.keys(window._playerById).length);
+      }
+    } catch(e) { console.warn('[dynasty panel] player fetch failed:', e); }
   }
-  ensurePlayerById();
+  await ensurePlayerById();
   const byId     = window._playerById || {};
   console.log('[dynasty panel] byId size:', Object.keys(byId).length, 'sample id:', appTeam?.players?.[0], '-> ', byId[appTeam?.players?.[0]]?.name);
   const taxiSet  = new Set(appTeam.taxi    || []);
