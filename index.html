@@ -649,7 +649,11 @@ function initRosterView() {
   const container = document.getElementById('view-roster');
   // Pass league type to cap.js before it runs
   window._capLeagueType = window.App?.state?.leagueType || 'salary_auction';
+  console.log('[roster] initRosterView called, viewsLoaded.roster=', viewsLoaded.roster, '_capLeagueType=', window._capLeagueType);
   if (viewsLoaded.roster) {
+    console.log('[roster] early return -- calling applyCapTabVisibility and re-running capInit for new league');
+    // Force capInit to re-run for new league even if already loaded
+    if (window.capInit) { window.capUnsubscribe && window.capUnsubscribe(); capInit(); }
     applyCapTabVisibility();
     if (window.setTab) setTab(window.tab || 'overview');
     return;
@@ -659,11 +663,14 @@ function initRosterView() {
   if (window.capInit) {
     capInit();
     applyCapTabVisibility();
+    // Render immediately with early data (Firebase may not have responded yet)
+    if (window.renderTab) renderTab(window.tab || 'overview');
   } else {
     loadScript('js/cap.js', () => {
       if (window.capInit) {
         capInit();
         applyCapTabVisibility();
+        if (window.renderTab) renderTab(window.tab || 'overview');
       }
     });
   }
