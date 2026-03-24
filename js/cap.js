@@ -744,6 +744,7 @@ function renderAllPlayers() {
   if (apSearch)      filtered = filtered.filter(p => p.name.toLowerCase().includes(apSearch));
   if (apNflFilter)   filtered = filtered.filter(p => (PLAYER_LOOKUP[p.name.toLowerCase()]?.nfl_team||'').toUpperCase() === apNflFilter);
   if (apOwnerFilter) filtered = filtered.filter(p => p.teamKey === apOwnerFilter);
+  const stats = apStatsMap || {};
   // Sort
   const dir = apSort.dir;
   if (apSort.col === 'pts') {
@@ -760,7 +761,6 @@ function renderAllPlayers() {
     filtered.sort((a, b) => -dir * (b.salary - a.salary));
   }
 
-  const stats    = apStatsMap || {};
   const totalSal = filtered.filter(p => p.slot === 'Active').reduce((s, p) => s + p.salary, 0);
   const wl       = JSON.parse(localStorage.getItem('sb_cap_watchlist') || '{}');
 

@@ -184,12 +184,14 @@ async function init() {
 let slotOwners = {};   // "round-pick" → teamKey
 let rosterIdToTeam        = {};  // Sleeper roster_id (string) → our teamKey
 let rosterIdToDisplayName = {};  // Sleeper roster_id (string) → display name (fallback)
+let userIdToTeam          = {};  // Sleeper user_id (string) → our teamKey (for picked_by)
 let teamDisplayNames      = {};  // teamKey (username) → display name for current viewing season
 window.viewingDraftLeagueId = window.viewingDraftLeagueId || null;
 window.draftSeasons         = window.draftSeasons         || [];
 
 async function loadRosterMapping() {
   rosterIdToTeam = {};
+  userIdToTeam   = {};
   // The cap team keys ARE the Sleeper usernames — so we just need
   // Sleeper roster_id → username, then look up in DRAFT_DATA directly.
   try {
@@ -197,17 +199,22 @@ async function loadRosterMapping() {
       fetch(`https://api.sleeper.app/v1/league/${draftLeagueId()}/rosters`).then(r=>r.json()),
       fetch(`https://api.sleeper.app/v1/league/${draftLeagueId()}/users`).then(r=>r.json()),
     ]);
-    const userById = {};
+    const userById   = {};
     (users||[]).forEach(u => { userById[u.user_id] = u; });
     (rosters||[]).forEach(r => {
-      const u = userById[r.owner_id] || {};
-      const username = (u.username || '').toLowerCase();
-      // Cap key is the username — verify it exists in DRAFT_DATA, fallback to display_name
-      const capKey = DRAFT_DATA[username] ? username
-                   : Object.keys(DRAFT_DATA||{}).find(k => k.toLowerCase() === (u.display_name||'').toLowerCase())
-                   || username;
+      const u        = userById[r.owner_id] || {};
+      // Use display_name if username is empty (some Sleeper accounts)
+      const username = (u.username || u.display_name || '').toLowerCase().replace(/ /g,'_');
+      // Cap key: try DRAFT_DATA match first, then use username directly
+      const capKey = (DRAFT_DATA && Object.keys(DRAFT_DATA).length > 0)
+        ? (DRAFT_DATA[username] ? username
+           : Object.keys(DRAFT_DATA).find(k => k.toLowerCase() === (u.display_name||'').toLowerCase())
+           || username)
+        : username;
       rosterIdToTeam[String(r.roster_id)] = capKey;
       rosterIdToDisplayName[String(r.roster_id)] = u.display_name || u.username || `Roster ${r.roster_id}`;
+      // Map user_id → teamKey so picked_by (which is user_id) can be resolved
+      userIdToTeam[String(r.owner_id)] = capKey;  // module-level
       // Store display name keyed by teamKey for historical season name lookup
       teamDisplayNames[capKey] = u.display_name || u.username || capKey;
       console.log(`Roster ${r.roster_id} → ${capKey} (${u.display_name})`);
@@ -346,9 +353,11 @@ async function refreshDraft() {
         if (name) {
           // pk.roster_id = slot owner (who the pick belongs to)
           // pk.picked_by = who actually made the pick (may differ if traded)
-          const actualPicker = pk.picked_by || pk.roster_id;
-          const resolvedTeam = rosterIdToTeam[String(actualPicker)] ||
-                               rosterIdToDisplayName[String(actualPicker)] || null;
+          // picked_by is user_id; use userIdToTeam map built in loadRosterMapping
+          const resolvedTeam = (pk.picked_by ? userIdToTeam[String(pk.picked_by)] : null)
+                             || rosterIdToTeam[String(pk.roster_id)]
+                             || rosterIdToDisplayName[String(pk.roster_id)]
+                             || null;
           if (pk.round === 1 && pk.draft_slot <= 3) {
             console.log(`[draft] Pick ${pk.round}-${pk.draft_slot}: player=${name}, roster_id=${pk.roster_id}, picked_by=${pk.picked_by}, actualPicker=${actualPicker}, resolvedTeam=${resolvedTeam}`);
             console.log(`[draft] rosterIdToTeam keys:`, Object.keys(rosterIdToTeam).slice(0,5));
@@ -358,6 +367,7 @@ async function refreshDraft() {
             player: name,
             sleeperPick: true,
             rosterId: pk.roster_id,
+            pickedByUserId: pk.picked_by || null,
             pickedByTeam: resolvedTeam,
           };
         }
