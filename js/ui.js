@@ -10,6 +10,16 @@ const UI = (() => {
     Object.entries(screens).forEach(([key, id]) => {
       document.getElementById(id).classList.toggle('hidden', key !== name);
     });
+    // Always clear stale modals when switching screens
+    if (name === 'login') {
+      ['change-pw-modal','league-pw-modal'].forEach(id => {
+        document.getElementById(id)?.remove();
+      });
+      const pwWrap = document.getElementById('login-password-wrap');
+      if (pwWrap) pwWrap.style.display = 'none';
+      const pwInput = document.getElementById('login-password');
+      if (pwInput) pwInput.value = '';
+    }
   }
 
   function setLoading(msg) { document.getElementById('loading-text').textContent = msg; }

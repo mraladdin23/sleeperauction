@@ -303,6 +303,10 @@ const App = (() => {
   }
 
   async function boot() {
+    // Clean up any stale modals that may have persisted from a previous session
+    ['change-pw-modal', 'league-pw-modal'].forEach(id => {
+      document.getElementById(id)?.remove();
+    });
     if (session.username && session.leagueId) {
       UI.showScreen('loading');
       UI.setLoading('Reconnecting…');
