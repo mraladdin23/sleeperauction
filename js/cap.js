@@ -1,7 +1,7 @@
 
 var CAP      = 301_200_000; // loaded from Firebase leagues/{id}/settings/cap
 var MAX_IR   = 2;            // loaded from Firebase leagues/{id}/settings/maxIR
-function isSalaryLeague() { return (window.App?.state?.leagueType || 'salary_auction') === 'salary_auction'; }
+function isSalaryLeague() { return (window._capLeagueType || window.App?.state?.leagueType || 'salary_auction') === 'salary_auction'; }
 var MAX_TAXI = 8;            // loaded from Firebase leagues/{id}/settings/maxTaxi
 var COMM     = 'mraladdin23';
 const FB_PATH     = () => `leagues/${leagueId()}/rosterData`;
@@ -97,11 +97,13 @@ function subscribeRosters() {
       const _lu1 = document.getElementById('last-upd'); if(_lu1) _lu1.textContent = 'Live data';
     } else {
       // No Firebase roster data -- build from Sleeper live data if available
-      const appTeams = window.App?.state?.teams || [];
+      // Build from Sleeper live teams -- window._capTeams set by app.js before capInit
+      const appTeams = window._capTeams || window.App?.state?.teams || [];
       if (appTeams.length > 0) {
         DATA = {};
         appTeams.forEach(t => {
-          const key = (t.username || t.display_name || `team_${t.roster_id}`).toLowerCase();
+          const key = (t.username || t.display_name || `team_${t.roster_id}`).toLowerCase()
+                        .replace(/ /g,'_');
           DATA[key] = {
             team_name: t.display_name || t.username || `Team ${t.roster_id}`,
             cap_spent: 0,
@@ -112,8 +114,9 @@ function subscribeRosters() {
         });
         const _lu2 = document.getElementById('last-upd'); if(_lu2) _lu2.textContent = 'Sleeper data (no cap data yet)';
       } else {
-        DATA = JSON.parse(JSON.stringify(FALLBACK));
-        const _lu2 = document.getElementById('last-upd'); if(_lu2) _lu2.textContent = 'Built-in data';
+        // Last resort: empty placeholder teams
+        DATA = {};
+        const _lu2 = document.getElementById('last-upd'); if(_lu2) _lu2.textContent = 'No roster data';
       }
     }
     (document.getElementById('cap-loading') || document.getElementById('loading')).style.display = 'none';
@@ -129,6 +132,8 @@ function subscribeRosters() {
       }
     }
     renderTab(tab);
+    // Apply tab visibility for non-salary leagues
+    if (typeof applyCapTabVisibility === 'function') applyCapTabVisibility();
     // Keep auction page open-spot counts in sync
     syncRosterSizes();
   });
