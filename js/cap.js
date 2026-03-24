@@ -49,7 +49,17 @@ function subscribeRosters() {
     const cached = localStorage.getItem('sb_players');
     if (cached) {
       const players = JSON.parse(cached);
+      window._playerById = window._playerById || {};
       Object.entries(players).forEach(([playerId, p]) => {
+        // Build reverse lookup: player_id -> player data
+        if (p.first_name && p.last_name) {
+          window._playerById[playerId] = {
+            name:     `${p.first_name} ${p.last_name}`,
+            pos:      p.fantasy_positions?.[0] || p.position || '—',
+            team:     p.team || '—',
+            rank:     p.search_rank || p.rank || 9999,
+          };
+        }
         if (p.first_name && p.last_name) {
           const key = `${p.first_name} ${p.last_name}`.toLowerCase();
           PLAYER_LOOKUP[key] = { birth_date: p.birth_date || null, player_id: playerId, nfl_team: p.team || null, age: p.age || null, years_exp: p.years_exp != null ? p.years_exp : null };
@@ -302,13 +312,16 @@ function renderOverviewDynasty() {
               </div>
             </div>
             ${(() => {
-              const allPl = window.App?.state?.players || {};
+              const byIdOv = window._playerById || {};
               const activePlayerIds = (appTeam?.players||[])
                 .filter(id => !(appTeam.taxi||[]).includes(id) && !(appTeam.reserve||[]).includes(id));
-              const top4 = activePlayerIds.slice(0, 4).map(id => {
-                const p = allPl[id] || {};
-                const name = p.first_name && p.last_name ? p.first_name[0]+'. '+p.last_name : 'Unknown';
-                const pos  = p.fantasy_positions?.[0] || p.position || '—';
+              // Sort by Sleeper rank ascending (lower = better)
+              const sortedActive = [...activePlayerIds].sort((a,b) =>
+                (byIdOv[a]?.rank || 9999) - (byIdOv[b]?.rank || 9999));
+              const top4 = sortedActive.slice(0, 4).map(id => {
+                const p = byIdOv[id] || {};
+                const name = p.name ? p.name.split(' ').map((w,i) => i===0 ? w[0]+'. ' : w).join('') : 'Unknown';
+                const pos  = p.pos || '—';
                 const pc   = POS_COLORS[pos] || '#888';
                 return '<div style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:11px;">'
                   + '<span style="background:'+pc+'22;color:'+pc+';padding:0 4px;border-radius:3px;font-size:9px;font-weight:600;">'+pos+'</span>'
@@ -810,23 +823,23 @@ function openTeamPanelDynasty(key, t) {
   );
   if (!appTeam) return;
 
-  const players   = window.App?.state?.players || {};
-  const taxiSet   = new Set(appTeam.taxi    || []);
-  const reserveSet= new Set(appTeam.reserve || []);
-  const allIds    = appTeam.players || [];
-  const activeIds = allIds.filter(id => !taxiSet.has(id) && !reserveSet.has(id));
-  const taxiIds   = allIds.filter(id => taxiSet.has(id));
-  const irIds     = allIds.filter(id => reserveSet.has(id));
+  const byId     = window._playerById || {};
+  const taxiSet  = new Set(appTeam.taxi    || []);
+  const resSet   = new Set(appTeam.reserve || []);
+  const allIds   = appTeam.players || [];
+  const activeIds= allIds.filter(id => !taxiSet.has(id) && !resSet.has(id));
+  const taxiIds  = allIds.filter(id => taxiSet.has(id));
+  const irIds    = allIds.filter(id => resSet.has(id));
 
   function playerRow(id, dimmed) {
-    const p    = players[id] || {};
-    const name = p.first_name && p.last_name ? `${p.first_name} ${p.last_name}` : `ID:${id}`;
-    const pos  = p.fantasy_positions?.[0] || p.position || '—';
+    const p    = byId[id] || {};
+    const name = p.name || `Player ${id}`;
+    const pos  = p.pos  || '—';
     const team = p.team || '—';
     const pc   = POS_COLORS[pos] || '#888';
-    const photo= id ? `<img src="https://sleepercdn.com/content/nfl/players/thumb/${id}.jpg"
+    const photo= `<img src="https://sleepercdn.com/content/nfl/players/thumb/${id}.jpg"
       style="width:26px;height:26px;border-radius:50%;object-fit:cover;flex-shrink:0;"
-      onerror="this.style.display='none'" />` : '';
+      onerror="this.style.display='none'" />`;
     return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;${dimmed?'opacity:.6;':''}">
       ${photo}
       <div style="flex:1;font-size:13px;">${name}${ageBadge(name)}</div>
