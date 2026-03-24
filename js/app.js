@@ -32,6 +32,8 @@ const App = (() => {
     user:            null,
     leagueId:        null,
     isGuest:         false,
+    leagueFeatures:  { auctions: true, rosters: true, standings: true, draft: true },
+    leagueType:      'salary_auction',
     leagueName:      '',
     leagueSettings:  null,
     scoringSettings: {},
@@ -167,9 +169,16 @@ const App = (() => {
                 <div style="font-size:12px;color:var(--text3);">${l.season} Season</div>
                 ${featureTags ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;">${featureTags}</div>` : ''}
               </div>
-              <div style="text-align:right;flex-shrink:0;">
+              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
                 <div style="font-size:12px;color:${statusColor};font-weight:500;">${statusLabel}</div>
-                <div style="font-size:11px;color:var(--text3);margin-top:2px;">ID: ${l.id.slice(-8)}</div>
+                <div style="font-size:11px;color:var(--text3);">ID: ${l.id.slice(-8)}</div>
+                ${l.meta?.addedBy === (state.user?.username||'').toLowerCase() || state.isCommissioner
+                  ? `<button onclick="event.stopPropagation();App.deleteLeague('${l.id}','${l.name.replace(/'/g,"\'")}')"
+                      style="font-size:11px;padding:3px 9px;background:none;border:1px solid rgba(255,77,106,.4);
+                      border-radius:4px;color:var(--red);cursor:pointer;font-family:var(--font-body);">
+                      🗑 Remove
+                    </button>`
+                  : ''}
               </div>
             </div>
           </div>`;
@@ -575,9 +584,36 @@ const App = (() => {
     showChangePasswordModal(username, state.leagueId, false);
   }
 
+  async function deleteLeague(leagueId, leagueName) {
+    if (!confirm(`Remove "${leagueName}" from your league list?
+
+This only removes it from the registry — all league data in Firebase is preserved.`)) return;
+    try {
+      await db.ref(`leagues/_registry/${leagueId}`).remove();
+      // If this is the currently active league, switch to picker
+      if (state.leagueId === leagueId) {
+        await switchLeague();
+      } else {
+        showLeaguePicker(); // just refresh the list
+      }
+    } catch(e) {
+      UI.toast('Failed to remove league: ' + (e.message || e), 'error');
+    }
+  }
+
   async function switchLeague() {
-    // Unsubscribe from current league, then show picker
+    // Unsubscribe from current league
     if (state.leagueId) Auction.unsubscribe(state.leagueId);
+
+    // Reset ALL view loaded flags so every view re-initializes for the new league
+    if (typeof viewsLoaded !== 'undefined') {
+      Object.keys(viewsLoaded).forEach(k => delete viewsLoaded[k]);
+    }
+
+    // Reset cap.js subscription so it re-subscribes to new league
+    if (window.capUnsubscribe) window.capUnsubscribe();
+    window._standingsInitPending = false;
+
     // Reset state except user
     Object.assign(state, {
       leagueId: null, leagueSettings: null,
@@ -699,6 +735,17 @@ const App = (() => {
     state.leagueName      = league.name;
     localStorage.setItem('sb_leagueName', league.name);
 
+    // Read feature flags from registry and apply to nav
+    try {
+      const regSnap = await db.ref(`leagues/_registry/${state.leagueId}`).once('value');
+      const reg     = regSnap.val() || {};
+      state.leagueFeatures = reg.features || { auctions: true, rosters: true, standings: true, draft: true };
+      state.leagueType     = reg.leagueType || 'salary_auction';
+    } catch(e) {
+      state.leagueFeatures = { auctions: true, rosters: true, standings: true, draft: true };
+      state.leagueType     = 'salary_auction';
+    }
+
     // Load auction start time setting
     try {
       const astSnap = await db.ref(`leagues/${state.leagueId}/settings/auctionStartTime`).once('value');
@@ -798,6 +845,21 @@ const App = (() => {
 
     UI.showScreen('app');
     UI.renderPauseBanner();
+
+    // Apply feature flags to nav tabs
+    const feats = state.leagueFeatures || {};
+    const navMap = {
+      'nav-auction':   feats.auctions  !== false,
+      'nav-roster':    feats.rosters   !== false,
+      'nav-standings': feats.standings !== false,
+      'nav-draft':     feats.draft     !== false,
+    };
+    Object.entries(navMap).forEach(([id, show]) => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = show ? '' : 'none';
+    });
+    // If current view is a disabled feature, redirect to home
+    if (currentView && !navMap[`nav-${currentView}`]) navigateTo('home');
 
     // Avatar dropdown is always available -- no extra button logic needed
 
@@ -1595,7 +1657,7 @@ const App = (() => {
     doSetup,
     switchTab,
     setFilter, renderFreeAgents, loadFreeAgents,
-    browseAsGuest, submitPassword, submitChangePassword, openChangePassword, skipChangePassword, switchLeague, showLeaguePicker, pickLeague, registerLeague, submitLeaguePassword, submitLeagueSetup, refreshAll, renderAll, updateHomeFeed, faSort, setStatYear,
+    browseAsGuest, submitPassword, submitChangePassword, openChangePassword, skipChangePassword, switchLeague, deleteLeague, showLeaguePicker, pickLeague, registerLeague, submitLeaguePassword, submitLeagueSetup, refreshAll, renderAll, updateHomeFeed, faSort, setStatYear,
     enableNotifications,
     computeCustomPts,
     toggleWatch,

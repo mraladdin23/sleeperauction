@@ -82,7 +82,13 @@ function subscribeRosters() {
     }).catch(() => {});
   }
 
-  rosterRef().on('value', snap => {
+  // Store ref so we can unsubscribe when switching leagues
+  window._capRosterRef = rosterRef();
+  window.capUnsubscribe = () => {
+    if (window._capRosterRef) { window._capRosterRef.off(); window._capRosterRef = null; }
+    DATA = null;
+  };
+  window._capRosterRef.on('value', snap => {
     const fbData = snap.val();
     if (fbData && Object.keys(fbData).length > 0) {
       DATA = fbData;
@@ -1556,7 +1562,7 @@ function renderCommish() {
           <div style="display:flex;align-items:center;gap:8px;">
             <input id="comm-max-ir" type="number" value="${MAX_IR}" min="0" max="20" step="1"
               style="width:70px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:14px;outline:none;"/>
-            <button onclick="commSaveSlotLimits()" style="padding:6px 14px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-size:12px;cursor:pointer;font-family:var(--font-body);">Save</button>
+            <button onclick="commSaveMaxIR()" style="padding:6px 14px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-size:12px;cursor:pointer;font-family:var(--font-body);">Save</button>
             <span style="font-size:12px;color:var(--text3);">per team (currently ${MAX_IR})</span>
           </div>
         </div>
@@ -1565,7 +1571,7 @@ function renderCommish() {
           <div style="display:flex;align-items:center;gap:8px;">
             <input id="comm-max-taxi" type="number" value="${MAX_TAXI}" min="0" max="20" step="1"
               style="width:70px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:14px;outline:none;"/>
-            <button onclick="commSaveSlotLimits()" style="padding:6px 14px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-size:12px;cursor:pointer;font-family:var(--font-body);">Save</button>
+            <button onclick="commSaveMaxTaxi()" style="padding:6px 14px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-size:12px;cursor:pointer;font-family:var(--font-body);">Save</button>
             <span style="font-size:12px;color:var(--text3);">per team (currently ${MAX_TAXI})</span>
           </div>
         </div>
@@ -1729,18 +1735,23 @@ async function commClearAuctionStart() {
   renderTab('commish');
 }
 
-async function commSaveSlotLimits() {
-  const irInp   = document.getElementById('comm-max-ir');
-  const taxiInp = document.getElementById('comm-max-taxi');
-  const ir      = parseInt(irInp?.value);
-  const taxi    = parseInt(taxiInp?.value);
-  if (isNaN(ir) || ir < 0)   { showToast('Enter a valid IR limit (0 or more).', 'error'); return; }
-  if (isNaN(taxi) || taxi < 0) { showToast('Enter a valid Taxi limit (0 or more).', 'error'); return; }
-  MAX_IR   = ir;
-  MAX_TAXI = taxi;
-  await db.ref(`leagues/${leagueId()}/settings/maxIR`).set(ir);
-  await db.ref(`leagues/${leagueId()}/settings/maxTaxi`).set(taxi);
-  showToast(`Slot limits saved — IR: ${ir}, Taxi: ${taxi}`, 'success');
+async function commSaveMaxIR() {
+  const inp = document.getElementById('comm-max-ir');
+  const val = parseInt(inp?.value);
+  if (isNaN(val) || val < 0) { showToast('Enter a valid IR limit (0 or more).', 'error'); return; }
+  MAX_IR = val;
+  await db.ref(`leagues/${leagueId()}/settings/maxIR`).set(val);
+  showToast(`Max IR slots set to ${val}`, 'success');
+  renderTab('commish');
+}
+
+async function commSaveMaxTaxi() {
+  const inp = document.getElementById('comm-max-taxi');
+  const val = parseInt(inp?.value);
+  if (isNaN(val) || val < 0) { showToast('Enter a valid Taxi limit (0 or more).', 'error'); return; }
+  MAX_TAXI = val;
+  await db.ref(`leagues/${leagueId()}/settings/maxTaxi`).set(val);
+  showToast(`Max Taxi slots set to ${val}`, 'success');
   renderTab('commish');
 }
 
