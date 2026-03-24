@@ -1,6 +1,8 @@
 
-var CAP = 301_200_000; // loaded from Firebase leagues/{id}/settings/cap
-var COMM        = 'mraladdin23';
+var CAP      = 301_200_000; // loaded from Firebase leagues/{id}/settings/cap
+var MAX_IR   = 2;            // loaded from Firebase leagues/{id}/settings/maxIR
+var MAX_TAXI = 8;            // loaded from Firebase leagues/{id}/settings/maxTaxi
+var COMM     = 'mraladdin23';
 const FB_PATH     = () => `leagues/${leagueId()}/rosterData`;
 const POSITIONS   = ['QB','RB','WR','TE'];
 const POS_COLORS  = {QB:'#b89ffe',RB:'#18e07a',WR:'#00d4ff',TE:'#ffc94d'};
@@ -34,8 +36,10 @@ function subscribeRosters() {
   // Load cap setting and offseason mode
   db.ref(`leagues/${lid}/settings`).once('value').then(s => {
     const cfg = s.val() || {};
-    if (cfg.cap) CAP = cfg.cap;
+    if (cfg.cap)     CAP          = cfg.cap;
     if (cfg.offseason) offseasonMode = cfg.offseason;
+    if (cfg.maxIR   != null) MAX_IR   = cfg.maxIR;
+    if (cfg.maxTaxi != null) MAX_TAXI = cfg.maxTaxi;
   }).catch(()=>{});
 
   // Build player name lookup from cached Sleeper DB for age badges + photos
@@ -1548,6 +1552,23 @@ function renderCommish() {
           <span style="font-size:12px;color:var(--text3);">${offseasonMode ? 'Offseason: teams must cut below '+fmtM(cutCap)+' (70% of cap)' : 'Regular season mode'}</span>
         </div>
         <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+          <div style="font-size:13px;color:var(--text2);min-width:120px;">Max IR Slots</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="comm-max-ir" type="number" value="${MAX_IR}" min="0" max="10" step="1"
+              style="width:70px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:14px;outline:none;"/>
+            <button onclick="commSaveSlotLimits()" style="padding:6px 14px;background:var(--accent);border:none;border-radius:var(--radius-sm);color:#fff;font-size:12px;cursor:pointer;font-family:var(--font-body);">Save</button>
+            <span style="font-size:12px;color:var(--text3);">per team (currently ${MAX_IR})</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+          <div style="font-size:13px;color:var(--text2);min-width:120px;">Max Taxi Slots</div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input id="comm-max-taxi" type="number" value="${MAX_TAXI}" min="0" max="15" step="1"
+              style="width:70px;padding:6px 10px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-mono);font-size:14px;outline:none;"/>
+            <span style="font-size:12px;color:var(--text3);">per team (currently ${MAX_TAXI})</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
           <div style="font-size:13px;color:var(--text2);min-width:120px;">Auction Opens</div>
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <input type="datetime-local" id="comm-auction-start"
@@ -1704,6 +1725,21 @@ async function commSaveAuctionStart() {
 async function commClearAuctionStart() {
   window._auctionStartTime = null;
   await db.ref(`leagues/${leagueId()}/settings/auctionStartTime`).remove();
+  renderTab('commish');
+}
+
+async function commSaveSlotLimits() {
+  const irInp   = document.getElementById('comm-max-ir');
+  const taxiInp = document.getElementById('comm-max-taxi');
+  const ir      = parseInt(irInp?.value);
+  const taxi    = parseInt(taxiInp?.value);
+  if (isNaN(ir) || ir < 0)   { showToast('Enter a valid IR limit (0 or more).', 'error'); return; }
+  if (isNaN(taxi) || taxi < 0) { showToast('Enter a valid Taxi limit (0 or more).', 'error'); return; }
+  MAX_IR   = ir;
+  MAX_TAXI = taxi;
+  await db.ref(`leagues/${leagueId()}/settings/maxIR`).set(ir);
+  await db.ref(`leagues/${leagueId()}/settings/maxTaxi`).set(taxi);
+  showToast(`Slot limits saved — IR: ${ir}, Taxi: ${taxi}`, 'success');
   renderTab('commish');
 }
 
@@ -1963,6 +1999,22 @@ function openEdit(teamKey,slot,idx){
   document.getElementById('edit-modal').style.display='flex';
 }
 function openAdd(teamKey,slot,defaultPos){
+  // Enforce IR/Taxi slot limits
+  const t = DATA[teamKey];
+  if (t && slot === 'ir') {
+    const current = (t.ir||[]).filter(p=>p.name).length;
+    if (current >= MAX_IR) {
+      showToast(`IR is full (${current}/${MAX_IR} slots used). Adjust the limit in League Settings if needed.`, 'error');
+      return;
+    }
+  }
+  if (t && slot === 'taxi') {
+    const current = (t.taxi||[]).filter(p=>p.name).length;
+    if (current >= MAX_TAXI) {
+      showToast(`Taxi squad is full (${current}/${MAX_TAXI} slots used). Adjust the limit in League Settings if needed.`, 'error');
+      return;
+    }
+  }
   editCtx={teamKey,slot,idx:-1,isNew:true};
   document.getElementById('modal-title').textContent='Add Player';
   document.getElementById('modal-name').value='';

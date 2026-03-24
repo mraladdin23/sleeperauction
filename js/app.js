@@ -244,40 +244,94 @@ const App = (() => {
   }
 
   async function registerLeague() {
-    const lid    = (document.getElementById('picker-league-id')?.value || '').trim();
-    const errEl  = document.getElementById('picker-register-error');
+    const lid   = (document.getElementById('picker-league-id')?.value || '').trim();
+    const errEl = document.getElementById('picker-register-error');
     if (!lid) { if(errEl) errEl.textContent = 'Enter a league ID.'; return; }
-    if(errEl) errEl.textContent = '';
+    if(errEl) errEl.textContent = 'Verifying league…';
 
     try {
-      // Fetch league info from Sleeper to verify it exists
       const league = await Sleeper.fetchLeague(lid);
       if (!league?.league_id) throw new Error('League not found on Sleeper.');
 
-      // Check if user is a member of this league (commissioner check)
-      const rosters = await Sleeper.fetchRosters(lid);
-      const users   = await Sleeper.fetchLeagueUsers(lid);
-      const myUser  = users?.find(u => u.user_id === state.user?.user_id);
-      if (!myUser && !state.isCommissioner) {
+      const users  = await Sleeper.fetchLeagueUsers(lid);
+      const myUser = users?.find(u => u.user_id === state.user?.user_id);
+      if (!myUser) {
         if(errEl) errEl.textContent = 'You must be a member of this league to register it.';
         return;
       }
-
-      // Write to registry
-      await db.ref(`leagues/_registry/${lid}`).set({
-        name:      league.name,
-        season:    league.season,
-        status:    league.status,
-        addedBy:   state.user?.username,
-        addedAt:   Date.now(),
-        features:  { auctions: true, rosters: true, standings: true, draft: true },
-      });
-
       if(errEl) errEl.textContent = '';
-      if(document.getElementById('picker-league-id')) document.getElementById('picker-league-id').value = '';
-      showLeaguePicker(); // refresh
+
+      // Store pending league data for wizard submission
+      window._wizardLeagueId  = lid;
+      window._wizardLeague    = league;
+
+      // Show setup wizard
+      const meta = `${league.season} · ${league.total_rosters} teams · ${league.status}`;
+      if (typeof initWizard === 'function') {
+        initWizard(league.name, meta, league);
+      }
     } catch(e) {
       if(errEl) errEl.textContent = 'Error: ' + (e.message || e);
+    }
+  }
+
+  async function submitLeagueSetup() {
+    const lid    = window._wizardLeagueId;
+    const league = window._wizardLeague;
+    const errEl  = document.getElementById('wizard-error');
+    if (!lid || !league) { if(errEl) errEl.textContent = 'Something went wrong. Try again.'; return; }
+
+    const leagueType = document.querySelector('input[name="wiz-type"]:checked')?.value;
+    if (!leagueType) { if(errEl) errEl.textContent = 'Please select a league type.'; return; }
+
+    const isSalary  = leagueType === 'salary_auction';
+    const isDynasty = leagueType === 'dynasty_no_auction';
+
+    const features = {
+      auctions:  document.getElementById('wiz-feat-auctions')?.checked  || false,
+      rosters:   document.getElementById('wiz-feat-rosters')?.checked   || false,
+      standings: document.getElementById('wiz-feat-standings')?.checked || false,
+      draft:     document.getElementById('wiz-feat-draft')?.checked     || false,
+    };
+
+    const settings = {};
+    if (isSalary) {
+      const capVal = parseFloat(document.getElementById('wiz-cap')?.value);
+      if (!isNaN(capVal) && capVal > 0) settings.cap = Math.round(capVal * 1_000_000);
+      const salarySetup = document.querySelector('input[name="wiz-salary"]:checked')?.value;
+      settings.salarySetup = salarySetup || 'existing';
+    }
+    if (isSalary || isDynasty) {
+      const maxIR   = parseInt(document.getElementById('wiz-max-ir')?.value);
+      const maxTaxi = parseInt(document.getElementById('wiz-max-taxi')?.value);
+      if (!isNaN(maxIR))   settings.maxIR   = maxIR;
+      if (!isNaN(maxTaxi)) settings.maxTaxi = maxTaxi;
+    }
+
+    try {
+      // Write registry entry
+      await db.ref(`leagues/_registry/${lid}`).set({
+        name:        league.name,
+        season:      league.season,
+        status:      league.status,
+        leagueType,
+        addedBy:     state.user?.username,
+        addedAt:     Date.now(),
+        features,
+      });
+
+      // Write initial settings to the league path
+      if (Object.keys(settings).length) {
+        await db.ref(`leagues/${lid}/settings`).update(settings);
+      }
+
+      document.getElementById('league-setup-wizard').style.display = 'none';
+      if(document.getElementById('picker-league-id')) document.getElementById('picker-league-id').value = '';
+      window._wizardLeagueId = null;
+      window._wizardLeague   = null;
+      showLeaguePicker();
+    } catch(e) {
+      if(errEl) errEl.textContent = 'Failed to save: ' + (e.message || e);
     }
   }
 
@@ -1541,7 +1595,7 @@ const App = (() => {
     doSetup,
     switchTab,
     setFilter, renderFreeAgents, loadFreeAgents,
-    browseAsGuest, submitPassword, submitChangePassword, openChangePassword, skipChangePassword, switchLeague, showLeaguePicker, pickLeague, registerLeague, submitLeaguePassword, refreshAll, renderAll, updateHomeFeed, faSort, setStatYear,
+    browseAsGuest, submitPassword, submitChangePassword, openChangePassword, skipChangePassword, switchLeague, showLeaguePicker, pickLeague, registerLeague, submitLeaguePassword, submitLeagueSetup, refreshAll, renderAll, updateHomeFeed, faSort, setStatYear,
     enableNotifications,
     computeCustomPts,
     toggleWatch,
