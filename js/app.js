@@ -190,7 +190,15 @@ const App = (() => {
   }
 
   async function pickLeague(leagueId) {
-    // Password already verified at login -- go straight to the league
+    // Clear all view caches so every view re-initializes for the new league
+    if (typeof viewsLoaded !== 'undefined') {
+      Object.keys(viewsLoaded).forEach(k => delete viewsLoaded[k]);
+    }
+    if (window.capUnsubscribe) window.capUnsubscribe();
+    window._standingsInitPending = false;
+    window._capLeagueType = null;
+    window._capTeams      = null;
+
     state.leagueId   = leagueId;
     session.leagueId = leagueId;
     UI.showScreen('loading');
