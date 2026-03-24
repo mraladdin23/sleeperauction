@@ -314,7 +314,9 @@ const App = (() => {
         // Check if this user has a password -- require it even on reconnect
         const username = session.username.toLowerCase();
         try {
+          console.log('[boot] checking password for:', username);
           const pwSnap = await db.ref(`users/${username}/password`).once('value');
+          console.log('[boot] pwSnap.val():', pwSnap.val());
           if (pwSnap.val()) {
             // Check mustChange flag first
             const mcSnap = await db.ref(`users/${username}/passwordMustChange`).once('value');
@@ -332,7 +334,7 @@ const App = (() => {
             }
             return;
           }
-        } catch(e) { /* no password set, continue normally */ }
+        } catch(e) { console.error('[boot] password check error:', e); /* no password set, continue normally */ }
 
         await initApp();
         return;
@@ -378,7 +380,9 @@ const App = (() => {
 
       // Check if this user has a global password in Firebase
       try {
+        console.log('[doLogin] checking password for:', username.toLowerCase());
         const pwSnap = await db.ref(`users/${username.toLowerCase()}/password`).once('value');
+        console.log('[doLogin] pwSnap.val():', pwSnap.val());
         if (pwSnap.val()) {
           UI.showScreen('login');
           const pwWrap = document.getElementById('login-password-wrap');
@@ -389,7 +393,7 @@ const App = (() => {
           showLoginError('');
           return;
         }
-      } catch(e) {}
+      } catch(e) { console.error('[doLogin] password check error:', e); }
 
       // No password — go to league picker
       await showLeaguePicker();
