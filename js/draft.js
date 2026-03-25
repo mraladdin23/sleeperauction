@@ -217,8 +217,7 @@ async function loadRosterMapping() {
       userIdToTeam[String(r.owner_id)] = capKey;  // module-level
       // Store display name keyed by teamKey for historical season name lookup
       teamDisplayNames[capKey] = u.display_name || u.username || capKey;
-      console.log(`Roster ${r.roster_id} → ${capKey} (${u.display_name})`);
-    });
+      });
   } catch(e) {
     console.warn('loadRosterMapping:', e);
     // Last resort: try Firebase saved mapping
@@ -242,12 +241,6 @@ async function refreshDraft() {
   teamDisplayNames = {}; // reset for each season
   // Load roster mapping first so we can display team names
   await loadRosterMapping();
-  console.log('DRAFT DEBUG leagueId:', draftLeagueId(), 'viewing:', window.viewingDraftLeagueId);
-  console.log('DRAFT DEBUG teamDisplayNames:', JSON.stringify(teamDisplayNames));
-  console.log('DRAFT DEBUG rosterIdToTeam:', JSON.stringify(rosterIdToTeam));
-  console.log('=== DRAFT SEASON:', draftLeagueId());
-  console.log('=== rosterIdToTeam:', JSON.stringify(rosterIdToTeam));
-  console.log('=== teamDisplayNames:', JSON.stringify(teamDisplayNames));
 
   let draftPicks = {};    // key "r-slot" → { player, sleeperPick, rosterId }
   slotOwners = {};        // slot# → teamKey (from slot_to_roster_id)
@@ -317,7 +310,6 @@ async function refreshDraft() {
           const pick = (isSnakeD && r % 2 === 0) ? String(TEAMS_D + 1 - Number(slot)) : String(slot);
           slotOwners[`${r}-${pick}`] = val;
         }
-        console.log(`draft_order: user ${userId} → slot ${slot} → ${val}`);
       });
 
     } else {
@@ -358,11 +350,7 @@ async function refreshDraft() {
                              || rosterIdToTeam[String(pk.roster_id)]
                              || rosterIdToDisplayName[String(pk.roster_id)]
                              || null;
-          if (pk.round === 1 && pk.draft_slot <= 3) {
-            console.log(`[draft] Pick ${pk.round}-${pk.draft_slot}: player=${name}, roster_id=${pk.roster_id}, picked_by=${pk.picked_by}, actualPicker=${actualPicker}, resolvedTeam=${resolvedTeam}`);
-            console.log(`[draft] rosterIdToTeam keys:`, Object.keys(rosterIdToTeam).slice(0,5));
-            console.log(`[draft] teamDisplayNames keys:`, Object.keys(teamDisplayNames).slice(0,5));
-          }
+
           draftPicks[key] = {
             player: name,
             sleeperPick: true,
@@ -388,7 +376,6 @@ async function refreshDraft() {
       `${statusLabel} · ${draftInfo.season || ''} · type: ${draftInfo.type} · ID: ${draftInfo.draft_id}`;
     document.getElementById('draft-subtitle').title =
       `Slot owners: ${slotDebug || '(none)'}  |  rosterIdToTeam: ${JSON.stringify(rosterIdToTeam)}`;
-    console.log('Slot owners:', slotDebug);
 
     // Show "Assign All" button when draft is complete and user is commissioner
     const assignBtn = document.getElementById('assign-all-btn');

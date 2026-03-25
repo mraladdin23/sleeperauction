@@ -810,9 +810,9 @@ This only removes it from the registry — all league data in Firebase is preser
     // Make teams available to cap.js before capInit runs
     window._capTeams      = state.teams;
     window._capLeagueType = state.leagueType || 'salary_auction';
-    console.log('[app.js] _capTeams set:', state.teams.length, 'teams');
-    console.log('[app.js] _capLeagueType set:', window._capLeagueType);
-    console.log('[app.js] state.leagueType:', state.leagueType);
+
+
+
 
     // Write username -> roster_id map so cap.js can sync rosterSizes
     try {

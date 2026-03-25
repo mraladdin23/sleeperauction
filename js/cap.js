@@ -102,10 +102,10 @@ function subscribeRosters() {
   };
   window._capRosterRef.on('value', snap => {
     const fbData = snap.val();
-    console.log('[cap.js] Firebase data:', fbData ? Object.keys(fbData).length + ' teams' : 'null');
-    console.log('[cap.js] _capLeagueType:', window._capLeagueType);
-    console.log('[cap.js] _capTeams:', window._capTeams ? window._capTeams.length + ' teams' : 'null');
-    console.log('[cap.js] isSalaryLeague:', isSalaryLeague());
+
+
+
+
     if (fbData && Object.keys(fbData).length > 0) {
       DATA = fbData;
       const _lu1 = document.getElementById('last-upd'); if(_lu1) _lu1.textContent = 'Live data';
@@ -113,7 +113,7 @@ function subscribeRosters() {
       // No Firebase roster data -- build from Sleeper live data if available
       // Build from Sleeper live teams -- window._capTeams set by app.js before capInit
       const appTeams = window._capTeams || window.App?.state?.teams || [];
-      console.log('[cap.js] appTeams for fallback:', appTeams.length);
+  
       if (appTeams.length > 0) {
         DATA = {};
         appTeams.forEach(t => {
@@ -749,8 +749,10 @@ function renderAllPlayers() {
   const dir = apSort.dir;
   if (apSort.col === 'pts') {
     filtered.sort((a, b) => {
-      const pa = (stats[PLAYER_LOOKUP[a.name.toLowerCase()]?.player_id||'']?.pts_ppr ?? -1);
-      const pb = (stats[PLAYER_LOOKUP[b.name.toLowerCase()]?.player_id||'']?.pts_ppr ?? -1);
+      const pidA = a.player_id || PLAYER_LOOKUP[a.name.toLowerCase()]?.player_id || '';
+      const pidB = b.player_id || PLAYER_LOOKUP[b.name.toLowerCase()]?.player_id || '';
+      const pa = (stats[pidA]?.pts_ppr ?? -1);
+      const pb = (stats[pidB]?.pts_ppr ?? -1);
       return -dir * (pb - pa);
     });
   } else if (apSort.col === 'name') {
@@ -2485,7 +2487,6 @@ function capInit() {
         cap_spent: 0, starters: [], ir: [], taxi: [],
       };
     });
-    console.log('[cap.js] Early DATA from _capTeams:', Object.keys(DATA).length, 'teams');
   }
 
   subscribeRosters();
