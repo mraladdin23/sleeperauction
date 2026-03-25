@@ -185,33 +185,37 @@ function searchGifs(query) {
   _gifTimer = setTimeout(async () => {
     const el = document.getElementById('gif-results');
     if (!el) return;
-    el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:12px;">Searching…</div>';
+    el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Searching…</div>';
     try {
-      // Use Giphy public beta key
-      const r = await fetch(`https://api.giphy.com/v1/gifs/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(query)}&limit=12&rating=pg-13`);
+      const r = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(query)}&key=LIVDSRZULELA&limit=12&media_filter=tinygif,gif`);
       const data = await r.json();
-      const results = data.data || [];
-      if (!results.length) { el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:12px;">No GIFs found</div>'; return; }
-      const gifUrls2 = [];
+      const results = data.results || [];
+      if (!results.length) {
+        el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">No GIFs found — try different keywords</div>';
+        return;
+      }
+      const gifUrls = [];
       el.innerHTML = results.map(g => {
-        const preview = g.images?.fixed_height_small?.url || g.images?.downsized_small?.url || '';
-        const full    = g.images?.downsized?.url || preview;
+        const preview = g.media_formats?.tinygif?.url || g.media_formats?.gif?.url || '';
+        const full    = g.media_formats?.gif?.url    || preview;
         if (!preview) return '';
-        const idx = gifUrls2.length;
-        gifUrls2.push(full);
-        return `<img src="${preview}" style="width:100%;height:80px;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid transparent;"
-          data-gif-idx="${idx}"
+        gifUrls.push(full);
+        return `<img src="${preview}"
+          style="width:100%;height:80px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid transparent;"
           onmouseover="this.style.borderColor='var(--accent)'"
-          onmouseout="this.style.borderColor='transparent'" loading="lazy" />`;
+          onmouseout="this.style.borderColor='transparent'"
+          data-gif-idx="${gifUrls.length - 1}"
+          loading="lazy" />`;
       }).join('');
       el.onclick = e => {
         const img = e.target.closest('img[data-gif-idx]');
-        if (img) sendGif(gifUrls2[parseInt(img.dataset.gifIdx)]);
+        if (img) sendGif(gifUrls[parseInt(img.dataset.gifIdx)]);
       };
     } catch(e) {
-      el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:12px;">Could not load GIFs</div>';
+      console.warn('GIF search error:', e);
+      el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Could not load GIFs</div>';
     }
-  }, 400);
+  }, 500);
 }
 
 async function sendGif(url) {
@@ -383,23 +387,24 @@ function searchSidebarGifs(query) {
     if (!el) return;
     el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Searching…</div>';
     try {
-      const r = await fetch(`https://api.giphy.com/v1/gifs/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(query)}&limit=9&rating=pg-13`);
+      const r = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(query)}&key=LIVDSRZULELA&limit=9&media_filter=tinygif,gif`);
       const data = await r.json();
-      const results = data.data || [];
-      if (!results.length) { el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">No GIFs found</div>'; return; }
-      // Store URLs in a closure array, use index-based onclick to avoid URL encoding issues
+      const results = data.results || [];
+      if (!results.length) {
+        el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">No GIFs found — try different keywords</div>';
+        return;
+      }
       const gifUrls = [];
       el.innerHTML = results.map(g => {
-        const preview = g.images?.fixed_height_small?.url || g.images?.downsized_small?.url || '';
-        const full    = g.images?.downsized?.url || preview;
+        const preview = g.media_formats?.tinygif?.url || g.media_formats?.gif?.url || '';
+        const full    = g.media_formats?.gif?.url    || preview;
         if (!preview) return '';
-        const idx = gifUrls.length;
         gifUrls.push(full);
         return `<img src="${preview}"
           style="width:100%;height:60px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid transparent;"
           onmouseover="this.style.borderColor='var(--accent)'"
           onmouseout="this.style.borderColor='transparent'"
-          data-gif-idx="${idx}"
+          data-gif-idx="${gifUrls.length - 1}"
           loading="lazy" />`;
       }).join('');
       el.onclick = e => {
@@ -407,9 +412,10 @@ function searchSidebarGifs(query) {
         if (img) sendSidebarGif(gifUrls[parseInt(img.dataset.gifIdx)]);
       };
     } catch(e) {
+      console.warn('GIF search error:', e);
       el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Could not load GIFs</div>';
     }
-  }, 400);
+  }, 500);
 }
 
 async function sendSidebarGif(url) {

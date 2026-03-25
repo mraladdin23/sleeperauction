@@ -63,7 +63,7 @@ function initVizView() {
       <div style="font-size:13px;color:var(--text3);margin-bottom:16px;">Fun stats you won't find anywhere else</div>
 
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:20px;" id="viz-tabs">
-        ${['🔄 Trade Map','🍀 Luck Index','🏆 Power Rankings','🎓 Draft Grades','💎 Waiver Impact'].map((t,i)=>
+        ${['🔄 Trade Map','🍀 Luck Index','🏆 Power Rankings','📋 Draft Recap','💎 Waiver Impact'].map((t,i)=>
           `<button onclick="showVizTab(${i})" id="viz-tab-${i}"
             style="padding:7px 14px;font-size:12px;font-family:var(--font-body);
             background:${i===0?'var(--accent)':'var(--surface2)'};
@@ -359,8 +359,9 @@ async function renderPowerRankings(el) {
 // ── 4. DRAFT GRADES ────────────────────────────────────────────
 async function renderDraftGrades(el) {
   const lid = _vizYear || localStorage.getItem('sb_leagueId');
-  el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);">Loading draft grades…</div>';
+  el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);">Loading draft recap…</div>';
   try {
+    // Get draft info
     const drafts = await fetch(`https://api.sleeper.app/v1/league/${lid}/drafts`).then(r=>r.json());
     if (!drafts?.length) { el.innerHTML = noData('No drafts found for this season.'); return; }
     const completedDraft = [...drafts].sort((a,b)=>Number(b.draft_id)-Number(a.draft_id))
@@ -369,67 +370,111 @@ async function renderDraftGrades(el) {
     if (!picks?.length) { el.innerHTML = noData('No picks found in this draft yet.'); return; }
 
     const teamNames = await getVizTeamNames(lid);
-    const teams = completedDraft.settings?.teams || 12;
+    const teams  = completedDraft.settings?.teams  || 12;
     const rounds = completedDraft.settings?.rounds || 4;
-    const draftType = completedDraft.type === 'snake' ? 'Redraft' : 'Rookie/Dynasty';
+    const year   = completedDraft.season || new Date().getFullYear();
+    const isSnak = completedDraft.type === 'snake';
 
-    // Group picks by roster
-    const byRoster = {};
-    picks.forEach(p => {
-      const rid = String(p.roster_id || '');
-      if (!rid || rid === 'undefined') return;
-      if (!byRoster[rid]) byRoster[rid] = [];
+    // Fetch season stats for the draft year to measure actual value
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);">Fetching season stats…</div>';
+    let seasonStats = {};
+    try {
+      const statsRaw = await fetch(`https://api.sleeper.app/v1/stats/nfl/regular/${year}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE`).then(r=>r.json());
+      // statsRaw: { player_id: { pts_ppr, pts_std, rec_yd, ... } }
+      seasonStats = statsRaw || {};
+    } catch(e) { console.warn('Season stats fetch failed:', e); }
+
+    // Build picks array with overall position and actual season points
+    const allPicks = picks.map(p => {
+      const rid     = String(p.roster_id || '');
       const overall = (p.round - 1) * teams + (p.draft_slot || 1);
-      const name = p.metadata ? `${p.metadata.first_name||''} ${p.metadata.last_name||''}`.trim() : `Unknown`;
-      const pos  = p.metadata?.position || '?';
-      byRoster[rid].push({ name, pos, round: p.round, slot: p.draft_slot, overall });
+      const name    = p.metadata ? `${p.metadata.first_name||''} ${p.metadata.last_name||''}`.trim() : 'Unknown';
+      const pos     = p.metadata?.position || '?';
+      const pid     = p.player_id;
+      const pts     = pid && seasonStats[pid] ? (seasonStats[pid].pts_ppr || seasonStats[pid].pts_std || 0) : null;
+      return { rid, overall, name, pos, pid, pts, round: p.round, slot: p.draft_slot };
+    }).filter(p => p.rid && p.rid !== 'undefined');
+
+    // Rank all picks by actual points to get "value rank"
+    const picksWithStats = allPicks.filter(p => p.pts !== null && p.pts > 0);
+    picksWithStats.sort((a,b) => b.pts - a.pts);
+    const valueRankMap = {}; // player overall -> value rank (1 = best actual performer)
+    picksWithStats.forEach((p, i) => { valueRankMap[p.overall] = i + 1; });
+
+    // Group by roster
+    const byRoster = {};
+    allPicks.forEach(p => {
+      if (!byRoster[p.rid]) byRoster[p.rid] = [];
+      byRoster[p.rid].push(p);
     });
 
-    if (!Object.keys(byRoster).length) { el.innerHTML = noData('Could not map picks to teams.'); return; }
+    const POS_COLOR = { QB:'#e88c30', RB:'#3b82f6', WR:'#22c55e', TE:'#a855f7' };
+    const hasStats  = picksWithStats.length > 0;
 
-    // Compute positional diversity score: teams that spread picks across positions score higher
-    // Also highlight early-round picks (rounds 1-2) as the "marquee" picks
-    const POS_COLOR = { QB:'#e88c30', RB:'#3b82f6', WR:'#22c55e', TE:'#a855f7', K:'#6b7280', DEF:'#6b7280' };
-
-    const summaries = Object.entries(byRoster).map(([rid, picks]) => {
+    // Compute team value scores (avg: draft_position - value_rank, positive = stole picks)
+    const summaries = Object.entries(byRoster).map(([rid, rPicks]) => {
       const name = teamNames[rid] || `Roster ${rid}`;
-      const marquee = picks.filter(p => p.round <= 2).sort((a,b)=>a.overall-b.overall);
-      const posCounts = {};
-      picks.forEach(p => { posCounts[p.pos] = (posCounts[p.pos]||0)+1; });
-      const avgPick = picks.length ? (picks.reduce((s,p)=>s+p.overall,0)/picks.length).toFixed(1) : '—';
-      return { rid, name, picks, marquee, posCounts, avgPick };
-    }).sort((a,b) => {
-      // Sort by average pick position (lower avg = picked earlier overall = stronger draft)
-      return parseFloat(a.avgPick) - parseFloat(b.avgPick);
-    });
+      const totalPts = rPicks.reduce((s,p) => s + (p.pts||0), 0);
+      const topPicks = rPicks.filter(p=>p.round<=2).sort((a,b)=>a.overall-b.overall);
+      // Steals: players whose actual value rank is much better than draft rank
+      const steals = rPicks
+        .filter(p => valueRankMap[p.overall] && valueRankMap[p.overall] < p.overall * 0.6)
+        .sort((a,b) => valueRankMap[a.overall] - valueRankMap[b.overall])
+        .slice(0, 2);
+      const busts = rPicks
+        .filter(p => p.pts !== null && p.pts < 30 && p.round <= 3)
+        .sort((a,b) => a.overall - b.overall)
+        .slice(0, 2);
+      return { rid, name, picks: rPicks, totalPts, topPicks, steals, busts };
+    }).sort((a,b) => b.totalPts - a.totalPts || a.picks[0]?.overall - b.picks[0]?.overall);
+
+    const maxPts = summaries[0]?.totalPts || 1;
 
     el.innerHTML = `
-      <div style="font-size:13px;color:var(--text3);margin-bottom:16px;">
-        ${draftType} draft · ${rounds} rounds · ${teams} teams. Sorted by avg pick position (earlier = stronger overall draft).
+      <div style="font-size:13px;color:var(--text3);margin-bottom:4px;">
+        ${isSnak ? 'Redraft' : 'Rookie/Dynasty'} draft · ${rounds} rounds · ${teams} teams · ${year} season
+      </div>
+      <div style="font-size:12px;color:var(--text3);margin-bottom:16px;">
+        ${hasStats ? 'Sorted by total fantasy points scored by drafted players (PPR).' : 'Season stats not available — showing draft order.'}
       </div>
       <div style="display:flex;flex-direction:column;gap:10px;">
         ${summaries.map((s, rank) => {
-          const posBar = Object.entries(s.posCounts).map(([pos, n]) =>
-            `<span style="display:inline-block;padding:2px 6px;border-radius:99px;font-size:10px;font-weight:600;background:${POS_COLOR[pos]||'#6b7280'}22;color:${POS_COLOR[pos]||'#6b7280'};border:1px solid ${POS_COLOR[pos]||'#6b7280'}44;margin-right:3px;">${pos} ×${n}</span>`
-          ).join('');
-          const marqueeNames = s.marquee.slice(0,3).map(p =>
-            `<span style="font-size:12px;color:var(--text);">${p.name} <span style="color:var(--text3);">(${p.pos} #${p.overall})</span></span>`
-          ).join('<span style="color:var(--text3);margin:0 4px;">·</span>');
           const medals = ['🥇','🥈','🥉'];
+          const pctBar = hasStats ? (s.totalPts / maxPts * 100).toFixed(1) : 0;
+          const posMap = {};
+          s.picks.forEach(p => { posMap[p.pos] = (posMap[p.pos]||0)+1; });
+          const posBadges = Object.entries(posMap)
+            .map(([pos,n]) => `<span style="font-size:10px;padding:2px 6px;border-radius:99px;background:${POS_COLOR[pos]||'#6b7280'}22;color:${POS_COLOR[pos]||'#6b7280'};border:1px solid ${POS_COLOR[pos]||'#6b7280'}55;margin-right:3px;">${pos}×${n}</span>`)
+            .join('');
+          const topPickStr = s.topPicks.slice(0,3).map(p =>
+            `<span style="color:var(--text2);">${p.name}</span><span style="color:var(--text3);font-size:10px;"> #${p.overall}</span>`
+          ).join('<span style="color:var(--border);"> · </span>');
+          const stealStr = s.steals.map(p =>
+            `<span style="color:var(--green);">🎯 ${p.name} <span style="color:var(--text3);font-size:10px;">(#${p.overall}→ #${valueRankMap[p.overall]} actual)</span></span>`
+          ).join(' ');
+          const bustStr = s.busts.map(p =>
+            `<span style="color:var(--red);">💥 ${p.name} <span style="color:var(--text3);font-size:10px;">(Rd ${p.round}, ${p.pts?.toFixed(0)||0} pts)</span></span>`
+          ).join(' ');
           return `
             <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px 16px;border-left:3px solid ${rank<3?'var(--accent)':'var(--border)'};">
-              <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
-                <span style="font-size:16px;">${medals[rank]||'  '}</span>
+              <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+                <span style="font-size:16px;flex-shrink:0;">${medals[rank]||`<span style="font-size:12px;color:var(--text3);">#${rank+1}</span>`}</span>
                 <span style="font-size:14px;font-weight:600;">${s.name}</span>
-                <span style="font-size:11px;color:var(--text3);margin-left:auto;">avg pick #${s.avgPick}</span>
+                ${hasStats ? `<span style="font-size:12px;color:var(--text3);margin-left:auto;">${s.totalPts.toFixed(0)} total pts</span>` : ''}
               </div>
-              ${s.marquee.length ? `<div style="margin-bottom:6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:12px;color:var(--text3);">Top picks: ${marqueeNames}</div>` : ''}
-              <div>${posBar}</div>
+              ${hasStats ? `
+              <div style="background:var(--surface3,var(--surface));border-radius:99px;height:6px;overflow:hidden;margin-bottom:8px;">
+                <div style="height:100%;width:${pctBar}%;background:linear-gradient(90deg,var(--accent),var(--green));border-radius:99px;"></div>
+              </div>` : ''}
+              <div style="font-size:11px;color:var(--text3);margin-bottom:4px;">Early picks: ${topPickStr || '—'}</div>
+              <div style="margin-bottom:4px;">${posBadges}</div>
+              ${stealStr ? `<div style="font-size:11px;margin-top:4px;">${stealStr}</div>` : ''}
+              ${bustStr  ? `<div style="font-size:11px;margin-top:3px;">${bustStr}</div>`  : ''}
             </div>`;
         }).join('')}
       </div>`;
   } catch(e) {
-    el.innerHTML = `<div style="color:var(--red);padding:20px;">Could not load draft data: ${e.message}</div>`;
+    el.innerHTML = `<div style="color:var(--red);padding:20px;">Could not load draft recap: ${e.message}</div>`;
     console.warn('renderDraftGrades error:', e);
   }
 }
