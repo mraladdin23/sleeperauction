@@ -54,10 +54,20 @@ function subscribeRosters() {
         // Build reverse lookup: player_id -> player data
         if (p.first_name && p.last_name) {
           window._playerById[playerId] = {
-            name:     `${p.first_name} ${p.last_name}`,
-            pos:      p.fantasy_positions?.[0] || p.position || '—',
-            team:     p.team || '—',
-            rank:     p.search_rank || p.rank || 9999,
+            name:       `${p.first_name} ${p.last_name}`,
+            pos:        p.fantasy_positions?.[0] || p.position || '—',
+            team:       p.team || '—',
+            rank:       p.rank || p.search_rank || 9999,
+            age:        p.age || null,
+            birth_date: p.birth_date || null,
+            height:     p.height || null,
+            weight:     p.weight || null,
+            college:    p.college || null,
+            years_exp:  p.years_exp ?? null,
+            birth_country: p.birth_country || null,
+            depth_chart_order: p.depth_chart_order || null,
+            status:     p.status || null,
+            injury_status: p.injury_status || null,
           };
         }
         if (p.first_name && p.last_name) {
@@ -2504,70 +2514,100 @@ if (document.getElementById('edit-modal')) {
 }
 
 // ── PLAYER CARD ───────────────────────────────────────────────
-let _pcYear = 2025;
-let _pcPlayerId = null;
+let _pcYear      = 2025;
+let _pcPlayerId  = null;
+let _pcWeekCache = {};  // year -> weekly data
+
+function fmtHeight(inches) {
+  if (!inches) return null;
+  const ft = Math.floor(inches/12), ins = inches%12;
+  return `${ft}'${ins}"`;
+}
 
 async function showPlayerCard(playerId, playerName) {
   if (!playerId && !playerName) return;
   const modal = document.getElementById('player-card-modal');
   if (!modal) return;
   modal.style.display = 'flex';
-  _pcPlayerId = playerId;
+  _pcWeekCache = {};
 
-  // Resolve player data from _playerById or PLAYER_LOOKUP
-  const byId  = window._playerById || {};
-  let pData   = playerId ? byId[playerId] : null;
+  // Resolve player data
+  const byId = window._playerById || {};
+  let pData  = playerId ? byId[playerId] : null;
   if (!pData && playerName) {
-    const lk  = PLAYER_LOOKUP[playerName.toLowerCase()] || {};
-    _pcPlayerId = lk.player_id || playerId;
-    pData = _pcPlayerId ? byId[_pcPlayerId] : null;
+    const lk = PLAYER_LOOKUP[(playerName||'').toLowerCase()] || {};
+    playerId = lk.player_id || playerId;
+    pData    = playerId ? byId[playerId] : null;
+  }
+  _pcPlayerId = playerId || null;
+
+  const name    = pData?.name  || playerName || 'Unknown';
+  const pos     = pData?.pos   || '—';
+  const nflTeam = pData?.team  || '—';
+  const pc      = POS_COLORS[pos] || '#888';
+
+  // Header
+  document.getElementById('pc-name').textContent = name;
+  document.getElementById('pc-team').textContent = nflTeam;
+
+  // Photo
+  const photoEl = document.getElementById('pc-photo');
+  if (_pcPlayerId) {
+    photoEl.src = `https://sleepercdn.com/content/nfl/players/${_pcPlayerId}.jpg`;
+    photoEl.style.display = '';
+  } else {
+    photoEl.style.display = 'none';
   }
 
-  // Set header info
-  const name  = pData?.name  || playerName || 'Unknown';
-  const pos   = pData?.pos   || '—';
-  const team  = pData?.team  || '—';
-  const pc    = POS_COLORS[pos] || '#888';
-
-  document.getElementById('pc-name').textContent  = name;
-  document.getElementById('pc-team').textContent  = team;
-  document.getElementById('pc-age').textContent   = pData ? `Age ${calcAge(name) || '—'}` : '';
-  document.getElementById('pc-exp').textContent   = pData ? `Yr ${(pData.rank < 9999 ? 'Rnk #'+pData.rank : '')}` : '';
+  // Position badge
   const posEl = document.getElementById('pc-pos');
-  posEl.textContent   = pos;
+  posEl.textContent      = pos;
   posEl.style.background = pc + '22';
   posEl.style.color      = pc;
 
-  if (_pcPlayerId) {
-    document.getElementById('pc-photo').src = `https://sleepercdn.com/content/nfl/players/${_pcPlayerId}.jpg`;
-    document.getElementById('pc-photo').style.display = '';
-  } else {
-    document.getElementById('pc-photo').style.display = 'none';
-  }
+  // Bio details
+  const bioItems = [];
+  if (pData?.age)        bioItems.push(`Age ${pData.age}`);
+  if (pData?.height)     bioItems.push(fmtHeight(pData.height));
+  if (pData?.weight)     bioItems.push(`${pData.weight} lbs`);
+  if (pData?.college)    bioItems.push(pData.college);
+  if (pData?.years_exp != null) bioItems.push(`Yr ${pData.years_exp + 1}`);
+  if (pData?.birth_country && pData.birth_country !== 'USA') bioItems.push(pData.birth_country);
+  if (pData?.status && pData.status !== 'Active') bioItems.push(`⚠️ ${pData.status}`);
+  if (pData?.injury_status) bioItems.push(`🏥 ${pData.injury_status}`);
+  if (pData?.rank && pData.rank < 9999) bioItems.push(`Rank #${pData.rank}`);
+  document.getElementById('pc-age').textContent = bioItems.slice(0, 4).join(' · ');
+  document.getElementById('pc-exp').textContent = bioItems.slice(4).join(' · ');
 
-  // Find which team owns this player
+  // Owner
   let ownerLabel = '';
-  if (DATA) {
-    for (const [key, t] of Object.entries(DATA)) {
-      const allPlayers = [...(t.starters||[]), ...(t.ir||[]), ...(t.taxi||[])];
-      if (allPlayers.some(p => p.name === name)) {
-        ownerLabel = t.team_name || key;
-        break;
-      }
-    }
-  }
-  if (!ownerLabel && window._capTeams) {
+  if (window._capTeams) {
     const capT = window._capTeams.find(tm => (tm.players||[]).includes(_pcPlayerId));
     if (capT) ownerLabel = capT.display_name || capT.username || '';
   }
+  if (!ownerLabel && DATA) {
+    for (const [key, t] of Object.entries(DATA)) {
+      const all = [...(t.starters||[]),...(t.ir||[]),...(t.taxi||[])];
+      if (all.some(p => p.name === name)) { ownerLabel = t.team_name || key; break; }
+    }
+  }
   document.getElementById('pc-owner').textContent = ownerLabel ? `📋 ${ownerLabel}` : '';
 
-  // Build year tabs
-  const years = [2022, 2023, 2024, 2025];
-  const tabsEl = document.getElementById('pc-year-tabs');
+  // FantasyCalc dynasty value (async, non-blocking)
+  const expEl = document.getElementById('pc-exp');
+  if (expEl) {
+    pcGetDynastyValue(name).then(val => {
+      const bioSuffix = expEl.textContent;
+      if (val) expEl.textContent = (bioSuffix ? bioSuffix + ' · ' : '') + `KTC: ${val}`;
+    }).catch(()=>{});
+  }
+
+  // Year tabs
+  const years   = [2022, 2023, 2024, 2025];
+  const tabsEl  = document.getElementById('pc-year-tabs');
   tabsEl.innerHTML = years.map(y =>
     `<button onclick="pcSetYear(${y})" id="pc-yr-${y}"
-      style="padding:6px 12px;font-size:12px;font-family:var(--font-body);
+      style="padding:6px 14px;font-size:12px;font-family:var(--font-body);
       background:${y===_pcYear?'var(--accent)':'var(--surface2)'};
       color:${y===_pcYear?'#fff':'var(--text2)'};
       border:1px solid var(--border);border-radius:var(--radius-sm) var(--radius-sm) 0 0;
@@ -2590,91 +2630,120 @@ function pcSetYear(y) {
 }
 
 async function pcLoadYear(year) {
-  if (!_pcPlayerId) return;
+  if (!_pcPlayerId) { pcShowNoStats(); return; }
   const sumEl = document.getElementById('pc-season-summary');
   const logEl = document.getElementById('pc-game-log');
-  sumEl.innerHTML = '<div style="color:var(--text3);font-size:12px;">Loading…</div>';
+  sumEl.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px;">Loading…</div>';
   logEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);">Loading…</div>';
 
   try {
-    // Fetch season totals + weekly breakdown in parallel
-    const [seasonData, weeklyData] = await Promise.all([
-      fetch(`https://api.sleeper.app/v1/stats/nfl/player/${_pcPlayerId}?season_type=regular&season=${year}&grouping=season`).then(r=>r.ok?r.json():null),
-      fetch(`https://api.sleeper.app/v1/stats/nfl/player/${_pcPlayerId}?season_type=regular&season=${year}&grouping=week`).then(r=>r.ok?r.json():[]),
-    ]);
-
-    // Season summary
-    const s = (Array.isArray(seasonData) ? seasonData[0] : seasonData) || {};
-    const stats = s.stats || s || {};
-    const pts   = stats.pts_ppr?.toFixed(1) ?? '—';
-    const summaryItems = [
-      ['Pts PPR',   pts],
-      ['Pass Yd',   stats.pass_yd ? Math.round(stats.pass_yd) : null],
-      ['Pass TD',   stats.pass_td ?? null],
-      ['Rush Yd',   stats.rush_yd ? Math.round(stats.rush_yd) : null],
-      ['Rush TD',   stats.rush_td ?? null],
-      ['Rec',       stats.rec ?? null],
-      ['Rec Yd',    stats.rec_yd ? Math.round(stats.rec_yd) : null],
-      ['Rec TD',    stats.rec_td ?? null],
-      ['GP',        stats.gp ?? null],
-    ].filter(([,v]) => v !== null && v !== undefined);
-
-    sumEl.innerHTML = summaryItems.length
-      ? summaryItems.map(([l,v]) =>
-          `<div style="text-align:center;background:var(--surface2);border-radius:6px;padding:8px 12px;min-width:50px;">
-            <div style="font-family:var(--font-mono);font-size:15px;font-weight:600;">${v}</div>
-            <div style="font-size:10px;color:var(--text3);margin-top:2px;">${l}</div>
-          </div>`).join('')
-      : '<div style="color:var(--text3);font-size:12px;padding:8px;">No stats available for this season.</div>';
-
-    // Game log
-    const weeks = Array.isArray(weeklyData) ? weeklyData
-      : Object.entries(weeklyData||{}).map(([wk, d]) => ({...d, week: parseInt(wk)}));
-    weeks.sort((a,b) => (a.week||0)-(b.week||0));
-
-    if (!weeks.length) {
-      logEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);">No weekly data available.</div>';
-      return;
+    // Weekly game log -- /v1/stats/nfl/player/{id}?season_type=regular&season={y}&grouping=week
+    // Returns: { "1": {pts_ppr:x, rush_yd:y, ...}, "2": {...}, ... }
+    let weeklyRaw = _pcWeekCache[year];
+    if (!weeklyRaw) {
+      const r = await fetch(
+        `https://api.sleeper.app/v1/stats/nfl/player/${_pcPlayerId}?season_type=regular&season=${year}&grouping=week`
+      );
+      weeklyRaw = r.ok ? await r.json() : null;
+      if (weeklyRaw) _pcWeekCache[year] = weeklyRaw;
     }
 
-    const rows = weeks.map(w => {
-      const ws    = w.stats || w;
-      const wPts  = ws.pts_ppr?.toFixed(1) ?? '—';
-      const opp   = w.opponent || ws.opponent || '—';
-      const wk    = w.week || w.game_id || '—';
+    // Also try to get season total from apStatsMap (if same year as loaded)
+    const cachedStats = (apStatsMap || {})[_pcPlayerId] || null;
+
+    if (!weeklyRaw || typeof weeklyRaw !== 'object') {
+      pcShowNoStats(sumEl, logEl); return;
+    }
+
+    // Weekly data: object keyed by week number string
+    const weekEntries = Object.entries(weeklyRaw)
+      .map(([wk, s]) => ({ week: parseInt(wk), ...s }))
+      .filter(w => w.week > 0)
+      .sort((a,b) => a.week - b.week);
+
+    if (!weekEntries.length) { pcShowNoStats(sumEl, logEl); return; }
+
+    // Compute season totals from weekly data
+    const totals = weekEntries.reduce((acc, w) => {
+      acc.pts_ppr  = (acc.pts_ppr  || 0) + (w.pts_ppr  || 0);
+      acc.pass_yd  = (acc.pass_yd  || 0) + (w.pass_yd  || 0);
+      acc.pass_td  = (acc.pass_td  || 0) + (w.pass_td  || 0);
+      acc.rush_yd  = (acc.rush_yd  || 0) + (w.rush_yd  || 0);
+      acc.rush_td  = (acc.rush_td  || 0) + (w.rush_td  || 0);
+      acc.rec      = (acc.rec      || 0) + (w.rec      || 0);
+      acc.rec_yd   = (acc.rec_yd   || 0) + (w.rec_yd   || 0);
+      acc.rec_td   = (acc.rec_td   || 0) + (w.rec_td   || 0);
+      acc.gp       = (acc.gp       || 0) + 1;
+      return acc;
+    }, {});
+
+    // Season summary
+    const gp  = totals.gp || 1;
+    const avg = totals.pts_ppr ? (totals.pts_ppr / gp).toFixed(1) : null;
+    const summaryItems = [
+      ['Total Pts',  totals.pts_ppr ? totals.pts_ppr.toFixed(1) : null],
+      ['Avg/Gm',     avg],
+      ['GP',         gp],
+      totals.pass_yd  ? ['Pass Yd',  Math.round(totals.pass_yd)]   : null,
+      totals.pass_td  ? ['Pass TD',  totals.pass_td]                : null,
+      totals.rush_yd  ? ['Rush Yd',  Math.round(totals.rush_yd)]    : null,
+      totals.rush_td  ? ['Rush TD',  totals.rush_td]                : null,
+      totals.rec      ? ['Rec',      totals.rec]                    : null,
+      totals.rec_yd   ? ['Rec Yd',   Math.round(totals.rec_yd)]     : null,
+      totals.rec_td   ? ['Rec TD',   totals.rec_td]                 : null,
+    ].filter(Boolean).filter(([,v]) => v !== null && v !== undefined && v !== 0);
+
+    sumEl.innerHTML = summaryItems.map(([l,v]) =>
+      `<div style="text-align:center;background:var(--surface2);border-radius:6px;padding:8px 10px;min-width:48px;">
+        <div style="font-family:var(--font-mono);font-size:15px;font-weight:600;">${v}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px;">${l}</div>
+      </div>`
+    ).join('');
+
+    // Game log table
+    const rows = weekEntries.map(w => {
+      const pts   = w.pts_ppr != null ? w.pts_ppr.toFixed(1) : '—';
+      const color = w.pts_ppr == null ? 'var(--text3)' : w.pts_ppr >= 20 ? 'var(--green)' : w.pts_ppr >= 10 ? 'var(--text)' : 'var(--red)';
       const bits  = [];
-      if (ws.pass_yd) bits.push(Math.round(ws.pass_yd)+'Pa');
-      if (ws.pass_td) bits.push(ws.pass_td+'PTD');
-      if (ws.rush_yd) bits.push(Math.round(ws.rush_yd)+'Ru');
-      if (ws.rush_td) bits.push(ws.rush_td+'RTD');
-      if (ws.rec)     bits.push(ws.rec+'/'+Math.round(ws.rec_yd||0)+'Re');
-      if (ws.rec_td)  bits.push(ws.rec_td+'ReTD');
-      const ptsColor = !ws.pts_ppr ? 'var(--text3)' : ws.pts_ppr >= 20 ? 'var(--green)' : ws.pts_ppr >= 10 ? 'var(--text)' : 'var(--red)';
-      return `<tr>
-        <td style="font-size:12px;color:var(--text3);padding:5px 8px;">Wk ${wk}</td>
-        <td style="font-size:12px;padding:5px 8px;">${opp}</td>
-        <td style="font-family:var(--font-mono);font-size:13px;font-weight:600;color:${ptsColor};padding:5px 8px;">${wPts}</td>
-        <td style="font-size:11px;color:var(--text3);padding:5px 8px;">${bits.join(' · ')}</td>
+      if (w.pass_yd)  bits.push(Math.round(w.pass_yd)+'Pa');
+      if (w.pass_td)  bits.push(w.pass_td+'PTD');
+      if (w.rush_att) bits.push(w.rush_att+' car');
+      if (w.rush_yd)  bits.push(Math.round(w.rush_yd)+'Ru');
+      if (w.rush_td)  bits.push(w.rush_td+'RTD');
+      if (w.rec)      bits.push(w.rec+'/'+Math.round(w.rec_yd||0)+'Re');
+      if (w.rec_td)   bits.push(w.rec_td+'ReTD');
+      if (w.pass_int) bits.push(w.pass_int+'INT');
+      return `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:5px 8px;font-size:12px;color:var(--text3);">Wk ${w.week}</td>
+        <td style="padding:5px 8px;font-family:var(--font-mono);font-size:13px;font-weight:600;color:${color};">${pts}</td>
+        <td style="padding:5px 8px;font-size:11px;color:var(--text2);">${bits.join(' · ') || '—'}</td>
       </tr>`;
     }).join('');
 
     logEl.innerHTML = `<table style="width:100%;border-collapse:collapse;">
-      <thead><tr style="border-bottom:1px solid var(--border);">
-        <th style="text-align:left;font-size:11px;color:var(--text3);padding:4px 8px;">Wk</th>
-        <th style="text-align:left;font-size:11px;color:var(--text3);padding:4px 8px;">Opp</th>
-        <th style="text-align:left;font-size:11px;color:var(--text3);padding:4px 8px;">Pts</th>
-        <th style="text-align:left;font-size:11px;color:var(--text3);padding:4px 8px;">Stats</th>
+      <thead><tr style="background:var(--surface2);">
+        <th style="text-align:left;font-size:11px;color:var(--text3);padding:5px 8px;font-weight:600;">Week</th>
+        <th style="text-align:left;font-size:11px;color:var(--text3);padding:5px 8px;font-weight:600;">Pts PPR</th>
+        <th style="text-align:left;font-size:11px;color:var(--text3);padding:5px 8px;font-weight:600;">Stats</th>
       </tr></thead>
       <tbody>${rows}</tbody>
     </table>`;
+
   } catch(e) {
+    console.warn('pcLoadYear error:', e);
     sumEl.innerHTML = '';
-    logEl.innerHTML = `<div style="text-align:center;padding:20px;color:var(--red);">Could not load stats: ${e.message}</div>`;
+    logEl.innerHTML = `<div style="text-align:center;padding:20px;color:var(--red);">
+      Could not load stats for ${year}.<br><small style="opacity:.6;">${e.message}</small></div>`;
   }
 }
 
+function pcShowNoStats(sumEl, logEl) {
+  if (sumEl) sumEl.innerHTML = '';
+  if (logEl) logEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);">No stats available for this season.</div>';
+}
+
 function calcAge(name) {
-  const lk = PLAYER_LOOKUP[name?.toLowerCase()] || {};
+  const lk = PLAYER_LOOKUP[(name||'').toLowerCase()] || {};
   if (!lk.birth_date) return null;
   const [y,m,d] = lk.birth_date.split('-').map(Number);
   const today = new Date();
@@ -2682,4 +2751,28 @@ function calcAge(name) {
   if (today.getMonth()+1 < m || (today.getMonth()+1===m && today.getDate()<d)) age--;
   return age;
 }
+
+// FantasyCalc dynasty trade values (cached per session)
+let _fcValues = null;
+async function pcGetDynastyValue(playerName) {
+  if (!playerName) return null;
+  try {
+    if (!_fcValues) {
+      const r = await fetch('https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=1&ppr=1&numTeams=12');
+      if (!r.ok) return null;
+      _fcValues = await r.json();
+    }
+    // Match by name (case-insensitive partial)
+    const lname = playerName.toLowerCase();
+    const match = _fcValues.find(p =>
+      p.player?.name?.toLowerCase() === lname ||
+      p.player?.name?.toLowerCase().includes(lname.split(' ').pop())
+    );
+    if (!match) return null;
+    const val = match.value;
+    return val ? val.toLocaleString() : null;
+  } catch(e) { return null; }
+}
+
+
 
