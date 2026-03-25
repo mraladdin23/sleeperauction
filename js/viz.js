@@ -49,6 +49,7 @@ function initVizView() {
   if (!lid) { container.innerHTML = '<div style="padding:32px;color:var(--text3);">No league selected.</div>'; return; }
   _vizLeagueId = lid;
   _vizYear = lid;
+  _vizCurrentTab = -1; // reset so showVizTab(0) always renders fresh
 
   container.innerHTML = `
     <div style="max-width:960px;margin:0 auto;padding:16px;">
@@ -362,69 +363,73 @@ async function renderDraftGrades(el) {
   try {
     const drafts = await fetch(`https://api.sleeper.app/v1/league/${lid}/drafts`).then(r=>r.json());
     if (!drafts?.length) { el.innerHTML = noData('No drafts found for this season.'); return; }
-    // Prefer most recent completed draft
     const completedDraft = [...drafts].sort((a,b)=>Number(b.draft_id)-Number(a.draft_id))
       .find(d=>d.status==='complete') || drafts[0];
-
     const picks = await fetch(`https://api.sleeper.app/v1/draft/${completedDraft.draft_id}/picks`).then(r=>r.json());
     if (!picks?.length) { el.innerHTML = noData('No picks found in this draft yet.'); return; }
 
     const teamNames = await getVizTeamNames(lid);
-    const byId = window._playerById || {};
     const teams = completedDraft.settings?.teams || 12;
+    const rounds = completedDraft.settings?.rounds || 4;
+    const draftType = completedDraft.type === 'snake' ? 'Redraft' : 'Rookie/Dynasty';
 
+    // Group picks by roster
     const byRoster = {};
     picks.forEach(p => {
-      // Sleeper uses roster_id for dynasty/rookie, picked_by for snake redraft
       const rid = String(p.roster_id || '');
       if (!rid || rid === 'undefined') return;
       if (!byRoster[rid]) byRoster[rid] = [];
       const overall = (p.round - 1) * teams + (p.draft_slot || 1);
-      const playerInfo = p.player_id ? byId[p.player_id] : null;
-      const currentRank = playerInfo?.rank && playerInfo.rank < 9000 ? playerInfo.rank : null;
-      const value = currentRank ? overall - currentRank : 0; // positive = drafted lower than current rank = steal
-      const name = p.metadata ? `${p.metadata.first_name||''} ${p.metadata.last_name||''}`.trim() : (playerInfo?.name || `Pick ${overall}`);
-      byRoster[rid].push({ name, pos: p.metadata?.position || playerInfo?.pos || '?', overall, currentRank, value });
+      const name = p.metadata ? `${p.metadata.first_name||''} ${p.metadata.last_name||''}`.trim() : `Unknown`;
+      const pos  = p.metadata?.position || '?';
+      byRoster[rid].push({ name, pos, round: p.round, slot: p.draft_slot, overall });
     });
 
-    if (!Object.keys(byRoster).length) {
-      el.innerHTML = noData('Could not map picks to teams. Try the current season.');
-      return;
-    }
+    if (!Object.keys(byRoster).length) { el.innerHTML = noData('Could not map picks to teams.'); return; }
 
-    const grades = Object.entries(byRoster).map(([rid, picks]) => {
-      const validPicks = picks.filter(p => p.value !== 0);
-      const avgValue = validPicks.length ? validPicks.reduce((s,p)=>s+p.value,0)/validPicks.length : 0;
-      const steals = picks.filter(p => p.value > 15).slice(0, 3);
-      const busts  = picks.filter(p => p.value < -20 && p.currentRank).slice(0, 2);
-      const letter = avgValue > 15 ? 'A+' : avgValue > 8 ? 'A' : avgValue > 2 ? 'B+' : avgValue > -5 ? 'B' : avgValue > -15 ? 'C' : 'D';
-      const color  = ['A+','A'].includes(letter) ? 'var(--green)' : letter === 'B+' ? 'var(--accent2)' : letter === 'B' ? 'var(--text)' : 'var(--red)';
-      const name   = teamNames[rid] || `Roster ${rid}`;
-      return { rid, name, avgValue, letter, color, steals, busts, picks };
-    }).sort((a,b) => b.avgValue - a.avgValue);
+    // Compute positional diversity score: teams that spread picks across positions score higher
+    // Also highlight early-round picks (rounds 1-2) as the "marquee" picks
+    const POS_COLOR = { QB:'#e88c30', RB:'#3b82f6', WR:'#22c55e', TE:'#a855f7', K:'#6b7280', DEF:'#6b7280' };
+
+    const summaries = Object.entries(byRoster).map(([rid, picks]) => {
+      const name = teamNames[rid] || `Roster ${rid}`;
+      const marquee = picks.filter(p => p.round <= 2).sort((a,b)=>a.overall-b.overall);
+      const posCounts = {};
+      picks.forEach(p => { posCounts[p.pos] = (posCounts[p.pos]||0)+1; });
+      const avgPick = picks.length ? (picks.reduce((s,p)=>s+p.overall,0)/picks.length).toFixed(1) : '—';
+      return { rid, name, picks, marquee, posCounts, avgPick };
+    }).sort((a,b) => {
+      // Sort by average pick position (lower avg = picked earlier overall = stronger draft)
+      return parseFloat(a.avgPick) - parseFloat(b.avgPick);
+    });
 
     el.innerHTML = `
       <div style="font-size:13px;color:var(--text3);margin-bottom:16px;">
-        Grade = avg (draft position − current rank). Positive = picked better than current value suggests.
-        ${completedDraft.type === 'snake' ? ' Snake/redraft draft detected.' : ''}
+        ${draftType} draft · ${rounds} rounds · ${teams} teams. Sorted by avg pick position (earlier = stronger overall draft).
       </div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        ${grades.map(g => `
-          <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px 16px;">
-            <div style="display:flex;align-items:center;gap:12px;margin-bottom:${g.steals.length?'8px':'0'};">
-              <div style="font-size:28px;font-weight:900;color:${g.color};width:48px;text-align:center;font-family:var(--font-mono);">${g.letter}</div>
-              <div style="flex:1;">
-                <div style="font-size:14px;font-weight:600;">${g.name}</div>
-                <div style="font-size:11px;color:var(--text3);">Avg value: ${g.avgValue > 0 ? '+' : ''}${g.avgValue.toFixed(1)} · ${g.picks.length} picks</div>
+      <div style="display:flex;flex-direction:column;gap:10px;">
+        ${summaries.map((s, rank) => {
+          const posBar = Object.entries(s.posCounts).map(([pos, n]) =>
+            `<span style="display:inline-block;padding:2px 6px;border-radius:99px;font-size:10px;font-weight:600;background:${POS_COLOR[pos]||'#6b7280'}22;color:${POS_COLOR[pos]||'#6b7280'};border:1px solid ${POS_COLOR[pos]||'#6b7280'}44;margin-right:3px;">${pos} ×${n}</span>`
+          ).join('');
+          const marqueeNames = s.marquee.slice(0,3).map(p =>
+            `<span style="font-size:12px;color:var(--text);">${p.name} <span style="color:var(--text3);">(${p.pos} #${p.overall})</span></span>`
+          ).join('<span style="color:var(--text3);margin:0 4px;">·</span>');
+          const medals = ['🥇','🥈','🥉'];
+          return `
+            <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px 16px;border-left:3px solid ${rank<3?'var(--accent)':'var(--border)'};">
+              <div style="display:flex;align-items:center;gap:10px;margin-bottom:6px;flex-wrap:wrap;">
+                <span style="font-size:16px;">${medals[rank]||'  '}</span>
+                <span style="font-size:14px;font-weight:600;">${s.name}</span>
+                <span style="font-size:11px;color:var(--text3);margin-left:auto;">avg pick #${s.avgPick}</span>
               </div>
-              ${g.steals.length ? `<div style="font-size:11px;color:var(--green);">🎯 ${g.steals.length} steal${g.steals.length>1?'s':''}</div>` : ''}
-              ${g.busts.length  ? `<div style="font-size:11px;color:var(--red);">💥 ${g.busts.length} bust${g.busts.length>1?'s':''}</div>`  : ''}
-            </div>
-            ${g.steals.length ? `<div style="font-size:11px;color:var(--green);margin-top:4px;">Best: ${g.steals.map(p=>p.name).join(', ')}</div>` : ''}
-          </div>`).join('')}
+              ${s.marquee.length ? `<div style="margin-bottom:6px;display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:12px;color:var(--text3);">Top picks: ${marqueeNames}</div>` : ''}
+              <div>${posBar}</div>
+            </div>`;
+        }).join('')}
       </div>`;
   } catch(e) {
-    el.innerHTML = `<div style="color:var(--red);padding:20px;">Could not load draft grades: ${e.message}</div>`;
+    el.innerHTML = `<div style="color:var(--red);padding:20px;">Could not load draft data: ${e.message}</div>`;
     console.warn('renderDraftGrades error:', e);
   }
 }
