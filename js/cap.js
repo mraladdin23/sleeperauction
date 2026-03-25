@@ -1,3 +1,4 @@
+// SleeperBid cap.js v20260325-bulk-weekly
 
 var CAP      = 301_200_000; // loaded from Firebase leagues/{id}/settings/cap
 var MAX_IR   = 2;            // loaded from Firebase leagues/{id}/settings/maxIR
