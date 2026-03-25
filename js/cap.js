@@ -46,9 +46,14 @@ function subscribeRosters() {
 
   // Build player name lookup from cached Sleeper DB for age badges + photos
   try {
+    // Skip build if app.js already built _playerById with full bio fields
+    const _existing = window._playerById || {};
+    const _hasBio = Object.values(_existing).some(p => p.age != null);
+    if (_hasBio) {
+      // Already built with bio fields by app.js -- skip
+    } else {
     const cacheVer = localStorage.getItem('sb_players_ver');
     if (cacheVer !== '3') {
-      // Old cache missing bio fields -- clear so it refetches fresh
       localStorage.removeItem('sb_players');
       localStorage.removeItem('sb_players_at');
     }
@@ -88,6 +93,7 @@ function subscribeRosters() {
       }
       localStorage.setItem('sb_players_ver', '3');
     }
+    } // end else (_hasBio)
   } catch(e) { console.warn('[players] build error:', e); }
 
   // Overlay confirmed playerIdMap from Firebase (player_matcher.html writes this)
