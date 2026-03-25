@@ -1211,6 +1211,8 @@ This only removes it from the registry — all league data in Firebase is preser
     }
     const dotColors = { nomination:'var(--accent)', bid:'var(--accent2)', claim:'var(--green)',
                         cancel:'var(--red)', pass:'var(--text3)', autoclose:'var(--yellow)' };
+    // Don't overwrite Sleeper transactions with Firebase auction feed
+    if (window._sleeperTxnsLoaded) return;
     const items = Object.values(feed).sort((a,b) => (b.timestamp||0)-(a.timestamp||0)).slice(0,10);
     el.innerHTML = items.map(item => {
       const color = dotColors[item.type] || 'var(--text3)';
