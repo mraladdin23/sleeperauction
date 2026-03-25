@@ -484,7 +484,8 @@ const App = (() => {
         }
       } catch(e) {}
 
-      // No password — mark as authenticated
+      // No password set -- just log in directly
+      // (Commissioner can set passwords via the Commish tab if desired)
       sessionStorage.setItem('sb_authed', username);
       await showLeaguePicker();
     } catch (e) {
@@ -497,6 +498,7 @@ const App = (() => {
     const pw = (document.getElementById('login-password')?.value || '').trim();
     if (!pw) { showLoginError('Enter your team password.'); return; }
     const hash = await hashPassword(pw);
+
     if (hash !== window._pendingLoginHash) {
       showLoginError('Incorrect password. Try again.');
       document.getElementById('login-password').value = '';

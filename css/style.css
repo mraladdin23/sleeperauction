@@ -996,3 +996,7 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
 .mu-lose { color:var(--text3); }
 .mu-section-divider { margin:5px 0 2px; }
 .mu-section-label { font-size:10px; font-weight:600; color:var(--text3); text-transform:uppercase; letter-spacing:.4px; }
+
+/* Password label/hint for first-time setup */
+#login-password-label { font-size:13px; font-weight:600; color:var(--text2); margin-bottom:4px; display:block; }
+#login-password-hint  { font-size:12px; color:var(--accent2); margin-bottom:8px; display:none; }
