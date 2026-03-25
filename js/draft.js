@@ -384,12 +384,21 @@ async function refreshDraft() {
         console.log('[draft] seasonPicks for', draftInfo.season, ':', seasonPicks.length);
 
         // Build roster_id -> draft slot from draft_order (userId->slot) + rosterIdToUserId
-        // draft_order: {userId: slotNumber}
         const rosterToSlot = {}; // roster_id -> slot number
+        console.log('[draft] rosterIdToUserId:', JSON.stringify(rosterIdToUserId));
         Object.entries(draftInfo.draft_order || {}).forEach(([userId, slot]) => {
-          // Find roster_id for this userId
+          // Find roster_id whose owner matches this userId
           const rid = Object.keys(rosterIdToUserId).find(r => rosterIdToUserId[r] === String(userId));
-          if (rid) rosterToSlot[rid] = slot;
+          if (rid) {
+            rosterToSlot[rid] = slot;
+          } else {
+            // Fallback: find via userIdToTeam -> rosterIdToTeam reverse
+            const teamKey = userIdToTeam[String(userId)];
+            if (teamKey) {
+              const rosterNum = Object.keys(rosterIdToTeam).find(r => rosterIdToTeam[r] === teamKey);
+              if (rosterNum) rosterToSlot[rosterNum] = slot;
+            }
+          }
         });
         console.log('[draft] rosterToSlot:', JSON.stringify(rosterToSlot));
 

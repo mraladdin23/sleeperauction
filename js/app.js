@@ -811,6 +811,46 @@ This only removes it from the registry — all league data in Firebase is preser
     window._capTeams      = state.teams;
     window._capLeagueType = state.leagueType || 'salary_auction';
 
+    // Build _playerById now so player cards and activity feed have names ready
+    if (!window._playerById || Object.keys(window._playerById).length < 100) {
+      (async () => {
+        try {
+          let cached = localStorage.getItem('sb_players');
+          if (!cached) {
+            const r = await fetch('https://api.sleeper.app/v1/players/nfl');
+            if (r.ok) {
+              cached = await r.text();
+              try { localStorage.setItem('sb_players', cached); } catch(e) {}
+            }
+          }
+          if (cached) {
+            const players = JSON.parse(cached);
+            window._playerById = {};
+            Object.entries(players).forEach(([id, p]) => {
+              if (p.first_name && p.last_name) {
+                window._playerById[id] = {
+                  name:       p.first_name + ' ' + p.last_name,
+                  pos:        (p.fantasy_positions||[])[0] || p.position || '—',
+                  team:       p.team || '—',
+                  rank:       p.rank || p.search_rank || 9999,
+                  age:        p.age || null,
+                  height:     p.height || null,
+                  weight:     p.weight || null,
+                  college:    p.college || null,
+                  years_exp:  p.years_exp ?? null,
+                  birth_date: p.birth_date || null,
+                  status:     p.status || null,
+                  injury_status: p.injury_status || null,
+                };
+              }
+            });
+            localStorage.setItem('sb_players_ver', '3');
+            console.log('[app] _playerById built:', Object.keys(window._playerById).length);
+          }
+        } catch(e) { console.warn('[app] player build error:', e); }
+      })();
+    }
+
 
 
 
@@ -1017,36 +1057,14 @@ This only removes it from the registry — all league data in Firebase is preser
       (state.teams||[]).forEach(t => {
         if (t.roster_id) rosterMap[String(t.roster_id)] = t.display_name || t.username || `Team ${t.roster_id}`;
       });
-      // Build player ID -> name map -- try multiple sources
-      let byId = window._playerById || {};
-      if (Object.keys(byId).length < 100) {
-        // Try localStorage sb_players cache
-        try {
-          const cached = localStorage.getItem('sb_players');
-          if (cached) {
-            const players = JSON.parse(cached);
-            byId = {};
-            Object.entries(players).forEach(([id, p]) => {
-              if (p.first_name && p.last_name) byId[id] = { name: p.first_name + ' ' + p.last_name };
-            });
-          }
-        } catch(e) {}
+      // Wait up to 3s for _playerById to be built by initApp's async fetch
+      let waited = 0;
+      while ((!window._playerById || Object.keys(window._playerById).length < 100) && waited < 3000) {
+        await new Promise(r => setTimeout(r, 200));
+        waited += 200;
       }
-      // If still empty, fetch player DB fresh
-      if (Object.keys(byId).length < 100) {
-        try {
-          const r = await fetch('https://api.sleeper.app/v1/players/nfl');
-          if (r.ok) {
-            const players = await r.json();
-            byId = {};
-            Object.entries(players).forEach(([id, p]) => {
-              if (p.first_name && p.last_name) byId[id] = { name: p.first_name + ' ' + p.last_name };
-            });
-            try { localStorage.setItem('sb_players', JSON.stringify(players)); } catch(e) {}
-          }
-        } catch(e) {}
-      }
-      console.log('[txn] byId size:', Object.keys(byId).length);
+      const byId = window._playerById || {};
+      console.log('[txn] byId size:', Object.keys(byId).length, 'waited:', waited+'ms');
 
       const items = txns
         .filter(t => ['waiver','free_agent','trade'].includes(t.type) && t.status === 'complete')
