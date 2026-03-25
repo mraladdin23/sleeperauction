@@ -362,6 +362,46 @@ async function refreshDraft() {
       });
     }
 
+    // 3b. Overlay traded picks onto slotOwners for upcoming/future picks
+    // This automatically updates who owns each slot based on Sleeper trade history
+    try {
+      const tradedPicks = await fetch(`https://api.sleeper.app/v1/league/${draftLeagueId()}/traded_picks`).then(r=>r.json());
+      if (Array.isArray(tradedPicks)) {
+        tradedPicks.forEach(tp => {
+          // Only update for the current draft season
+          if (String(tp.season) !== String(draftInfo.season)) return;
+          const ownerTeam = rosterIdToTeam[String(tp.roster_id)] || rosterIdToDisplayName[String(tp.roster_id)];
+          if (!ownerTeam) return;
+          // Override slotOwners for this round/slot if not already filled by a completed pick
+          for (let slot = 1; slot <= (draftInfo.settings?.teams || 12); slot++) {
+            const key = `${tp.round}-${slot}`;
+            // Only override unassigned slots matching this roster's original slot
+            if (!draftPicks[key] && slotOwners[key] === (rosterIdToTeam[String(tp.previous_owner_id)] || slotOwners[key])) {
+              slotOwners[key] = ownerTeam;
+            }
+          }
+        });
+        // Simpler approach: for pre_draft, rebuild slot ownership from traded_picks directly
+        if (draftInfo.status === 'pre_draft' && tradedPicks.length > 0) {
+          // Get current season picks grouped by round
+          const currentPicks = tradedPicks.filter(tp => String(tp.season) === String(draftInfo.season));
+          currentPicks.forEach(tp => {
+            const ownerTeam = rosterIdToTeam[String(tp.roster_id)] || rosterIdToDisplayName[String(tp.roster_id)];
+            if (ownerTeam) {
+              // tp.roster_id owns this pick -- find the slot from original draft order
+              // The slot corresponds to the original draft position of previous_owner_id
+              for (const [key, teamKey] of Object.entries(slotOwners)) {
+                const [r] = key.split('-').map(Number);
+                if (r === tp.round && teamKey === (rosterIdToTeam[String(tp.previous_owner_id)] || '')) {
+                  slotOwners[key] = ownerTeam;
+                }
+              }
+            }
+          });
+        }
+      }
+    } catch(e) { /* traded picks optional */ }
+
     const statusLabel = {
       pre_draft: `📅 Scheduled — pick order is set`,
       in_progress: `🔴 LIVE`,

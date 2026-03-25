@@ -947,6 +947,9 @@ This only removes it from the registry — all league data in Firebase is preser
       updateHomeFeed(feed);
     });
 
+    // Load Sleeper transactions for activity feed (non-blocking)
+    loadSleeperTransactions(state.leagueId);
+
     // Watchlist — keyed by Sleeper user_id
     const uid = state.user?.user_id;
     if (uid) {
@@ -989,6 +992,59 @@ This only removes it from the registry — all league data in Firebase is preser
       opt.textContent = '⚙️ Commissioner';
       dd.appendChild(opt);
     }
+  }
+
+  async function loadSleeperTransactions(leagueId) {
+    if (!leagueId) return;
+    try {
+      // Fetch recent transactions (weeks 1-3 to start, enough for recent activity)
+      const week = (new Date().getMonth() >= 8) ? Math.min(Math.ceil((new Date() - new Date(new Date().getFullYear(), 8, 1)) / 604800000), 18) : 1;
+      const txns = await Sleeper.fetchAllTransactions(leagueId, Math.max(week, 3));
+      if (!Array.isArray(txns) || !txns.length) return;
+
+      // Convert to activity feed format
+      const userMap = {};
+      (state.teams||[]).forEach(t => { if (t.roster_id) userMap[t.roster_id] = t.display_name || t.username; });
+
+      const items = txns
+        .filter(t => ['waiver','free_agent','trade'].includes(t.type) && t.status === 'complete')
+        .sort((a,b) => (b.created||0) - (a.created||0))
+        .slice(0, 20)
+        .map(t => {
+          const team  = userMap[t.roster_ids?.[0]] || 'A team';
+          const adds  = Object.keys(t.adds||{});
+          const drops = Object.keys(t.drops||{});
+          const byId  = window._playerById || {};
+          const addNames  = adds.map(id  => byId[id]?.name  || id).join(', ');
+          const dropNames = drops.map(id => byId[id]?.name || id).join(', ');
+
+          let msg = '';
+          if (t.type === 'trade') {
+            msg = `🔄 Trade completed`;
+          } else if (t.type === 'waiver' && addNames) {
+            msg = `✅ ${team} claimed ${addNames}${dropNames ? ` (dropped ${dropNames})` : ''}`;
+          } else if (t.type === 'free_agent' && addNames) {
+            msg = `➕ ${team} added ${addNames}${dropNames ? ` (dropped ${dropNames})` : ''}`;
+          } else if (dropNames) {
+            msg = `➖ ${team} dropped ${dropNames}`;
+          }
+          return msg ? { text: msg, ts: t.created, type: t.type } : null;
+        })
+        .filter(Boolean);
+
+      if (items.length) {
+        const el = document.getElementById('home-activity-feed');
+        if (el && el.querySelector('.feed-empty')) {
+          // Only populate if feed is empty (don't overwrite Firebase activity)
+          el.innerHTML = items.map(item =>
+            `<div class="feed-item">
+              <div class="feed-msg">${item.text}</div>
+              <div class="feed-time">${item.ts ? new Date(item.ts).toLocaleDateString() : ''}</div>
+            </div>`
+          ).join('');
+        }
+      }
+    } catch(e) { /* transactions optional */ }
   }
 
   function updateHomeFeed(feed) {
