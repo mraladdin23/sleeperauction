@@ -679,7 +679,13 @@ function renderBoard() {
       // For snake drafts, even rounds reverse the pick order
       // Look up owner by round-pick key directly
       const ownerKey  = slotOwners[`${r}-${p}`] || null;
-      const ownerName = ownerKey ? (window.viewingDraftLeagueId ? (teamDisplayNames[ownerKey] || ownerKey) : (DRAFT_DATA[ownerKey]?.team_name || ownerKey)) : null;
+      // Resolve display name from multiple sources
+      const _ridKey = Object.keys(rosterIdToTeam).find(k => rosterIdToTeam[k] === ownerKey);
+      const _dispName = DRAFT_DATA[ownerKey]?.team_name 
+        || teamDisplayNames[ownerKey]
+        || (_ridKey ? rosterIdToDisplayName[_ridKey] : null)
+        || ownerKey;
+      const ownerName = ownerKey ? (window.viewingDraftLeagueId ? (teamDisplayNames[ownerKey] || ownerKey) : _dispName) : null;
       const isSleeper = pick.sleeperPick && !pick.team;
       const assignedTeamKey  = pick.team || null;
       const assignedTeamName = assignedTeamKey ? (window.viewingDraftLeagueId ? (teamDisplayNames[assignedTeamKey] || assignedTeamKey) : (DRAFT_DATA[assignedTeamKey]?.team_name || assignedTeamKey)) : '';
@@ -818,7 +824,13 @@ function onAssignRoundOrSlotChange() {
 
   // Look up owner by round-pick key directly
   const ownerKey = slotOwners[`${r}-${p}`] || null;
-  const ownerName = ownerKey ? (window.viewingDraftLeagueId ? (teamDisplayNames[ownerKey] || ownerKey) : (DRAFT_DATA[ownerKey]?.team_name || ownerKey)) : null;
+  // Resolve display name from multiple sources
+      const _ridKey = Object.keys(rosterIdToTeam).find(k => rosterIdToTeam[k] === ownerKey);
+      const _dispName = DRAFT_DATA[ownerKey]?.team_name 
+        || teamDisplayNames[ownerKey]
+        || (_ridKey ? rosterIdToDisplayName[_ridKey] : null)
+        || ownerKey;
+      const ownerName = ownerKey ? (window.viewingDraftLeagueId ? (teamDisplayNames[ownerKey] || ownerKey) : _dispName) : null;
 
   // Show who owns the pick
   ownerLabel.textContent = ownerName ? `Pick ${r}.${String(p).padStart(2,'0')} owned by: ${ownerName}` : '';

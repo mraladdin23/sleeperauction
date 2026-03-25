@@ -2670,6 +2670,7 @@ async function pcLoadYear(year) {
             .map(([wk, s]) => ({ week: parseInt(wk), ...s }));
         } else {
           // Rankings only -- try bulk year stats instead
+          console.log('[pc] per-player endpoint returned rankings only, falling back to bulk');
           weeklyArr = null;
         }
       }
@@ -2679,6 +2680,7 @@ async function pcLoadYear(year) {
         const bulkKey = 'sb_stats_' + year;
         let bulkData = null;
         try { bulkData = JSON.parse(localStorage.getItem(bulkKey) || 'null'); } catch(e) {}
+        console.log('[pc] trying bulk stats, cached:', !!bulkData);
         if (!bulkData) {
           const br = await fetch(`https://api.sleeper.app/v1/stats/nfl/regular/${year}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE`);
           if (br.ok) {
@@ -2689,6 +2691,9 @@ async function pcLoadYear(year) {
         if (bulkData && bulkData[_pcPlayerId]) {
           seasonStats = bulkData[_pcPlayerId];
           weeklyArr   = [];  // no weekly breakdown available
+          console.log('[pc] bulk stats found for player:', JSON.stringify(seasonStats).slice(0,150));
+        } else {
+          console.log('[pc] bulk stats NOT found for player', _pcPlayerId, 'bulkData keys:', bulkData ? Object.keys(bulkData).length : 0);
         }
       }
 
