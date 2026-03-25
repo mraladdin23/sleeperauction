@@ -1,18 +1,66 @@
 // viz.js — Fun Visualizations: Trade Map, Luck Index, Power Rankings, Draft Grades, Waiver Impact
 
 // ── Entry point ────────────────────────────────────────────────
+// Cache team names per league
+let _vizTeamNames = {};
+let _vizLeagueId  = null;
+let _vizYear      = null;
+
+async function getVizTeamNames(lid) {
+  if (_vizTeamNames[lid]) return _vizTeamNames[lid];
+  try {
+    const [rosters, users] = await Promise.all([
+      fetch(`https://api.sleeper.app/v1/league/${lid}/rosters`).then(r=>r.json()),
+      fetch(`https://api.sleeper.app/v1/league/${lid}/users`).then(r=>r.json()),
+    ]);
+    const userMap = {};
+    (users||[]).forEach(u => { userMap[u.user_id] = u.display_name || u.username || u.user_id; });
+    const names = {};
+    (rosters||[]).forEach(r => {
+      names[String(r.roster_id)] = userMap[r.owner_id] || `Team ${r.roster_id}`;
+    });
+    _vizTeamNames[lid] = names;
+    return names;
+  } catch(e) {
+    return {};
+  }
+}
+
+async function getVizSeasons(lid) {
+  const seasons = [{ lid, label: 'Current', current: true }];
+  try {
+    let prevId = (await fetch(`https://api.sleeper.app/v1/league/${lid}`).then(r=>r.json())).previous_league_id;
+    let tries = 0;
+    while (prevId && prevId !== '0' && tries < 5) {
+      const info = await fetch(`https://api.sleeper.app/v1/league/${prevId}`).then(r=>r.json());
+      seasons.push({ lid: prevId, label: info.season || `Season ${tries+1}`, current: false });
+      prevId = info.previous_league_id;
+      if (prevId === '0') break;
+      tries++;
+    }
+  } catch(e) {}
+  return seasons;
+}
+
 function initVizView() {
   const container = document.getElementById('view-viz');
   if (!container) return;
   const lid = localStorage.getItem('sb_leagueId');
   if (!lid) { container.innerHTML = '<div style="padding:32px;color:var(--text3);">No league selected.</div>'; return; }
+  _vizLeagueId = lid;
+  _vizYear = lid;
 
   container.innerHTML = `
     <div style="max-width:960px;margin:0 auto;padding:16px;">
-      <div style="font-size:20px;font-weight:700;margin-bottom:4px;">📊 League Analytics</div>
-      <div style="font-size:13px;color:var(--text3);margin-bottom:20px;">Fun stats and visualizations you won't find anywhere else</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;flex-wrap:wrap;gap:8px;">
+        <div style="font-size:20px;font-weight:700;">📊 League Analytics</div>
+        <div style="display:flex;align-items:center;gap:6px;">
+          <span style="font-size:12px;color:var(--text3);">Season:</span>
+          <div id="viz-season-bar" style="display:flex;gap:4px;flex-wrap:wrap;"></div>
+        </div>
+      </div>
+      <div style="font-size:13px;color:var(--text3);margin-bottom:16px;">Fun stats you won't find anywhere else</div>
 
-      <!-- Tab bar -->
       <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:20px;" id="viz-tabs">
         ${['🔄 Trade Map','🍀 Luck Index','🏆 Power Rankings','🎓 Draft Grades','💎 Waiver Impact'].map((t,i)=>
           `<button onclick="showVizTab(${i})" id="viz-tab-${i}"
@@ -28,7 +76,31 @@ function initVizView() {
       </div>
     </div>`;
 
+  // Load season selector
+  getVizSeasons(lid).then(seasons => {
+    const bar = document.getElementById('viz-season-bar');
+    if (!bar || seasons.length <= 1) return;
+    bar.innerHTML = seasons.map(s =>
+      `<button onclick="setVizSeason('${s.lid}')" id="viz-season-${s.lid}"
+        style="padding:3px 10px;font-size:11px;font-family:var(--font-body);
+        background:${s.current?'var(--accent)':'var(--surface2)'};
+        color:${s.current?'#fff':'var(--text2)'};
+        border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">${s.label}</button>`
+    ).join('');
+  });
+
   showVizTab(0);
+}
+
+function setVizSeason(lid) {
+  _vizYear = lid;
+  document.querySelectorAll('[id^="viz-season-"]').forEach(btn => {
+    const isThis = btn.id === `viz-season-${lid}`;
+    btn.style.background = isThis ? 'var(--accent)' : 'var(--surface2)';
+    btn.style.color       = isThis ? '#fff'           : 'var(--text2)';
+  });
+  _vizCurrentTab = -1; // force re-render
+  showVizTab(_vizCurrentTab === -1 ? 0 : _vizCurrentTab);
 }
 
 let _vizCurrentTab = -1;
@@ -48,7 +120,7 @@ function showVizTab(idx) {
 
 // ── 1. TRADE MAP ────────────────────────────────────────────────
 async function renderTradeMap(el) {
-  const lid = localStorage.getItem('sb_leagueId');
+  const lid = _vizYear || localStorage.getItem('sb_leagueId');
   try {
     // Fetch transactions and find trades
     const weeks = await Promise.all(Array.from({length:18},(_,i)=>i+1).map(w=>
@@ -61,8 +133,7 @@ async function renderTradeMap(el) {
     }
 
     // Build trade count matrix
-    const teamNames = {};
-    (window.App?.state?.teams||[]).forEach(t=>{ if(t.roster_id) teamNames[String(t.roster_id)]=t.display_name||t.username; });
+    const teamNames = await getVizTeamNames(lid);
 
     const pairs = {};
     trades.forEach(t=>{
@@ -117,7 +188,7 @@ async function renderTradeMap(el) {
 
 // ── 2. LUCK INDEX ────────────────────────────────────────────────
 async function renderLuckIndex(el) {
-  const lid = localStorage.getItem('sb_leagueId');
+  const lid = _vizYear || localStorage.getItem('sb_leagueId');
   try {
     const [rosters, matchupData] = await Promise.all([
       Sleeper.fetchRosters(lid),
@@ -125,8 +196,7 @@ async function renderLuckIndex(el) {
         Sleeper.fetchMatchups(lid,w).catch(()=>[])))
     ]);
 
-    const teamNames = {};
-    (window.App?.state?.teams||[]).forEach(t=>{ if(t.roster_id) teamNames[String(t.roster_id)]=t.display_name||t.username; });
+    const teamNames = await getVizTeamNames(lid);
 
     // For each week, compute median score. Win against median = "expected win"
     const weeklyScores = {}; // rosterId -> [scores]
@@ -209,7 +279,7 @@ async function renderLuckIndex(el) {
 
 // ── 3. POWER RANKINGS ────────────────────────────────────────────
 async function renderPowerRankings(el) {
-  const lid = localStorage.getItem('sb_leagueId');
+  const lid = _vizYear || localStorage.getItem('sb_leagueId');
   try {
     const [rosters, recentMatchups] = await Promise.all([
       Sleeper.fetchRosters(lid),
@@ -217,8 +287,7 @@ async function renderPowerRankings(el) {
         Sleeper.fetchMatchups(lid,w).catch(()=>[])))
     ]);
 
-    const teamNames = {};
-    (window.App?.state?.teams||[]).forEach(t=>{ if(t.roster_id) teamNames[String(t.roster_id)]=t.display_name||t.username; });
+    const teamNames = await getVizTeamNames(lid);
 
     // Power ranking = weighted combo of: recent form (last 3 wks), overall record, avg points
     const scoresByWeek = {}; // rosterId -> week -> pts
@@ -298,8 +367,7 @@ async function renderDraftGrades(el) {
       Sleeper.fetchRosters(lid)
     ]);
 
-    const teamNames = {};
-    (window.App?.state?.teams||[]).forEach(t=>{ if(t.roster_id) teamNames[String(t.roster_id)]=t.display_name||t.username; });
+    const teamNames = await getVizTeamNames(lid);
 
     const byId = window._playerById||{};
 
@@ -363,8 +431,7 @@ async function renderWaiverImpact(el) {
       return;
     }
 
-    const teamNames = {};
-    (window.App?.state?.teams||[]).forEach(t=>{ if(t.roster_id) teamNames[String(t.roster_id)]=t.display_name||t.username; });
+    const teamNames = await getVizTeamNames(lid);
     const byId = window._playerById||{};
 
     // Count pickups per team, find most added players

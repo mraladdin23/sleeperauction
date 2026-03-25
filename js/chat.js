@@ -18,7 +18,12 @@ function initChatView() {
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
         <div style="font-size:20px;font-weight:700;">💬 League Chat</div>
         <div style="display:flex;gap:6px;">
-          <button onclick="insertSmackTalk()" style="padding:6px 12px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);cursor:pointer;font-family:var(--font-body);">🔥 Smack Talk</button>
+          <div style="position:relative;display:inline-block;">
+            <button onclick="toggleSmackMenu()" id="smack-btn" style="padding:6px 12px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);cursor:pointer;font-family:var(--font-body);">🔥 Smack Talk ▾</button>
+            <div id="smack-menu" style="display:none;position:absolute;top:calc(100%+4px);left:0;width:280px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:1000;max-height:300px;overflow-y:auto;">
+              ${SMACK_LINES.map((l,i)=>`<div onclick="selectSmack(${i})" style="padding:8px 12px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border);color:var(--text);" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">${l}</div>`).join('')}
+            </div>
+          </div>
           <button onclick="openGifSearch()" style="padding:6px 12px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);cursor:pointer;font-family:var(--font-body);">🎬 GIF</button>
         </div>
       </div>
@@ -126,10 +131,40 @@ const SMACK_LINES = [
   "Your team looks like it was drafted on a dartboard. Blindfolded.",
 ];
 
+function toggleSmackMenu() {
+  const menu = document.getElementById('smack-menu');
+  if (!menu) return;
+  if (menu.style.display === 'none') {
+    menu.innerHTML = SMACK_LINES.map((l,i)=>
+      `<div onclick="selectSmack(${i})" style="padding:8px 12px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border);color:var(--text);" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">${l}</div>`
+    ).join('');
+    menu.style.display = '';
+    // Close on outside click
+    setTimeout(() => {
+      document.addEventListener('click', function closeSmack(e) {
+        if (!document.getElementById('smack-btn')?.contains(e.target)) {
+          menu.style.display = 'none';
+          document.removeEventListener('click', closeSmack);
+        }
+      });
+    }, 0);
+  } else {
+    menu.style.display = 'none';
+  }
+}
+
+function selectSmack(idx) {
+  const line  = SMACK_LINES[idx];
+  const input = document.getElementById('chat-input');
+  if (input) { input.value = line; input.focus(); input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 120) + 'px'; }
+  const menu = document.getElementById('smack-menu');
+  if (menu) menu.style.display = 'none';
+}
+
 function insertSmackTalk() {
   const line  = SMACK_LINES[Math.floor(Math.random() * SMACK_LINES.length)];
   const input = document.getElementById('chat-input');
-  if (input) { input.value = line; input.focus(); input.style.height = 'auto'; input.style.height = Math.min(input.scrollHeight, 120) + 'px'; }
+  if (input) { input.value = line; input.focus(); }
 }
 
 // GIF search via Tenor
@@ -152,17 +187,21 @@ function searchGifs(query) {
     if (!el) return;
     el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:12px;">Searching…</div>';
     try {
-      // Use Tenor's public API (no key needed for basic searches)
-      const r = await fetch(`https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(query)}&key=AIzaSyAyimkuYQYF_FXVALexPmHA2zHb0Qjp_kA&limit=12&media_filter=gif`);
+      // Use Giphy public beta key
+      const r = await fetch(`https://api.giphy.com/v1/gifs/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(query)}&limit=12&rating=pg-13`);
       const data = await r.json();
-      const results = data.results || [];
+      const results = data.data || [];
       if (!results.length) { el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:12px;">No GIFs found</div>'; return; }
       el.innerHTML = results.map(g => {
-        const url = g.media_formats?.tinygif?.url || g.media_formats?.gif?.url || '';
-        return url ? `<img src="${url}" style="width:100%;height:80px;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid transparent;" 
-          onclick="sendGif('${url.replace(/'/g,"\\'")}')" 
-          onmouseover="this.style.borderColor='var(--accent)'" 
-          onmouseout="this.style.borderColor='transparent'" loading="lazy" />` : '';
+        const preview = g.images?.fixed_height_small?.url || g.images?.downsized_small?.url || '';
+        const full    = g.images?.downsized?.url || preview;
+        if (!preview) return '';
+        const safeFull = full.split('?')[0];
+        return `<img src="${preview}" style="width:100%;height:80px;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid transparent;"
+          onclick="sendGif(this.dataset.full)"
+          data-full="${safeFull}"
+          onmouseover="this.style.borderColor='var(--accent)'"
+          onmouseout="this.style.borderColor='transparent'" loading="lazy" />`;
       }).join('');
     } catch(e) {
       el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:12px;">Could not load GIFs</div>';
@@ -183,5 +222,110 @@ function escapeHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
+// ── CHAT SIDEBAR (persistent across all views) ─────────────────
+let _sidebarOpen = false;
+let _sidebarCollapsed = false;
+let _sidebarSubbed = false;
+
+function initChatSidebar(lid) {
+  const sidebar = document.getElementById('chat-sidebar');
+  if (!sidebar || _sidebarSubbed) return;
+  sidebar.style.display = 'flex';
+  document.body.classList.add('chat-open');
+  _sidebarSubbed = true;
+
+  // Subscribe to messages
+  const ref = db.ref(`leagues/${lid}/chat`).orderByChild('ts').limitToLast(50);
+  ref.on('value', snap => {
+    const msgs = [];
+    snap.forEach(child => msgs.push({ id: child.key, ...child.val() }));
+    renderSidebarMessages(msgs);
+  });
+
+  // Mobile: show as collapsed initially
+  if (window.innerWidth < 900) {
+    sidebar.classList.add('collapsed');
+    _sidebarCollapsed = true;
+  }
+}
+
+function renderSidebarMessages(msgs) {
+  const el = document.getElementById('chat-sidebar-messages');
+  if (!el) return;
+  const me = localStorage.getItem('sb_username') || '';
+  const isBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+
+  el.innerHTML = msgs.map(m => {
+    const isMine = m.user?.toLowerCase() === me.toLowerCase();
+    const cls    = isMine ? 'sidebar-msg sidebar-msg-mine' : 'sidebar-msg sidebar-msg-other';
+    const bubble = m.type === 'gif'
+      ? `<img src="${m.text}" style="max-width:140px;border-radius:8px;" loading="lazy" />`
+      : `<div class="sidebar-msg-bubble">${m.text?.replace(/</g,'&lt;').replace(/>/g,'&gt;')||''}</div>`;
+    return `<div class="${cls}">
+      ${!isMine ? `<div class="sidebar-msg-user">${m.user||''}</div>` : ''}
+      ${bubble}
+    </div>`;
+  }).join('');
+
+  if (isBottom) el.scrollTop = el.scrollHeight;
+
+  // Unread badge
+  if (_sidebarCollapsed && msgs.length) {
+    const badge = document.getElementById('chat-unread-badge');
+    if (badge) { badge.style.display = ''; badge.textContent = '●'; }
+  }
+}
+
+function toggleChatSidebar() {
+  const sidebar = document.getElementById('chat-sidebar');
+  if (!sidebar) return;
+  _sidebarCollapsed = !_sidebarCollapsed;
+  sidebar.classList.toggle('collapsed', _sidebarCollapsed);
+  document.getElementById('chat-sidebar-toggle-icon').textContent = _sidebarCollapsed ? '▲' : '▼';
+  if (!_sidebarCollapsed) {
+    const badge = document.getElementById('chat-unread-badge');
+    if (badge) badge.style.display = 'none';
+    setTimeout(() => {
+      const el = document.getElementById('chat-sidebar-messages');
+      if (el) el.scrollTop = el.scrollHeight;
+    }, 100);
+  }
+}
+
+function toggleChatDrawer() {
+  const sidebar = document.getElementById('chat-sidebar');
+  if (!sidebar) return;
+  if (window.innerWidth < 900) {
+    if (sidebar.classList.contains('open')) {
+      sidebar.classList.remove('open');
+      sidebar.classList.add('collapsed');
+      _sidebarCollapsed = true;
+    } else {
+      sidebar.classList.add('open');
+      sidebar.classList.remove('collapsed');
+      _sidebarCollapsed = false;
+      const badge = document.getElementById('chat-unread-badge');
+      if (badge) badge.style.display = 'none';
+      setTimeout(() => {
+        const el = document.getElementById('chat-sidebar-messages');
+        if (el) el.scrollTop = el.scrollHeight;
+      }, 100);
+    }
+  }
+}
+
+async function sendSidebarMessage() {
+  const input = document.getElementById('chat-sidebar-input');
+  const text  = (input?.value || '').trim();
+  if (!text) return;
+  const lid  = localStorage.getItem('sb_leagueId');
+  const user = localStorage.getItem('sb_username') || 'Anonymous';
+  input.value = '';
+  try {
+    await db.ref(`leagues/${lid}/chat`).push({ user, text, ts: Date.now(), type: 'text' });
+  } catch(e) { console.warn('Sidebar send failed:', e); }
+}
+
 // Expose for lazy loader
 window._chatInit = initChatView;
+window.initChatSidebar = initChatSidebar;

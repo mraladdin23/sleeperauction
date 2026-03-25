@@ -18,7 +18,7 @@ function initRulesView() {
             📄 Upload File
             <input type="file" accept=".txt,.md" style="display:none;" onchange="uploadRulesFile(this)" />
           </label>
-          <button onclick="importFromGoogleDocs()" style="padding:6px 14px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-family:var(--font-body);color:var(--text2);">🔗 Google Doc</button>
+          <button onclick="showMarkdownGuide()" style="padding:6px 14px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-family:var(--font-body);color:var(--text2);">❓ How to Import</button>
         </div>
       </div>
       <div id="rules-content" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;min-height:300px;">
@@ -117,44 +117,7 @@ async function uploadRulesFile(input) {
   input.value = '';
 }
 
-async function importFromGoogleDocs() {
-  const url = prompt(
-    'Paste your Google Doc link:\n\n' +
-    'Make sure the doc is set to "Anyone with the link can view"\n' +
-    'then paste the share URL here:'
-  );
-  if (!url) return;
 
-  // Extract document ID from various Google Docs URL formats
-  const match = url.match(/\/d\/([a-zA-Z0-9_-]{25,})/);
-  if (!match) {
-    alert('Could not find a Google Doc ID in that URL. Make sure you paste the full Google Docs link.');
-    return;
-  }
-  const docId = match[1];
-
-  // Show loading
-  const el = document.getElementById('rules-content');
-  if (el) el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);">Importing from Google Docs…</div>';
-
-  try {
-    // Fetch as plain text via export endpoint
-    const exportUrl = `https://docs.google.com/document/d/${docId}/export?format=txt`;
-    const r = await fetch(exportUrl);
-    if (!r.ok) throw new Error(`Could not fetch doc (status ${r.status}). Make sure sharing is set to "Anyone with the link".`);
-    const text = await r.text();
-
-    // Show in editor for review before saving
-    const editorInput = document.getElementById('rules-editor-input');
-    if (editorInput) {
-      editorInput.value = text.trim();
-      openRulesEditor();
-    }
-  } catch(e) {
-    if (el) loadRules(localStorage.getItem('sb_leagueId'));
-    alert('Import failed: ' + e.message + '\n\nMake sure:\n1. The doc is shared as "Anyone with the link can view"\n2. The URL is a Google Docs link');
-  }
-}
 
 // Simple markdown renderer
 function renderMarkdown(text) {
@@ -189,6 +152,23 @@ function inlineFormat(s) {
 
 function esc(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function showMarkdownGuide() {
+  alert(
+    "How to import your league rules:\n\n" +
+    "1. Open your Google Doc\n" +
+    "2. Go to File → Download → Plain Text (.txt)\n" +
+    "3. Click 'Upload File' and select the downloaded .txt file\n\n" +
+    "For best formatting, use Markdown in your doc:\n" +
+    "  # Big Heading\n" +
+    "  ## Section Heading\n" +
+    "  - Bullet point\n" +
+    "  **bold text**\n\n" +
+    "Or try the free converter at:\n" +
+    "  docs-to-markdown.com\n" +
+    "  (Docs → Markdown → paste into editor)"
+  );
 }
 
 // Expose for lazy loader

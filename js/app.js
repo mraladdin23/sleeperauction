@@ -949,6 +949,16 @@ This only removes it from the registry — all league data in Firebase is preser
 
     UI.showScreen('app');
     UI.renderPauseBanner();
+    // Init chat sidebar after league loaded
+    if (typeof initChatSidebar === 'function') {
+      initChatSidebar(state.leagueId);
+    } else {
+      // Load chat.js and init sidebar
+      const s = document.createElement('script');
+      s.src = 'js/chat.js';
+      s.onload = () => { if (window.initChatSidebar) window.initChatSidebar(state.leagueId); };
+      document.head.appendChild(s);
+    }
 
     // Apply feature flags to nav tabs AND home cards
     const feats = state.leagueFeatures || {};
