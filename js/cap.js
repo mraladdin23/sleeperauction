@@ -2552,6 +2552,7 @@ async function showPlayerCard(playerId, playerName) {
     pData    = playerId ? byId[playerId] : null;
   }
   _pcPlayerId = playerId || null;
+  console.log('[pc] pData:', JSON.stringify(pData), 'playerId:', _pcPlayerId);
 
   const name    = pData?.name  || playerName || 'Unknown';
   const pos     = pData?.pos   || '—';
@@ -2633,6 +2634,7 @@ function pcSetYear(y) {
 }
 
 async function pcLoadYear(year) {
+  console.log('[pc] pcLoadYear called, year:', year, 'playerId:', _pcPlayerId, 'byIdSize:', Object.keys(window._playerById||{}).length);
   if (!_pcPlayerId) { pcShowNoStats(); return; }
   const sumEl = document.getElementById('pc-season-summary');
   const logEl = document.getElementById('pc-game-log');

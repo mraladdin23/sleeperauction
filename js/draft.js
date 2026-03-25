@@ -185,13 +185,15 @@ let slotOwners = {};   // "round-pick" → teamKey
 let rosterIdToTeam        = {};  // Sleeper roster_id (string) → our teamKey
 let rosterIdToDisplayName = {};  // Sleeper roster_id (string) → display name (fallback)
 let userIdToTeam          = {};  // Sleeper user_id (string) → our teamKey (for picked_by)
+let rosterIdToUserId      = {};  // Sleeper roster_id (string) → owner user_id
 let teamDisplayNames      = {};  // teamKey (username) → display name for current viewing season
 window.viewingDraftLeagueId = window.viewingDraftLeagueId || null;
 window.draftSeasons         = window.draftSeasons         || [];
 
 async function loadRosterMapping() {
-  rosterIdToTeam = {};
-  userIdToTeam   = {};
+  rosterIdToTeam    = {};
+  userIdToTeam      = {};
+  rosterIdToUserId  = {};
   // The cap team keys ARE the Sleeper usernames — so we just need
   // Sleeper roster_id → username, then look up in DRAFT_DATA directly.
   try {
@@ -215,6 +217,8 @@ async function loadRosterMapping() {
       rosterIdToDisplayName[String(r.roster_id)] = u.display_name || u.username || `Roster ${r.roster_id}`;
       // Map user_id → teamKey so picked_by (which is user_id) can be resolved
       userIdToTeam[String(r.owner_id)] = capKey;  // module-level
+      // Map roster_id → owner user_id (for draft_order slot lookup)
+      rosterIdToUserId[String(r.roster_id)] = String(r.owner_id);
       // Store display name keyed by teamKey for historical season name lookup
       teamDisplayNames[capKey] = u.display_name || u.username || capKey;
       });
@@ -377,44 +381,47 @@ async function refreshDraft() {
 
         // Filter to current draft season only
         const seasonPicks = tradedPicks.filter(tp => String(tp.season) === String(draftInfo.season));
+        console.log('[draft] seasonPicks for', draftInfo.season, ':', seasonPicks.length);
 
-        // Build a map: original_roster_id -> current_owner for each round
-        // Multiple trades possible: A->B->C, so process in order
-        // tp.previous_owner_id = who had it before, tp.owner_id = who has it now
-        const pickOwners = {}; // "round-originalRoster" -> currentOwner
-        // Initialize from slotOwners: find which slot belongs to which roster
-        // slotOwners maps "round-slot" -> teamKey, but we need roster_id basis
-        // Use draft_order to map user_id -> slot, then roster to find original owner
-        const slotToOriginalRoster = {}; // "round-slot" -> original roster_id
+        // Build roster_id -> draft slot from draft_order (userId->slot) + rosterIdToUserId
+        // draft_order: {userId: slotNumber}
+        const rosterToSlot = {}; // roster_id -> slot number
         Object.entries(draftInfo.draft_order || {}).forEach(([userId, slot]) => {
-          const rid = Object.keys(rosterIdToTeam).find(rid => {
-            // Find roster matching this user
-            const teamKey = rosterIdToTeam[rid];
-            return teamKey === userIdToTeam[userId];
-          }) || null;
-          if (rid) {
-            for (let r = 1; r <= (draftInfo.settings?.rounds || 4); r++) {
-              slotToOriginalRoster[`${r}-${slot}`] = rid;
+          // Find roster_id for this userId
+          const rid = Object.keys(rosterIdToUserId).find(r => rosterIdToUserId[r] === String(userId));
+          if (rid) rosterToSlot[rid] = slot;
+        });
+        console.log('[draft] rosterToSlot:', JSON.stringify(rosterToSlot));
+
+        // Track current owner of each pick: "round-slot" -> roster_id
+        // Start with original owners from rosterToSlot
+        const pickCurrentOwner = {}; // "round-slot" -> roster_id (string)
+        Object.entries(rosterToSlot).forEach(([rid, slot]) => {
+          for (let r = 1; r <= (draftInfo.settings?.rounds || 4); r++) {
+            pickCurrentOwner[`${r}-${slot}`] = rid;
+          }
+        });
+
+        // Apply each trade in order: previous_owner_id -> roster_id (current owner)
+        seasonPicks.forEach(tp => {
+          // Find which slot currently belongs to previous_owner_id
+          for (const [key, currentRid] of Object.entries(pickCurrentOwner)) {
+            const [round] = key.split('-').map(Number);
+            if (round !== tp.round) continue;
+            if (String(currentRid) === String(tp.previous_owner_id)) {
+              pickCurrentOwner[key] = String(tp.roster_id);
             }
           }
         });
 
-        // Apply trades: for each traded pick, update the slot owner
-        seasonPicks.forEach(tp => {
-          const newOwner = resolveTeam(tp.roster_id);
-          if (!newOwner) return;
-          // Find the slot that originally belonged to previous_owner
-          for (const [key, origRid] of Object.entries(slotToOriginalRoster)) {
-            const [r] = key.split('-').map(Number);
-            if (r !== tp.round) continue;
-            if (String(origRid) === String(tp.previous_owner_id) ||
-                resolveTeam(origRid) === resolveTeam(tp.previous_owner_id)) {
-              // Update: this pick slot is now owned by tp.roster_id
-              slotToOriginalRoster[key] = tp.roster_id;
-              if (!draftPicks[key]) slotOwners[key] = newOwner;
-            }
+        // Apply final ownership to slotOwners (only for unassigned picks)
+        Object.entries(pickCurrentOwner).forEach(([key, rid]) => {
+          if (!draftPicks[key]) {
+            slotOwners[key] = resolveTeam(rid) || slotOwners[key];
           }
         });
+        console.log('[draft] slotOwners after trade overlay (first 4):', 
+          JSON.stringify(Object.fromEntries(Object.entries(slotOwners).slice(0,4))));
       }
     } catch(e) { console.warn('traded picks:', e); }
 

@@ -1017,7 +1017,21 @@ This only removes it from the registry — all league data in Firebase is preser
       (state.teams||[]).forEach(t => {
         if (t.roster_id) rosterMap[String(t.roster_id)] = t.display_name || t.username || `Team ${t.roster_id}`;
       });
-      const byId = window._playerById || {};
+      // Build player ID -> name map from localStorage cache (may not be loaded yet)
+      let byId = window._playerById || {};
+      if (Object.keys(byId).length < 100) {
+        try {
+          const cached = localStorage.getItem('sb_players');
+          if (cached) {
+            const players = JSON.parse(cached);
+            byId = {};
+            Object.entries(players).forEach(([id, p]) => {
+              if (p.first_name && p.last_name) byId[id] = { name: p.first_name + ' ' + p.last_name };
+            });
+          }
+        } catch(e) {}
+      }
+      console.log('[txn] byId size:', Object.keys(byId).length);
 
       const items = txns
         .filter(t => ['waiver','free_agent','trade'].includes(t.type) && t.status === 'complete')
