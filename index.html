@@ -201,8 +201,9 @@ body.light-mode .login-card{box-shadow:0 4px 24px rgba(0,0,0,.08);}
     document.documentElement.classList.add('light-mode-pre');
 })();
 function toggleAvatarMenu() {
-  const dd = document.getElementById('avatar-dropdown');
-  if (!dd) return;
+  const dd     = document.getElementById('avatar-dropdown');
+  const avatar = document.getElementById('user-avatar');
+  if (!dd || !avatar) return;
   if (dd.classList.contains('open')) {
     dd.classList.remove('open');
   } else {
@@ -215,6 +216,12 @@ function toggleAvatarMenu() {
       const isLight = document.body.classList.contains('light-mode');
       themeBtn.innerHTML = (isLight ? '🌙' : '☀️') + ' <span>' + (isLight ? 'Dark Mode' : 'Light Mode') + '</span>';
     }
+    // Position dropdown using fixed coords to escape any sticky/overflow clipping
+    const rect = avatar.getBoundingClientRect();
+    dd.style.position = 'fixed';
+    dd.style.top      = (rect.bottom + 8) + 'px';
+    dd.style.right    = (window.innerWidth - rect.right) + 'px';
+    dd.style.left     = 'auto';
     dd.classList.add('open');
   }
 }
@@ -296,8 +303,15 @@ function closeAvatarMenu() {
   document.getElementById('avatar-dropdown')?.classList.remove('open');
 }
 document.addEventListener('click', function(e) {
-  const wrap = document.getElementById('avatar-menu-wrap');
-  if (wrap && !wrap.contains(e.target)) closeAvatarMenu();
+  const wrap   = document.getElementById('avatar-menu-wrap');
+  const avatar = document.getElementById('user-avatar');
+  const dd     = document.getElementById('avatar-dropdown');
+  // Close if clicking outside both the avatar and dropdown
+  if (dd && dd.classList.contains('open')) {
+    if ((!wrap || !wrap.contains(e.target)) && (!dd.contains(e.target))) {
+      closeAvatarMenu();
+    }
+  }
 });
 function toggleTheme(){
   const light=document.body.classList.toggle('light-mode');
