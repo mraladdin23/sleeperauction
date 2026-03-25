@@ -95,32 +95,41 @@ const App = (() => {
       const regSnap = await db.ref('leagues/_registry').once('value');
       const registry = regSnap.val() || {};
 
-      // Cross-reference: only show leagues that are in both Sleeper and Firebase registry
-      const matches = (sleeperLeagues || []).filter(l => registry[l.league_id]);
-
-      // Also include leagues where this user is NOT in Sleeper leagues but is registered
-      // (e.g. they were added manually or league hasn't started yet)
-      // Show ALL registered leagues they have access to
-      const registeredIds = Object.keys(registry);
-      const sleeperIds    = new Set((sleeperLeagues || []).map(l => l.league_id));
-      const extraIds      = registeredIds.filter(id => !sleeperIds.has(id));
+      // Leagues in both Sleeper + Firebase registry = selectable
+      const sleeperIds     = new Set((sleeperLeagues || []).map(l => l.league_id));
+      const registeredIds  = new Set(Object.keys(registry));
+      const matches        = (sleeperLeagues || []).filter(l => registeredIds.has(l.league_id));
+      // Leagues in registry but not in Sleeper user list (added by others or prev seasons)
+      const extraIds       = [...registeredIds].filter(id => !sleeperIds.has(id));
+      // Leagues user is in on Sleeper but NOT yet registered -- offer to add
+      const unregistered   = (sleeperLeagues || []).filter(l => !registeredIds.has(l.league_id));
 
       // Build display list
       const displayLeagues = [
         ...matches.map(l => ({
-          id:     l.league_id,
-          name:   registry[l.league_id]?.name || l.name,
-          season: l.season || season,
-          status: l.status,
-          avatar: l.avatar,
-          meta:   registry[l.league_id],
+          id:           l.league_id,
+          name:         registry[l.league_id]?.name || l.name,
+          season:       l.season || season,
+          status:       l.status,
+          avatar:       l.avatar,
+          meta:         registry[l.league_id],
+          unregistered: false,
         })),
         ...extraIds.map(id => ({
           id,
-          name:   registry[id]?.name || `League ${id}`,
-          season: registry[id]?.season || season,
-          status: registry[id]?.status || 'unknown',
-          meta:   registry[id],
+          name:         registry[id]?.name || `League ${id}`,
+          season:       registry[id]?.season || season,
+          status:       registry[id]?.status || 'unknown',
+          meta:         registry[id],
+          unregistered: false,
+        })),
+        ...unregistered.map(l => ({
+          id:           l.league_id,
+          name:         l.name,
+          season:       l.season || season,
+          status:       l.status,
+          meta:         null,
+          unregistered: true,
         })),
       ];
 
@@ -157,6 +166,26 @@ const App = (() => {
           .map(([k]) => `<span style="font-size:10px;padding:2px 7px;border-radius:99px;
             background:var(--surface2);color:var(--text3);border:1px solid var(--border);">${k}</span>`)
           .join('');
+        if (l.unregistered) {
+          return `
+            <div style="background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);
+              padding:16px 18px;opacity:.85;">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                <div style="min-width:0;">
+                  <div style="font-size:15px;font-weight:600;margin-bottom:3px;">${l.name}</div>
+                  <div style="font-size:12px;color:var(--text3);">${l.season} Season · Not yet added</div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
+                  <div style="font-size:12px;color:${statusColor};font-weight:500;">${statusLabel}</div>
+                  <button onclick="document.getElementById('picker-league-id').value='${l.id}';App.registerLeague()"
+                    style="font-size:11px;padding:4px 12px;background:var(--accent);color:#fff;border:none;
+                    border-radius:4px;cursor:pointer;font-family:var(--font-body);font-weight:600;">
+                    + Add League
+                  </button>
+                </div>
+              </div>
+            </div>`;
+        }
         return `
           <div onclick="App.pickLeague('${l.id}')"
             style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
@@ -276,19 +305,24 @@ const App = (() => {
       const users  = await Sleeper.fetchLeagueUsers(lid);
       const myUser = users?.find(u => u.user_id === state.user?.user_id);
       if (!myUser) {
-        if(errEl) errEl.textContent = 'You must be a member of this league to register it.';
+        if(errEl) errEl.textContent = 'You must be a member of this league to add it.';
         return;
       }
       if(errEl) errEl.textContent = '';
 
-      // Store pending league data for wizard submission
-      window._wizardLeagueId  = lid;
-      window._wizardLeague    = league;
+      // Check if user is the commissioner
+      const isLeagueComm = league.commissioner_id === state.user?.user_id ||
+                           (league.commissioner_ids||[]).includes(state.user?.user_id);
 
-      // Show setup wizard
+      // Store pending league data for wizard submission
+      window._wizardLeagueId    = lid;
+      window._wizardLeague      = league;
+      window._wizardIsCommish   = isLeagueComm;
+
+      // Show setup wizard (works for both comms and non-comms)
       const meta = `${league.season} · ${league.total_rosters} teams · ${league.status}`;
       if (typeof initWizard === 'function') {
-        initWizard(league.name, meta, league);
+        initWizard(league.name, meta, league, isLeagueComm);
       }
     } catch(e) {
       if(errEl) errEl.textContent = 'Error: ' + (e.message || e);

@@ -219,32 +219,58 @@ function toggleAvatarMenu() {
   }
 }
 // ── League Setup Wizard ───────────────────────────────────────
-function initWizard(leagueName, leagueMeta, sleeperLeague) {
+function initWizard(leagueName, leagueMeta, sleeperLeague, isComm) {
   document.getElementById('wizard-league-name').textContent = leagueName;
   document.getElementById('wizard-league-meta').textContent = leagueMeta;
   document.getElementById('wizard-error').textContent = '';
 
-  // Pre-fill from Sleeper settings
+  // For non-commissioners: auto-detect league type from Sleeper and skip detailed setup
   const settings = sleeperLeague?.settings || {};
-  const taxiSlots = settings.taxi_slots || 0;
-  const hasIR = (sleeperLeague?.roster_positions || []).includes('BN'); // heuristic
-  document.getElementById('wiz-max-taxi').value = taxiSlots || 8;
-  document.getElementById('wiz-max-ir').value   = settings.reserve_slots || 2;
-  if (settings.waiver_budget > 0) {
-    // Has FAAB -- suggest salary+auction
-    const salEl = document.querySelector('input[value="salary_auction"]');
-    if (salEl) { salEl.checked = true; updateWizardSections('salary_auction'); }
+  if (!isComm) {
+    // Auto-detect league type from Sleeper settings
+    let autoType = 'dynasty_no_auction';
+    if (settings.waiver_budget > 0) autoType = 'salary_auction';
+    else if (sleeperLeague?.settings?.type === 0) autoType = 'redraft';
+    // Show a simplified non-comm notice
+    const noticeEl = document.getElementById('wizard-comm-notice');
+    if (noticeEl) {
+      noticeEl.innerHTML = `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:12px;font-size:12px;color:var(--text2);">
+        ℹ️ You're not the commissioner. League type auto-detected as <strong>${autoType}</strong>. 
+        The commissioner can adjust settings after adding.
+      </div>`;
+      noticeEl.style.display = '';
+    }
+    // Pre-select auto-detected type and hide the type selector
+    const typeEl = document.getElementById('wizard-type-section');
+    if (typeEl) typeEl.style.display = 'none';
+    const autoEl = document.querySelector(\`input[value="\${autoType}"]\`);
+    if (autoEl) { autoEl.checked = true; updateWizardSections(autoType); }
+  } else {
+    const noticeEl = document.getElementById('wizard-comm-notice');
+    if (noticeEl) noticeEl.style.display = 'none';
+    const typeEl = document.getElementById('wizard-type-section');
+    if (typeEl) typeEl.style.display = '';
+    // Pre-fill from Sleeper settings
+    const taxiSlots = settings.taxi_slots || 0;
+    document.getElementById('wiz-max-taxi').value = taxiSlots || 8;
+    document.getElementById('wiz-max-ir').value   = settings.reserve_slots || 2;
+    if (settings.waiver_budget > 0) {
+      const salEl = document.querySelector('input[value="salary_auction"]');
+      if (salEl) { salEl.checked = true; updateWizardSections('salary_auction'); }
+    }
   }
 
   // Wire radio buttons to show/hide sections
   document.querySelectorAll('input[name="wiz-type"]').forEach(r => {
-    r.addEventListener('change', () => updateWizardSections(r.value));
+    r.removeEventListener('change', r._wizHandler);
+    r._wizHandler = () => updateWizardSections(r.value);
+    r.addEventListener('change', r._wizHandler);
   });
   // Wire wizard option labels for highlight effect
   document.querySelectorAll('.wizard-opt').forEach(lbl => {
     lbl.querySelector('input')?.addEventListener('change', () => {
       const group = lbl.dataset.group;
-      document.querySelectorAll(`.wizard-opt[data-group="${group}"]`).forEach(l => {
+      document.querySelectorAll(\`.wizard-opt[data-group="\${group}"]\`).forEach(l => {
         l.style.borderColor = l.querySelector('input')?.checked ? 'var(--accent)' : 'var(--border)';
       });
     });
@@ -721,7 +747,7 @@ function buildDraftHTML() {
     '\n' +
     '    <div class="draft-header">\n' +
     '      <div>\n' +
-    '        <div class="draft-title">🎓 Rookie Draft Board</div>\n' +
+    '        <div class="draft-title" id="draft-board-title">🎓 Rookie Draft Board</div>\n' +
     '        <div class="draft-subtitle" id="draft-subtitle">Loading from Sleeper…</div>\n' +
     '      </div>\n' +
     '      <div class="draft-controls">\n' +
@@ -1226,12 +1252,7 @@ window.addEventListener('sb:ready', function() {
 <script>
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    // Unregister all old service workers then re-register fresh
-    navigator.serviceWorker.getRegistrations().then(regs=>{
-      return Promise.all(regs.map(r=>r.unregister()));
-    }).then(()=>{
-      navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('SW:',e));
-    });
+    navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('SW:',e));
   });
 }
 </script>
