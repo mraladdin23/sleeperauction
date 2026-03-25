@@ -155,20 +155,20 @@ function esc(s) {
 }
 
 function showMarkdownGuide() {
-  alert(
-    "How to import your league rules:\n\n" +
-    "1. Open your Google Doc\n" +
-    "2. Go to File → Download → Plain Text (.txt)\n" +
-    "3. Click 'Upload File' and select the downloaded .txt file\n\n" +
-    "For best formatting, use Markdown in your doc:\n" +
-    "  # Big Heading\n" +
-    "  ## Section Heading\n" +
-    "  - Bullet point\n" +
-    "  **bold text**\n\n" +
-    "Or try the free converter at:\n" +
-    "  docs-to-markdown.com\n" +
-    "  (Docs → Markdown → paste into editor)"
-  );
+  // Open docstomarkdown.com in a new tab and show instructions
+  window.open('https://docstomarkdown.com', '_blank');
+  setTimeout(() => {
+    alert(
+      "Convert your Google Doc to Markdown:\n\n" +
+      "1. The docstomarkdown.com site just opened\n" +
+      "2. Paste your Google Doc URL into that site\n" +
+      "3. Copy the Markdown output\n" +
+      "4. Back here, click ✏️ Edit Rules and paste it in\n\n" +
+      "OR: In Google Docs go to\n" +
+      "File → Download → Plain Text (.txt)\n" +
+      "then click Upload File here."
+    );
+  }, 500);
 }
 
 // Expose for lazy loader

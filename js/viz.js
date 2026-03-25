@@ -120,6 +120,7 @@ function showVizTab(idx) {
 
 // ── 1. TRADE MAP ────────────────────────────────────────────────
 async function renderTradeMap(el) {
+  el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);">Analyzing trades…</div>';
   const lid = _vizYear || localStorage.getItem('sb_leagueId');
   try {
     // Fetch transactions and find trades
@@ -188,6 +189,7 @@ async function renderTradeMap(el) {
 
 // ── 2. LUCK INDEX ────────────────────────────────────────────────
 async function renderLuckIndex(el) {
+  el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);">Calculating luck index…</div>';
   const lid = _vizYear || localStorage.getItem('sb_leagueId');
   try {
     const [rosters, matchupData] = await Promise.all([
@@ -279,6 +281,7 @@ async function renderLuckIndex(el) {
 
 // ── 3. POWER RANKINGS ────────────────────────────────────────────
 async function renderPowerRankings(el) {
+  el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);">Building power rankings…</div>';
   const lid = _vizYear || localStorage.getItem('sb_leagueId');
   try {
     const [rosters, recentMatchups] = await Promise.all([
@@ -354,73 +357,82 @@ async function renderPowerRankings(el) {
 
 // ── 4. DRAFT GRADES ────────────────────────────────────────────
 async function renderDraftGrades(el) {
-  const lid = localStorage.getItem('sb_leagueId');
+  const lid = _vizYear || localStorage.getItem('sb_leagueId');
   el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);">Loading draft grades…</div>';
   try {
-    // Get all completed drafts
     const drafts = await fetch(`https://api.sleeper.app/v1/league/${lid}/drafts`).then(r=>r.json());
-    const completedDraft = drafts?.find(d=>d.status==='complete')||(drafts?.[0]);
-    if (!completedDraft) { el.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text3);">No completed drafts found.</div>'; return; }
+    if (!drafts?.length) { el.innerHTML = noData('No drafts found for this season.'); return; }
+    // Prefer most recent completed draft
+    const completedDraft = [...drafts].sort((a,b)=>Number(b.draft_id)-Number(a.draft_id))
+      .find(d=>d.status==='complete') || drafts[0];
 
-    const [picks, rosters] = await Promise.all([
-      fetch(`https://api.sleeper.app/v1/draft/${completedDraft.draft_id}/picks`).then(r=>r.json()),
-      Sleeper.fetchRosters(lid)
-    ]);
+    const picks = await fetch(`https://api.sleeper.app/v1/draft/${completedDraft.draft_id}/picks`).then(r=>r.json());
+    if (!picks?.length) { el.innerHTML = noData('No picks found in this draft yet.'); return; }
 
     const teamNames = await getVizTeamNames(lid);
+    const byId = window._playerById || {};
+    const teams = completedDraft.settings?.teams || 12;
 
-    const byId = window._playerById||{};
-
-    // Group picks by roster and calculate "value"
-    // Value = expected rank - actual rank (positive = good pick, got better than expected)
     const byRoster = {};
-    picks.forEach(p=>{
-      const rid = String(p.roster_id||p.picked_by_roster_id);
+    picks.forEach(p => {
+      // Sleeper uses roster_id for dynasty/rookie, picked_by for snake redraft
+      const rid = String(p.roster_id || '');
+      if (!rid || rid === 'undefined') return;
       if (!byRoster[rid]) byRoster[rid] = [];
-      const overall = (p.round-1)*(completedDraft.settings?.teams||12) + p.draft_slot;
-      const playerInfo = byId[p.player_id];
-      const currentRank = playerInfo?.rank || 9999;
-      const value = overall - (currentRank < 9999 ? currentRank : overall); // positive = steal
-      byRoster[rid].push({ name:p.metadata?.first_name+' '+p.metadata?.last_name, pos:p.metadata?.position, overall, currentRank, value });
+      const overall = (p.round - 1) * teams + (p.draft_slot || 1);
+      const playerInfo = p.player_id ? byId[p.player_id] : null;
+      const currentRank = playerInfo?.rank && playerInfo.rank < 9000 ? playerInfo.rank : null;
+      const value = currentRank ? overall - currentRank : 0; // positive = drafted lower than current rank = steal
+      const name = p.metadata ? `${p.metadata.first_name||''} ${p.metadata.last_name||''}`.trim() : (playerInfo?.name || `Pick ${overall}`);
+      byRoster[rid].push({ name, pos: p.metadata?.position || playerInfo?.pos || '?', overall, currentRank, value });
     });
 
-    const grades = Object.entries(byRoster).map(([rid,picks])=>{
-      const avgValue = picks.reduce((s,p)=>s+p.value,0)/picks.length;
-      const steals = picks.filter(p=>p.value>20);
-      const busts  = picks.filter(p=>p.value<-30&&p.currentRank<9999);
+    if (!Object.keys(byRoster).length) {
+      el.innerHTML = noData('Could not map picks to teams. Try the current season.');
+      return;
+    }
+
+    const grades = Object.entries(byRoster).map(([rid, picks]) => {
+      const validPicks = picks.filter(p => p.value !== 0);
+      const avgValue = validPicks.length ? validPicks.reduce((s,p)=>s+p.value,0)/validPicks.length : 0;
+      const steals = picks.filter(p => p.value > 15).slice(0, 3);
+      const busts  = picks.filter(p => p.value < -20 && p.currentRank).slice(0, 2);
       const letter = avgValue > 15 ? 'A+' : avgValue > 8 ? 'A' : avgValue > 2 ? 'B+' : avgValue > -5 ? 'B' : avgValue > -15 ? 'C' : 'D';
-      const color  = ['A+','A'].includes(letter)?'var(--green)':letter==='B+'?'var(--accent2)':letter==='B'?'var(--text)':'var(--red)';
-      return { rid, name:teamNames[rid]||`R${rid}`, avgValue:avgValue.toFixed(1), letter, color, steals, busts, picks };
-    }).sort((a,b)=>b.avgValue-a.avgValue);
+      const color  = ['A+','A'].includes(letter) ? 'var(--green)' : letter === 'B+' ? 'var(--accent2)' : letter === 'B' ? 'var(--text)' : 'var(--red)';
+      const name   = teamNames[rid] || `Roster ${rid}`;
+      return { rid, name, avgValue, letter, color, steals, busts, picks };
+    }).sort((a,b) => b.avgValue - a.avgValue);
 
     el.innerHTML = `
       <div style="font-size:13px;color:var(--text3);margin-bottom:16px;">
-        Grade based on draft position vs current Sleeper rank. Picks drafted lower than current rank = good value.
+        Grade = avg (draft position − current rank). Positive = picked better than current value suggests.
+        ${completedDraft.type === 'snake' ? ' Snake/redraft draft detected.' : ''}
       </div>
       <div style="display:flex;flex-direction:column;gap:8px;">
-        ${grades.map(g=>`
+        ${grades.map(g => `
           <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px 16px;">
-            <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:${g.steals.length?'8px':'0'};">
               <div style="font-size:28px;font-weight:900;color:${g.color};width:48px;text-align:center;font-family:var(--font-mono);">${g.letter}</div>
-              <div>
+              <div style="flex:1;">
                 <div style="font-size:14px;font-weight:600;">${g.name}</div>
-                <div style="font-size:11px;color:var(--text3);">Avg value: ${g.avgValue > 0 ? '+' : ''}${g.avgValue} · ${g.picks.length} picks</div>
+                <div style="font-size:11px;color:var(--text3);">Avg value: ${g.avgValue > 0 ? '+' : ''}${g.avgValue.toFixed(1)} · ${g.picks.length} picks</div>
               </div>
-              ${g.steals.length ? `<div style="margin-left:auto;font-size:11px;color:var(--green);">🎯 ${g.steals.length} steal${g.steals.length>1?'s':''}</div>` : ''}
-              ${g.busts.length  ? `<div style="${g.steals.length?'':' margin-left:auto;'}font-size:11px;color:var(--red);">💥 ${g.busts.length} bust${g.busts.length>1?'s':''}</div>` : ''}
+              ${g.steals.length ? `<div style="font-size:11px;color:var(--green);">🎯 ${g.steals.length} steal${g.steals.length>1?'s':''}</div>` : ''}
+              ${g.busts.length  ? `<div style="font-size:11px;color:var(--red);">💥 ${g.busts.length} bust${g.busts.length>1?'s':''}</div>`  : ''}
             </div>
-            ${g.steals.length ? `<div style="font-size:11px;color:var(--green);">Best picks: ${g.steals.slice(0,3).map(p=>p.name).join(', ')}</div>` : ''}
+            ${g.steals.length ? `<div style="font-size:11px;color:var(--green);margin-top:4px;">Best: ${g.steals.map(p=>p.name).join(', ')}</div>` : ''}
           </div>`).join('')}
       </div>`;
   } catch(e) {
     el.innerHTML = `<div style="color:var(--red);padding:20px;">Could not load draft grades: ${e.message}</div>`;
+    console.warn('renderDraftGrades error:', e);
   }
 }
 
 // ── 5. WAIVER IMPACT ────────────────────────────────────────────
 async function renderWaiverImpact(el) {
-  const lid = localStorage.getItem('sb_leagueId');
   el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text3);">Analyzing waiver activity…</div>';
+  const lid = _vizYear || localStorage.getItem('sb_leagueId');
   try {
     const weeks = await Promise.all(Array.from({length:18},(_,i)=>i+1).map(w=>
       Sleeper.fetchTransactions(lid,w).catch(()=>[])));
@@ -484,6 +496,13 @@ async function renderWaiverImpact(el) {
   } catch(e) {
     el.innerHTML = `<div style="color:var(--red);padding:20px;">Could not load waiver data: ${e.message}</div>`;
   }
+}
+
+function noData(msg) {
+  return `<div style="text-align:center;padding:40px;color:var(--text3);">
+    <div style="font-size:32px;margin-bottom:8px;">📭</div>
+    <div style="font-size:14px;">${msg}</div>
+  </div>`;
 }
 
 // Expose for lazy loader
