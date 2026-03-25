@@ -434,7 +434,7 @@ function renderOverview() {
       ${scarBadges?`<div style="margin-bottom:8px;">${scarBadges}</div>`:''}
       <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;">${showSal ? 'Top Salaries' : 'Top Players'}</div>
       ${top3.map(p=>`<div class="top-player">
-        <div class="tp-left">${badge(p.pos)}<span class="tp-name">${p.name}</span></div>
+        <div class="tp-left">${badge(p.pos)}<span class="tp-name" data-pname="${p.name}" data-pid="${PLAYER_LOOKUP[p.name.toLowerCase()]?.player_id||''}" onclick="showPlayerCard(this.dataset.pid,this.dataset.pname)" style="cursor:pointer;">${p.name}</span></div>
         ${showSal ? `<span class="tp-sal">${fmtM(p.salary)}</span>` : ''}
       </div>`).join('')}
       ${showSal && (t.ir||[]).filter(p=>p.name).length ? `<div style="margin-top:6px;padding:4px 8px;background:rgba(255,77,106,.1);border-radius:4px;font-size:11px;color:var(--red);font-weight:500;">🏥 ${(t.ir||[]).filter(p=>p.name).length} on IR — 75% cap hit</div>` : (t.ir||[]).filter(p=>p.name).length ? `<div style="margin-top:6px;padding:4px 8px;background:rgba(255,77,106,.1);border-radius:4px;font-size:11px;color:var(--red);font-weight:500;">🏥 ${(t.ir||[]).filter(p=>p.name).length} on IR</div>` : ''}
@@ -770,7 +770,9 @@ function renderAllPlayers() {
   const rows = filtered.map(p => {
     const lk       = PLAYER_LOOKUP[p.name.toLowerCase()] || {};
     const pid      = p.player_id || lk.player_id || '';
-    const nflTeam  = lk.nfl_team  || '—';
+    // For dynasty players, get NFL team from _playerById (built from Sleeper DB)
+    const byIdEntry = pid ? (window._playerById||{})[pid] : null;
+    const nflTeam  = lk.nfl_team || byIdEntry?.team || '—';
     const ho       = (holdouts[p.teamKey]||{})[p.name];
     const starred  = !!wl[p.name];
     const safeName = p.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -802,7 +804,7 @@ function renderAllPlayers() {
             '<span style="display:none">' + (p.pos||'?') + '</span>' +
           '</div>' +
           '<div>' +
-            '<div style="font-weight:500;">' + p.name + ageBadge(p.name) + slotBadge + hoBadge + '</div>' +
+            '<div style="font-weight:500;"><span onclick="showPlayerCard(\'' + pid + '\',\'' + p.name.replace(/'/g,"&#39;") + '\')" style="cursor:pointer;" title="View player card">' + p.name + '</span>' + ageBadge(p.name) + slotBadge + hoBadge + '</div>' +
             '<div style="display:flex;gap:6px;margin-top:2px;"><span class="pos-badge pos-' + p.pos + '">' + (p.pos||'—') + '</span></div>' +
             statLine +
           '</div>' +
@@ -984,7 +986,7 @@ async function openTeamPanelDynasty(key, t) {
       onerror="this.style.display='none'" />`;
     return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;${dimmed?'opacity:.6;':''}">
       ${photo}
-      <div style="flex:1;font-size:13px;">${name}${ageBadge(name)}</div>
+      <div style="flex:1;font-size:13px;"><span data-pid="${id}" data-pname="${name}" onclick="showPlayerCard(this.dataset.pid,this.dataset.pname)" style="cursor:pointer;">${name}</span>${ageBadge(name)}</div>
       <span style="font-size:10px;background:${pc}22;color:${pc};padding:1px 5px;border-radius:3px;">${pos}</span>
       <span style="font-size:10px;color:var(--text3);">${team}</span>
     </div>`;
@@ -1086,7 +1088,7 @@ function openTeamPanel(key) {
     const irCapHit = onSleeperIR ? Math.round(p.salary * 0.75) : null;
     return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;gap:8px;${onSleeperIR?'opacity:.75;':''}">
       ${photo}
-      <div style="flex:1;font-size:13px;">${p.name}${ageBadge(p.name)}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:4px;">🔥</span>':''}${onSleeperIR?'<span style="font-size:10px;color:var(--red);margin-left:4px;" title="On Sleeper IR — move to IR in Commish tab for 75% cap hit">🏥 IR*</span>':''}</div>
+      <div style="flex:1;font-size:13px;"><span data-pname="${p.name}" data-pid="${PLAYER_LOOKUP[p.name.toLowerCase()]?.player_id||''}" onclick="showPlayerCard(this.dataset.pid,this.dataset.pname)" style="cursor:pointer;">${p.name}</span>${ageBadge(p.name)}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:4px;">🔥</span>':''}${onSleeperIR?'<span style="font-size:10px;color:var(--red);margin-left:4px;" title="On Sleeper IR — move to IR in Commish tab for 75% cap hit">🏥 IR*</span>':''}</div>
       ${panelShowSal ? `<div style="font-family:var(--font-mono);font-size:12px;flex-shrink:0;${onSleeperIR?'color:var(--red);':''}">
         ${onSleeperIR?`<span style="text-decoration:line-through;opacity:.5;">${fmtM(p.salary)}</span> ${fmtM(irCapHit)}`:fmtM(p.salary)}
       </div>` : ''}
@@ -1108,7 +1110,7 @@ function openTeamPanel(key) {
         :`<div style="width:26px;height:26px;border-radius:50%;background:${pc}22;flex-shrink:0;"></div>`;
       return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;gap:8px;">
         ${photo}
-        <div style="flex:1;font-size:13px;color:var(--text2);">${p.name}${ageBadge(p.name)}${p.pos&&p.pos!=='—'?`<span style="font-size:10px;background:${pc}22;color:${pc};padding:0 4px;border-radius:3px;margin-left:4px;">${p.pos}</span>`:''}
+        <div style="flex:1;font-size:13px;color:var(--text2);"><span data-pname="${p.name}" data-pid="${PLAYER_LOOKUP[p.name.toLowerCase()]?.player_id||''}" onclick="showPlayerCard(this.dataset.pid,this.dataset.pname)" style="cursor:pointer;">${p.name}</span>${ageBadge(p.name)}${p.pos&&p.pos!=='—'?`<span style="font-size:10px;background:${pc}22;color:${pc};padding:0 4px;border-radius:3px;margin-left:4px;">${p.pos}</span>`:''}
           <span style="font-size:10px;color:var(--text3);margin-left:4px;">(${fmtM(p.salary)} → 75%)</span></div>
         ${panelShowSal ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--red);flex-shrink:0;">${fmtM(capHit)}</div>` : ''}
       </div>`;
@@ -1147,7 +1149,7 @@ function openTeamPanel(key) {
       else gradBadge='';
     }
     return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;gap:8px;">
-      <div style="flex:1;font-size:13px;color:var(--text3);">${p.name}${ageBadge(p.name)}${gradBadge}${p.pos&&p.pos!=='—'?`<span style="font-size:10px;background:${pc}22;color:${pc};padding:0 4px;border-radius:3px;margin-left:4px;">${p.pos}</span>`:''}${promo?'<span style="font-size:10px;color:var(--green);margin-left:4px;">⬆️</span>':''}</div>
+      <div style="flex:1;font-size:13px;color:var(--text3);"><span data-pname="${p.name}" data-pid="${PLAYER_LOOKUP[p.name.toLowerCase()]?.player_id||''}" onclick="showPlayerCard(this.dataset.pid,this.dataset.pname)" style="cursor:pointer;">${p.name}</span>${ageBadge(p.name)}${gradBadge}${p.pos&&p.pos!=='—'?`<span style="font-size:10px;background:${pc}22;color:${pc};padding:0 4px;border-radius:3px;margin-left:4px;">${p.pos}</span>`:''}${promo?'<span style="font-size:10px;color:var(--green);margin-left:4px;">⬆️</span>':''}</div>
       ${panelShowSal ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--text3);flex-shrink:0;">${fmtM(p.salary)}</div>` : ''}
     </div>`;
   }).join('');
@@ -1259,7 +1261,7 @@ function renderTopPaid() {
       <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(46,48,64,.4);">
         <span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);min-width:18px;text-align:right;">${i+1}</span>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
+          <div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><span data-pname="${p.name}" data-pid="${PLAYER_LOOKUP[p.name.toLowerCase()]?.player_id||''}" onclick="showPlayerCard(this.dataset.pid,this.dataset.pname)" style="cursor:pointer;">${p.name}</span></div>
           <div style="height:3px;background:var(--surface3);border-radius:99px;margin-top:3px;overflow:hidden;">
             <div style="height:100%;width:${Math.round(p.salary/maxSal*100)}%;background:${clr};border-radius:99px;"></div>
           </div>
@@ -2500,3 +2502,184 @@ if (document.getElementById('edit-modal')) {
   // index.html calls capInit() after injecting buildRosterHTML()
   window._capInitPending = true;
 }
+
+// ── PLAYER CARD ───────────────────────────────────────────────
+let _pcYear = 2025;
+let _pcPlayerId = null;
+
+async function showPlayerCard(playerId, playerName) {
+  if (!playerId && !playerName) return;
+  const modal = document.getElementById('player-card-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  _pcPlayerId = playerId;
+
+  // Resolve player data from _playerById or PLAYER_LOOKUP
+  const byId  = window._playerById || {};
+  let pData   = playerId ? byId[playerId] : null;
+  if (!pData && playerName) {
+    const lk  = PLAYER_LOOKUP[playerName.toLowerCase()] || {};
+    _pcPlayerId = lk.player_id || playerId;
+    pData = _pcPlayerId ? byId[_pcPlayerId] : null;
+  }
+
+  // Set header info
+  const name  = pData?.name  || playerName || 'Unknown';
+  const pos   = pData?.pos   || '—';
+  const team  = pData?.team  || '—';
+  const pc    = POS_COLORS[pos] || '#888';
+
+  document.getElementById('pc-name').textContent  = name;
+  document.getElementById('pc-team').textContent  = team;
+  document.getElementById('pc-age').textContent   = pData ? `Age ${calcAge(name) || '—'}` : '';
+  document.getElementById('pc-exp').textContent   = pData ? `Yr ${(pData.rank < 9999 ? 'Rnk #'+pData.rank : '')}` : '';
+  const posEl = document.getElementById('pc-pos');
+  posEl.textContent   = pos;
+  posEl.style.background = pc + '22';
+  posEl.style.color      = pc;
+
+  if (_pcPlayerId) {
+    document.getElementById('pc-photo').src = `https://sleepercdn.com/content/nfl/players/${_pcPlayerId}.jpg`;
+    document.getElementById('pc-photo').style.display = '';
+  } else {
+    document.getElementById('pc-photo').style.display = 'none';
+  }
+
+  // Find which team owns this player
+  let ownerLabel = '';
+  if (DATA) {
+    for (const [key, t] of Object.entries(DATA)) {
+      const allPlayers = [...(t.starters||[]), ...(t.ir||[]), ...(t.taxi||[])];
+      if (allPlayers.some(p => p.name === name)) {
+        ownerLabel = t.team_name || key;
+        break;
+      }
+    }
+  }
+  if (!ownerLabel && window._capTeams) {
+    const capT = window._capTeams.find(tm => (tm.players||[]).includes(_pcPlayerId));
+    if (capT) ownerLabel = capT.display_name || capT.username || '';
+  }
+  document.getElementById('pc-owner').textContent = ownerLabel ? `📋 ${ownerLabel}` : '';
+
+  // Build year tabs
+  const years = [2022, 2023, 2024, 2025];
+  const tabsEl = document.getElementById('pc-year-tabs');
+  tabsEl.innerHTML = years.map(y =>
+    `<button onclick="pcSetYear(${y})" id="pc-yr-${y}"
+      style="padding:6px 12px;font-size:12px;font-family:var(--font-body);
+      background:${y===_pcYear?'var(--accent)':'var(--surface2)'};
+      color:${y===_pcYear?'#fff':'var(--text2)'};
+      border:1px solid var(--border);border-radius:var(--radius-sm) var(--radius-sm) 0 0;
+      cursor:pointer;margin-right:2px;">${y}</button>`
+  ).join('');
+
+  await pcLoadYear(_pcYear);
+}
+
+function pcSetYear(y) {
+  _pcYear = y;
+  [2022,2023,2024,2025].forEach(yr => {
+    const btn = document.getElementById(`pc-yr-${yr}`);
+    if (btn) {
+      btn.style.background = yr===y ? 'var(--accent)' : 'var(--surface2)';
+      btn.style.color      = yr===y ? '#fff' : 'var(--text2)';
+    }
+  });
+  pcLoadYear(y);
+}
+
+async function pcLoadYear(year) {
+  if (!_pcPlayerId) return;
+  const sumEl = document.getElementById('pc-season-summary');
+  const logEl = document.getElementById('pc-game-log');
+  sumEl.innerHTML = '<div style="color:var(--text3);font-size:12px;">Loading…</div>';
+  logEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);">Loading…</div>';
+
+  try {
+    // Fetch season totals + weekly breakdown in parallel
+    const [seasonData, weeklyData] = await Promise.all([
+      fetch(`https://api.sleeper.app/v1/stats/nfl/player/${_pcPlayerId}?season_type=regular&season=${year}&grouping=season`).then(r=>r.ok?r.json():null),
+      fetch(`https://api.sleeper.app/v1/stats/nfl/player/${_pcPlayerId}?season_type=regular&season=${year}&grouping=week`).then(r=>r.ok?r.json():[]),
+    ]);
+
+    // Season summary
+    const s = (Array.isArray(seasonData) ? seasonData[0] : seasonData) || {};
+    const stats = s.stats || s || {};
+    const pts   = stats.pts_ppr?.toFixed(1) ?? '—';
+    const summaryItems = [
+      ['Pts PPR',   pts],
+      ['Pass Yd',   stats.pass_yd ? Math.round(stats.pass_yd) : null],
+      ['Pass TD',   stats.pass_td ?? null],
+      ['Rush Yd',   stats.rush_yd ? Math.round(stats.rush_yd) : null],
+      ['Rush TD',   stats.rush_td ?? null],
+      ['Rec',       stats.rec ?? null],
+      ['Rec Yd',    stats.rec_yd ? Math.round(stats.rec_yd) : null],
+      ['Rec TD',    stats.rec_td ?? null],
+      ['GP',        stats.gp ?? null],
+    ].filter(([,v]) => v !== null && v !== undefined);
+
+    sumEl.innerHTML = summaryItems.length
+      ? summaryItems.map(([l,v]) =>
+          `<div style="text-align:center;background:var(--surface2);border-radius:6px;padding:8px 12px;min-width:50px;">
+            <div style="font-family:var(--font-mono);font-size:15px;font-weight:600;">${v}</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px;">${l}</div>
+          </div>`).join('')
+      : '<div style="color:var(--text3);font-size:12px;padding:8px;">No stats available for this season.</div>';
+
+    // Game log
+    const weeks = Array.isArray(weeklyData) ? weeklyData
+      : Object.entries(weeklyData||{}).map(([wk, d]) => ({...d, week: parseInt(wk)}));
+    weeks.sort((a,b) => (a.week||0)-(b.week||0));
+
+    if (!weeks.length) {
+      logEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);">No weekly data available.</div>';
+      return;
+    }
+
+    const rows = weeks.map(w => {
+      const ws    = w.stats || w;
+      const wPts  = ws.pts_ppr?.toFixed(1) ?? '—';
+      const opp   = w.opponent || ws.opponent || '—';
+      const wk    = w.week || w.game_id || '—';
+      const bits  = [];
+      if (ws.pass_yd) bits.push(Math.round(ws.pass_yd)+'Pa');
+      if (ws.pass_td) bits.push(ws.pass_td+'PTD');
+      if (ws.rush_yd) bits.push(Math.round(ws.rush_yd)+'Ru');
+      if (ws.rush_td) bits.push(ws.rush_td+'RTD');
+      if (ws.rec)     bits.push(ws.rec+'/'+Math.round(ws.rec_yd||0)+'Re');
+      if (ws.rec_td)  bits.push(ws.rec_td+'ReTD');
+      const ptsColor = !ws.pts_ppr ? 'var(--text3)' : ws.pts_ppr >= 20 ? 'var(--green)' : ws.pts_ppr >= 10 ? 'var(--text)' : 'var(--red)';
+      return `<tr>
+        <td style="font-size:12px;color:var(--text3);padding:5px 8px;">Wk ${wk}</td>
+        <td style="font-size:12px;padding:5px 8px;">${opp}</td>
+        <td style="font-family:var(--font-mono);font-size:13px;font-weight:600;color:${ptsColor};padding:5px 8px;">${wPts}</td>
+        <td style="font-size:11px;color:var(--text3);padding:5px 8px;">${bits.join(' · ')}</td>
+      </tr>`;
+    }).join('');
+
+    logEl.innerHTML = `<table style="width:100%;border-collapse:collapse;">
+      <thead><tr style="border-bottom:1px solid var(--border);">
+        <th style="text-align:left;font-size:11px;color:var(--text3);padding:4px 8px;">Wk</th>
+        <th style="text-align:left;font-size:11px;color:var(--text3);padding:4px 8px;">Opp</th>
+        <th style="text-align:left;font-size:11px;color:var(--text3);padding:4px 8px;">Pts</th>
+        <th style="text-align:left;font-size:11px;color:var(--text3);padding:4px 8px;">Stats</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+  } catch(e) {
+    sumEl.innerHTML = '';
+    logEl.innerHTML = `<div style="text-align:center;padding:20px;color:var(--red);">Could not load stats: ${e.message}</div>`;
+  }
+}
+
+function calcAge(name) {
+  const lk = PLAYER_LOOKUP[name?.toLowerCase()] || {};
+  if (!lk.birth_date) return null;
+  const [y,m,d] = lk.birth_date.split('-').map(Number);
+  const today = new Date();
+  let age = today.getFullYear() - y;
+  if (today.getMonth()+1 < m || (today.getMonth()+1===m && today.getDate()<d)) age--;
+  return age;
+}
+
