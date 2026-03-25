@@ -2566,6 +2566,7 @@ async function showPlayerCard(playerId, playerName) {
   posEl.style.color      = pc;
 
   // Bio details
+  console.log('[pc] pData:', JSON.stringify(pData));
   const bioItems = [];
   if (pData?.age)        bioItems.push(`Age ${pData.age}`);
   if (pData?.height)     bioItems.push(fmtHeight(pData.height));
@@ -2592,15 +2593,6 @@ async function showPlayerCard(playerId, playerName) {
     }
   }
   document.getElementById('pc-owner').textContent = ownerLabel ? `📋 ${ownerLabel}` : '';
-
-  // FantasyCalc dynasty value (async, non-blocking)
-  const expEl = document.getElementById('pc-exp');
-  if (expEl) {
-    pcGetDynastyValue(name).then(val => {
-      const bioSuffix = expEl.textContent;
-      if (val) expEl.textContent = (bioSuffix ? bioSuffix + ' · ' : '') + `KTC: ${val}`;
-    }).catch(()=>{});
-  }
 
   // Year tabs
   const years   = [2022, 2023, 2024, 2025];
@@ -2645,6 +2637,9 @@ async function pcLoadYear(year) {
         `https://api.sleeper.app/v1/stats/nfl/player/${_pcPlayerId}?season_type=regular&season=${year}&grouping=week`
       );
       weeklyRaw = r.ok ? await r.json() : null;
+      console.log('[pc] year:', year, 'playerId:', _pcPlayerId, 'status:', r.status);
+      console.log('[pc] weeklyRaw type:', typeof weeklyRaw, 'isArray:', Array.isArray(weeklyRaw));
+      if (weeklyRaw) console.log('[pc] weeklyRaw keys:', Object.keys(weeklyRaw).slice(0,5), 'sample:', JSON.stringify(weeklyRaw[Object.keys(weeklyRaw)[0]])?.slice(0,150));
       if (weeklyRaw) _pcWeekCache[year] = weeklyRaw;
     }
 
@@ -2752,27 +2747,6 @@ function calcAge(name) {
   return age;
 }
 
-// FantasyCalc dynasty trade values (cached per session)
-let _fcValues = null;
-async function pcGetDynastyValue(playerName) {
-  if (!playerName) return null;
-  try {
-    if (!_fcValues) {
-      const r = await fetch('https://api.fantasycalc.com/values/current?isDynasty=true&numQbs=1&ppr=1&numTeams=12');
-      if (!r.ok) return null;
-      _fcValues = await r.json();
-    }
-    // Match by name (case-insensitive partial)
-    const lname = playerName.toLowerCase();
-    const match = _fcValues.find(p =>
-      p.player?.name?.toLowerCase() === lname ||
-      p.player?.name?.toLowerCase().includes(lname.split(' ').pop())
-    );
-    if (!match) return null;
-    const val = match.value;
-    return val ? val.toLocaleString() : null;
-  } catch(e) { return null; }
-}
 
 
 
