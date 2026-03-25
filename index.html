@@ -598,34 +598,34 @@ function initHomeView() {
 }
 
 function loadActivityFeed() {
+  // If Sleeper transactions already loaded, don't touch the feed at all
+  if (window._sleeperTxnsLoaded) return;
   const el = document.getElementById('home-activity-feed');
   if (!el) return;
+  // If txn-items already in DOM, don't overwrite
+  if (el.querySelector('.txn-item')) return;
   // Use live state from app.js if available (subscription already running)
   if (window.App && window.App.state && window.App.state.activityFeed &&
       Object.keys(window.App.state.activityFeed).length) {
     if (window.App.updateHomeFeed) App.updateHomeFeed(App.state.activityFeed);
     return;
   }
-  // Fallback: direct Firebase read
-  if (typeof db === 'undefined') {
-    el.innerHTML = '<div class="feed-empty">Loading…</div>';
-    return;
-  }
+  // Fallback: direct Firebase read -- only if Sleeper txns not loaded
+  if (typeof db === 'undefined') return;
   const lid = localStorage.getItem('sb_leagueId');
-  if (!lid) { el.innerHTML = '<div class="feed-empty">No league connected.</div>'; return; }
+  if (!lid) return;
   db.ref('leagues/' + lid + '/activityFeed')
     .orderByChild('timestamp').limitToLast(15)
     .once('value')
     .then(snap => {
+      // Check again -- Sleeper txns may have loaded during async wait
+      if (window._sleeperTxnsLoaded) return;
+      if (el.querySelector('.txn-item')) return;
       if (window.App && window.App.updateHomeFeed) {
         App.updateHomeFeed(snap.val() || {});
-      } else {
-        el.innerHTML = snap.val()
-          ? '<div class="feed-empty">Activity loaded.</div>'
-          : '<div class="feed-empty">No activity yet.</div>';
       }
     })
-    .catch(() => { el.innerHTML = '<div class="feed-empty">Could not load activity.</div>'; });
+    .catch(() => {});
 }
 
 // ── Auction view ──────────────────────────────────────────────
