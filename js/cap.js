@@ -2666,24 +2666,33 @@ async function pcLoadYear(year) {
 
     // Step 2: Get weekly breakdown from per-player endpoint
     let weeklyArr = _pcWeekCache[year] || null;
+    // Check sessionStorage cache first
+    const _ssKey = `pc_w_${_pcPlayerId}_${year}`;
     if (!weeklyArr) {
+      try { weeklyArr = JSON.parse(sessionStorage.getItem(_ssKey)||'null'); } catch(e) {}
+    }
+    if (!weeklyArr) {
+      // Fetch weekly breakdown from bulk per-week endpoints (18 parallel)
+      console.log('[pc] fetching 18 weekly endpoints for', year, 'player', _pcPlayerId);
       try {
-        const wr = await fetch(`https://api.sleeper.app/v1/stats/nfl/player/${_pcPlayerId}?season_type=regular&season=${year}&grouping=week`);
-        const raw = wr.ok ? await wr.json() : null;
-        if (raw && typeof raw === 'object') {
-          if (Array.isArray(raw)) {
-            weeklyArr = raw.filter(w => w.week && w.pts_ppr != null);
-          } else {
-            // Object keyed by week -- only use if has actual stats (pts_ppr)
-            const entries = Object.entries(raw).filter(([k,v]) => !isNaN(parseInt(k)) && v.pts_ppr != null);
-            if (entries.length) {
-              weeklyArr = entries.map(([wk, s]) => ({ week: parseInt(wk), ...s }));
-            }
-          }
+        const weekResults = await Promise.all(
+          Array.from({length:18},(_,i)=>i+1).map(w =>
+            fetch(`https://api.sleeper.app/v1/stats/nfl/regular/${year}/${w}?season_type=regular`)
+              .then(r => r.ok ? r.json() : null)
+              .then(data => (data && data[_pcPlayerId] && data[_pcPlayerId].pts_ppr != null)
+                ? { week: w, ...data[_pcPlayerId] } : null)
+              .catch(() => null)
+          )
+        );
+        weeklyArr = weekResults.filter(Boolean);
+        console.log('[pc] weeklyArr result:', weeklyArr.length, 'weeks with data');
+        if (weeklyArr.length) {
+          _pcWeekCache[year] = weeklyArr;
+          try { sessionStorage.setItem(_ssKey, JSON.stringify(weeklyArr)); } catch(e) {}
+        } else {
+          weeklyArr = null;
         }
-        console.log('[pc] weeklyArr from per-player:', weeklyArr?.length ?? 'null');
-        if (weeklyArr?.length) _pcWeekCache[year] = weeklyArr;
-      } catch(e) { console.warn('[pc] weekly fetch failed:', e.message); }
+      } catch(e) { console.warn('[pc] bulk weekly error:', e.message); weeklyArr = null; }
     }
 
     // If no weekly from per-player, compute from bulk weekly endpoint
