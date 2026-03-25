@@ -402,14 +402,17 @@ async function refreshDraft() {
           }
         });
 
-        // Apply each trade in order: previous_owner_id -> roster_id (current owner)
+        // Apply each trade: previous_owner_id had it, owner_id now has it
+        // Process in chronological order so trade chains work (A->B->C)
+        seasonPicks.sort((a,b) => (a.transaction_id||0) - (b.transaction_id||0));
         seasonPicks.forEach(tp => {
-          // Find which slot currently belongs to previous_owner_id
+          const prevOwner = String(tp.previous_owner_id);
+          const newOwner  = String(tp.owner_id || tp.roster_id);
           for (const [key, currentRid] of Object.entries(pickCurrentOwner)) {
             const [round] = key.split('-').map(Number);
             if (round !== tp.round) continue;
-            if (String(currentRid) === String(tp.previous_owner_id)) {
-              pickCurrentOwner[key] = String(tp.roster_id);
+            if (currentRid === prevOwner) {
+              pickCurrentOwner[key] = newOwner;
             }
           }
         });
@@ -417,9 +420,11 @@ async function refreshDraft() {
         // Apply final ownership to slotOwners (only for unassigned picks)
         Object.entries(pickCurrentOwner).forEach(([key, rid]) => {
           if (!draftPicks[key]) {
-            slotOwners[key] = resolveTeam(rid) || slotOwners[key];
+            const resolved = resolveTeam(rid);
+            if (resolved) slotOwners[key] = resolved;
           }
         });
+        console.log('[draft] ALL slotOwners after overlay:', JSON.stringify(slotOwners));
         console.log('[draft] slotOwners after trade overlay (first 4):', 
           JSON.stringify(Object.fromEntries(Object.entries(slotOwners).slice(0,4))));
       }

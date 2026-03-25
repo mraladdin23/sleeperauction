@@ -1017,9 +1017,10 @@ This only removes it from the registry — all league data in Firebase is preser
       (state.teams||[]).forEach(t => {
         if (t.roster_id) rosterMap[String(t.roster_id)] = t.display_name || t.username || `Team ${t.roster_id}`;
       });
-      // Build player ID -> name map from localStorage cache (may not be loaded yet)
+      // Build player ID -> name map -- try multiple sources
       let byId = window._playerById || {};
       if (Object.keys(byId).length < 100) {
+        // Try localStorage sb_players cache
         try {
           const cached = localStorage.getItem('sb_players');
           if (cached) {
@@ -1028,6 +1029,20 @@ This only removes it from the registry — all league data in Firebase is preser
             Object.entries(players).forEach(([id, p]) => {
               if (p.first_name && p.last_name) byId[id] = { name: p.first_name + ' ' + p.last_name };
             });
+          }
+        } catch(e) {}
+      }
+      // If still empty, fetch player DB fresh
+      if (Object.keys(byId).length < 100) {
+        try {
+          const r = await fetch('https://api.sleeper.app/v1/players/nfl');
+          if (r.ok) {
+            const players = await r.json();
+            byId = {};
+            Object.entries(players).forEach(([id, p]) => {
+              if (p.first_name && p.last_name) byId[id] = { name: p.first_name + ' ' + p.last_name };
+            });
+            try { localStorage.setItem('sb_players', JSON.stringify(players)); } catch(e) {}
           }
         } catch(e) {}
       }
