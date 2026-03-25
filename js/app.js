@@ -1101,7 +1101,7 @@ This only removes it from the registry — all league data in Firebase is preser
       window._txnPage       = 0;
       window._txnTeamFilter = '';
       renderActivityFeedSleeperTxns();
-    } catch(e) { /* transactions optional */ }
+    } catch(e) { console.error('[txn] ERROR:', e.message, e.stack?.split('\n')[1]); }
   }
 
   function renderActivityFeedSleeperTxns() {

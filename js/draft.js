@@ -405,9 +405,11 @@ async function refreshDraft() {
         // Track current owner of each pick: "round-slot" -> roster_id
         // Start with original owners from rosterToSlot
         const pickCurrentOwner = {}; // "round-slot" -> roster_id (string)
+        const originalPickOwner = {}; // "round-slot" -> roster_id (original, before trades)
         Object.entries(rosterToSlot).forEach(([rid, slot]) => {
           for (let r = 1; r <= (draftInfo.settings?.rounds || 4); r++) {
             pickCurrentOwner[`${r}-${slot}`] = rid;
+            originalPickOwner[`${r}-${slot}`] = rid;
           }
         });
 
@@ -427,12 +429,18 @@ async function refreshDraft() {
         });
 
         // Apply final ownership to slotOwners (only for unassigned picks)
+        // Also track original owners for "via trade" display
+        const originalSlotOwners = {}; // "round-slot" -> original teamKey
         Object.entries(pickCurrentOwner).forEach(([key, rid]) => {
-          if (!draftPicks[key]) {
-            const resolved = resolveTeam(rid);
-            if (resolved) slotOwners[key] = resolved;
-          }
+          const resolved = resolveTeam(rid);
+          if (!draftPicks[key] && resolved) slotOwners[key] = resolved;
         });
+        Object.entries(originalPickOwner).forEach(([key, rid]) => {
+          const resolved = resolveTeam(rid);
+          if (resolved) originalSlotOwners[key] = resolved;
+        });
+        // Store globally for renderBoard to use
+        window._draftOriginalSlotOwners = originalSlotOwners;
         console.log('[draft] ALL slotOwners after overlay:', JSON.stringify(slotOwners));
         console.log('[draft] slotOwners after trade overlay (first 4):', 
           JSON.stringify(Object.fromEntries(Object.entries(slotOwners).slice(0,4))));
@@ -659,6 +667,7 @@ function renderBoard() {
   const ROUNDS = 4, PICKS = 12;
   const comm = isComm();
   let html = '';
+  console.log('[board] renderBoard called, slotOwners keys:', Object.keys(slotOwners).length, 'sample:', JSON.stringify(Object.fromEntries(Object.entries(slotOwners).slice(0,3))));
   console.log('[board] slotOwners sample:', JSON.stringify(Object.fromEntries(Object.entries(slotOwners).slice(0,4))));
 
   for (let r = 1; r <= ROUNDS; r++) {
@@ -726,6 +735,18 @@ function renderBoard() {
         // Show owner name on all unassigned picks
         if (ownerName) {
           html += `<div class="pick-owner">${ownerName}</div>`;
+          // Show "via trade" if current owner differs from original slot owner
+          const origOwnerKey = (window._draftOriginalSlotOwners || {})[`${r}-${p}`] || null;
+          const origRidKey = origOwnerKey ? Object.keys(rosterIdToTeam).find(k => rosterIdToTeam[k] === origOwnerKey) : null;
+          const origDispName = origOwnerKey ? (
+            DRAFT_DATA[origOwnerKey]?.team_name ||
+            teamDisplayNames[origOwnerKey] ||
+            (origRidKey ? rosterIdToDisplayName[origRidKey] : null) ||
+            origOwnerKey
+          ) : null;
+          if (origOwnerKey && origOwnerKey !== ownerKey) {
+            html += `<div style="font-size:9px;color:var(--accent2);margin-top:1px;" title="Originally owned by ${origDispName}">📦 via trade</div>`;
+          }
         }
         if (!comm) {
           html += `<div style="font-size:11px;color:var(--text3);margin-top:2px;">Open pick</div>`;
