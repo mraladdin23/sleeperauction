@@ -745,7 +745,7 @@ function renderBoard() {
             origOwnerKey
           ) : null;
           if (origOwnerKey && origOwnerKey !== ownerKey) {
-            html += `<div style="font-size:9px;color:var(--accent2);margin-top:1px;" title="Originally owned by ${origDispName}">📦 via trade</div>`;
+            html += `<div style="font-size:9px;color:var(--accent2);margin-top:1px;">📦 via trade from ${origDispName}</div>`;
           }
         }
         if (!comm) {

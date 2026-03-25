@@ -1185,6 +1185,8 @@ This only removes it from the registry — all league data in Firebase is preser
     const el = document.getElementById('home-activity-feed');
     if (!el) return;
     if (!feed || !Object.keys(feed).length) {
+      // Don't overwrite if Sleeper transactions already displayed
+      if (el.querySelector('.txn-item')) return;
       el.innerHTML = '<div class="feed-empty">No activity yet.</div>';
       return;
     }
