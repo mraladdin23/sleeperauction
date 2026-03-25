@@ -353,7 +353,8 @@ window.addEventListener('DOMContentLoaded',function(){
       </button>
     </div>
     <div id="login-password-wrap" style="display:none;margin-top:12px;">
-      <label style="font-size:12px;color:var(--text3);display:block;margin-bottom:6px;">Team Password</label>
+      <label id="login-password-label" style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px;">Team Password</label>
+      <div id="login-password-hint" style="font-size:12px;color:var(--accent2);margin-bottom:6px;display:none;"></div>
       <input type="password" id="login-password" placeholder="Enter team password"
         autocomplete="off"
         style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);
@@ -449,6 +450,9 @@ window.addEventListener('DOMContentLoaded',function(){
       <button class="app-btn" id="nav-standings" onclick="navigateTo('standings')"> <span class="app-btn-icon">📊</span><span>Standings</span></button>
       <button class="app-btn" id="nav-auction"   onclick="navigateTo('auction')">   <span class="app-btn-icon">🏷</span><span>Auction</span></button>
       <button class="app-btn" id="nav-draft"     onclick="navigateTo('draft')">     <span class="app-btn-icon">🎓</span><span>Draft</span></button>
+      <button class="app-btn" id="nav-viz"       onclick="navigateTo('viz')">       <span class="app-btn-icon">📊</span><span>Analytics</span></button>
+      <button class="app-btn" id="nav-chat"      onclick="navigateTo('chat')">      <span class="app-btn-icon">💬</span><span>Chat</span></button>
+      <button class="app-btn" id="nav-rules"     onclick="navigateTo('rules')">     <span class="app-btn-icon">📋</span><span>Rules</span></button>
 
     </nav>
     <div class="app-bar-right">
@@ -525,6 +529,9 @@ window.addEventListener('DOMContentLoaded',function(){
   </div>
 
   <div id="view-standings" style="display:none;"></div>
+  <div id="view-viz"       style="display:none;"></div>
+  <div id="view-chat"      style="display:none;"></div>
+  <div id="view-rules"     style="display:none;"></div>
   <div id="view-auction" style="display:none;"></div>
   <div id="view-roster"  style="display:none;"></div>
   <div id="view-draft"   style="display:none;"></div>
@@ -543,7 +550,7 @@ window.addEventListener('DOMContentLoaded',function(){
 
 <script>
 // ── Router ────────────────────────────────────────────────────
-const VIEWS = ['home','roster','standings','auction','draft'];
+const VIEWS = ['home','roster','standings','auction','draft','viz','chat','rules'];
 let currentView = null;
 const viewsLoaded = {};
 
@@ -577,11 +584,14 @@ function navigateTo(view) {
   });
 
   // Show/hide containers
-  document.getElementById('view-home').style.display    = view==='home'    ? '' : 'none';
-  document.getElementById('view-auction').style.display = view==='auction' ? '' : 'none';
-  document.getElementById('view-roster').style.display  = view==='roster'  ? '' : 'none';
+  document.getElementById('view-home').style.display       = view==='home'       ? '' : 'none';
+  document.getElementById('view-auction').style.display    = view==='auction'    ? '' : 'none';
+  document.getElementById('view-roster').style.display     = view==='roster'     ? '' : 'none';
   document.getElementById('view-draft').style.display      = view==='draft'      ? '' : 'none';
-  document.getElementById('view-standings').style.display = view==='standings' ? '' : 'none';
+  document.getElementById('view-standings').style.display  = view==='standings'  ? '' : 'none';
+  document.getElementById('view-viz').style.display        = view==='viz'        ? '' : 'none';
+  document.getElementById('view-chat').style.display       = view==='chat'       ? '' : 'none';
+  document.getElementById('view-rules').style.display      = view==='rules'      ? '' : 'none';
 
   history.pushState({view}, '', '#' + view);
   currentView = view;
@@ -591,6 +601,9 @@ function navigateTo(view) {
   if (view === 'roster')    initRosterView();
   if (view === 'draft')     initDraftView();
   if (view === 'standings') initStandingsView();
+  if (view === 'viz')       initVizView();
+  if (view === 'chat')      initChatView();
+  if (view === 'rules')     initRulesView();
 }
 
 window.addEventListener('popstate', e => {
@@ -598,6 +611,21 @@ window.addEventListener('popstate', e => {
 });
 
 // ── Home ─────────────────────────────────────────────────────
+function initVizView() {
+  if (window._vizInit) { window._vizInit(); return; }
+  loadScript('js/viz.js', () => { if (window._vizInit) window._vizInit(); });
+}
+
+function initChatView() {
+  if (window._chatInit) { window._chatInit(); return; }
+  loadScript('js/chat.js', () => { if (window._chatInit) window._chatInit(); });
+}
+
+function initRulesView() {
+  if (window._rulesInit) { window._rulesInit(); return; }
+  loadScript('js/rules.js', () => { if (window._rulesInit) window._rulesInit(); });
+}
+
 function initStandingsView() {
   if (viewsLoaded.standings) {
     if (window.switchStandingsTab) switchStandingsTab(window.standingsTab || 'standings');

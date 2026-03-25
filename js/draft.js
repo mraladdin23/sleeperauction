@@ -814,8 +814,9 @@ function renderAvailList() {
   const list = document.getElementById('avail-list');
 
   if (!rookiePlayers.length) {
+    const noPlayersMsg = isDraftSnake ? 'No players found. Try refreshing.' : 'No rookies found. Try refreshing.';
     list.innerHTML = localStorage.getItem('sb_players')
-      ? '<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px;">No rookies found. Try refreshing.</div>'
+      ? `<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px;">${noPlayersMsg}</div>`
       : '<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px;">Loading player database…</div>';
     return;
   }
@@ -840,13 +841,16 @@ function renderAvailList() {
 
   if (!filtered.length) {
     list.innerHTML = '<div style="padding:16px;text-align:center;color:var(--text3);font-size:12px;">'
-      + (availSearch ? 'No players match "' + availSearch + '"' : 'No available rookies at this position.') + '</div>';
+      + (availSearch ? 'No players match "' + availSearch + '"' : (isDraftSnake ? 'No available players at this position.' : 'No available rookies at this position.')) + '</div>';
     return;
   }
 
-  list.innerHTML = filtered.map(rk =>
-    `<div class="avail-player">
-      <div>
+  // Limit to 150 for performance; search/filter reduces this naturally
+  const displayList = filtered.slice(0, 150);
+  const moreCount   = filtered.length - displayList.length;
+  list.innerHTML = displayList.map(rk =>
+    `<div class="avail-player" onclick="selectAvailPlayer('${rk.id}','${rk.name.replace(/'/g,"\'")}')">
+      <div style="min-width:0;flex:1;">
         <div class="avail-player-name">
           <span class="pb pb-${rk.pos}">${rk.pos}</span>
           <span style="margin-left:5px;">${rk.name}</span>
@@ -855,7 +859,7 @@ function renderAvailList() {
       </div>
       <div class="avail-adp">${rk.adp < 999 ? '#'+rk.adp : '—'}</div>
     </div>`
-  ).join('');
+  ).join('') + (moreCount > 0 ? `<div style="padding:10px;text-align:center;color:var(--text3);font-size:11px;">+${moreCount} more — use search to filter</div>` : '');
 }
 
 function setAvailPos(pos, el) {
