@@ -195,13 +195,17 @@ async function loadHistoricalSeasons(currentLeague) {
     } catch(e) { /* no manual registry */ }
   }
 
-  // Only show season bar if there are multiple seasons
-  if (window.historicalLeagues.length > 1) renderSeasonBar();
+  // Always call renderSeasonBar; it hides itself if only 1 season
+  renderSeasonBar();
 }
 
 function renderSeasonBar() {
   const bar = document.getElementById('st-season-bar');
   if (!bar) return;
+  if (!window.historicalLeagues || window.historicalLeagues.length <= 1) {
+    bar.style.display = 'none';
+    return;
+  }
   const currentId = window.viewingLeagueId || standingsLeagueId();
   bar.style.display = '';
   bar.innerHTML =

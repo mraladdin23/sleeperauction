@@ -210,11 +210,13 @@ function searchGifs(query) {
 }
 
 async function sendGif(url) {
-  if (!url || !chatLeagueId) return;
+  const lid = chatLeagueId || localStorage.getItem('sb_leagueId');
+  if (!url || !lid) return;
   const user = localStorage.getItem('sb_username') || 'Anonymous';
-  document.getElementById('gif-panel').style.display = 'none';
+  const panel = document.getElementById('gif-panel');
+  if (panel) panel.style.display = 'none';
   try {
-    await db.ref(`leagues/${chatLeagueId}/chat`).push({ user, text: url, ts: Date.now(), type: 'gif' });
+    await db.ref(`leagues/${lid}/chat`).push({ user, text: url, ts: Date.now(), type: 'gif' });
   } catch(e) { console.warn('GIF send failed:', e); }
 }
 
@@ -324,6 +326,87 @@ async function sendSidebarMessage() {
   try {
     await db.ref(`leagues/${lid}/chat`).push({ user, text, ts: Date.now(), type: 'text' });
   } catch(e) { console.warn('Sidebar send failed:', e); }
+}
+
+// ── SIDEBAR SMACK TALK ─────────────────────────────────────────
+function toggleSidebarSmack() {
+  const menu = document.getElementById('sidebar-smack-menu');
+  const gif  = document.getElementById('sidebar-gif-panel');
+  if (!menu) return;
+  if (menu.style.display === 'none') {
+    if (gif) gif.style.display = 'none';
+    menu.innerHTML = SMACK_LINES.map((l, i) =>
+      `<div onclick="selectSidebarSmack(${i})"
+        style="padding:8px 12px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border);color:var(--text);"
+        onmouseover="this.style.background='var(--surface2)'"
+        onmouseout="this.style.background=''">${l}</div>`
+    ).join('');
+    menu.style.display = '';
+  } else {
+    menu.style.display = 'none';
+  }
+}
+
+function selectSidebarSmack(idx) {
+  const input = document.getElementById('chat-sidebar-input');
+  if (input) { input.value = SMACK_LINES[idx]; input.focus(); }
+  const menu = document.getElementById('sidebar-smack-menu');
+  if (menu) menu.style.display = 'none';
+}
+
+// ── SIDEBAR GIF SEARCH ─────────────────────────────────────────
+function toggleSidebarGif() {
+  const panel = document.getElementById('sidebar-gif-panel');
+  const menu  = document.getElementById('sidebar-smack-menu');
+  if (!panel) return;
+  if (panel.style.display === 'none') {
+    if (menu) menu.style.display = 'none';
+    panel.style.display = '';
+    const inp = document.getElementById('sidebar-gif-input');
+    if (inp) { inp.focus(); if (!inp.value) searchSidebarGifs('fantasy football'); }
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+let _sidebarGifTimer = null;
+function searchSidebarGifs(query) {
+  clearTimeout(_sidebarGifTimer);
+  if (!query.trim()) return;
+  _sidebarGifTimer = setTimeout(async () => {
+    const el = document.getElementById('sidebar-gif-results');
+    if (!el) return;
+    el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Searching…</div>';
+    try {
+      const r = await fetch(`https://api.giphy.com/v1/gifs/search?api_key=dc6zaTOxFJmzC&q=${encodeURIComponent(query)}&limit=9&rating=pg-13`);
+      const data = await r.json();
+      const results = data.data || [];
+      if (!results.length) { el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">No GIFs found</div>'; return; }
+      el.innerHTML = results.map(g => {
+        const preview = g.images?.fixed_height_small?.url || g.images?.downsized_small?.url || '';
+        const full    = g.images?.downsized?.url || preview;
+        if (!preview) return '';
+        return `<img src="${preview}"
+          style="width:100%;height:60px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid transparent;"
+          onmouseover="this.style.borderColor='var(--accent)'"
+          onmouseout="this.style.borderColor='transparent'"
+          onclick="sendSidebarGif('${full.replace(/'/g,"\'")}')"
+          loading="lazy" />`;
+      }).join('');
+    } catch(e) {
+      el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Could not load GIFs</div>';
+    }
+  }, 400);
+}
+
+async function sendSidebarGif(url) {
+  if (!url) return;
+  const lid  = localStorage.getItem('sb_leagueId');
+  const user = localStorage.getItem('sb_username') || 'Anonymous';
+  document.getElementById('sidebar-gif-panel').style.display = 'none';
+  try {
+    await db.ref(`leagues/${lid}/chat`).push({ user, text: url, ts: Date.now(), type: 'gif' });
+  } catch(e) { console.warn('GIF send failed:', e); }
 }
 
 // Expose for lazy loader
