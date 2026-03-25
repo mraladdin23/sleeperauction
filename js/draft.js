@@ -184,12 +184,16 @@ async function init() {
 let slotOwners = {};   // "round-pick" → teamKey
 let rosterIdToTeam        = {};  // Sleeper roster_id (string) → our teamKey
 let rosterIdToDisplayName = {};  // Sleeper roster_id (string) → display name (fallback)
+let userIdToTeam          = {};  // Sleeper user_id (string) → our teamKey (for picked_by)
+let rosterIdToUserId      = {};  // Sleeper roster_id (string) → owner user_id
 let teamDisplayNames      = {};  // teamKey (username) → display name for current viewing season
 window.viewingDraftLeagueId = window.viewingDraftLeagueId || null;
 window.draftSeasons         = window.draftSeasons         || [];
 
 async function loadRosterMapping() {
-  rosterIdToTeam = {};
+  rosterIdToTeam    = {};
+  userIdToTeam      = {};
+  rosterIdToUserId  = {};
   // The cap team keys ARE the Sleeper usernames — so we just need
   // Sleeper roster_id → username, then look up in DRAFT_DATA directly.
   try {
@@ -197,21 +201,27 @@ async function loadRosterMapping() {
       fetch(`https://api.sleeper.app/v1/league/${draftLeagueId()}/rosters`).then(r=>r.json()),
       fetch(`https://api.sleeper.app/v1/league/${draftLeagueId()}/users`).then(r=>r.json()),
     ]);
-    const userById = {};
+    const userById   = {};
     (users||[]).forEach(u => { userById[u.user_id] = u; });
     (rosters||[]).forEach(r => {
-      const u = userById[r.owner_id] || {};
-      const username = (u.username || '').toLowerCase();
-      // Cap key is the username — verify it exists in DRAFT_DATA, fallback to display_name
-      const capKey = DRAFT_DATA[username] ? username
-                   : Object.keys(DRAFT_DATA||{}).find(k => k.toLowerCase() === (u.display_name||'').toLowerCase())
-                   || username;
+      const u        = userById[r.owner_id] || {};
+      // Use display_name if username is empty (some Sleeper accounts)
+      const username = (u.username || u.display_name || '').toLowerCase().replace(/ /g,'_');
+      // Cap key: try DRAFT_DATA match first, then use username directly
+      const capKey = (DRAFT_DATA && Object.keys(DRAFT_DATA).length > 0)
+        ? (DRAFT_DATA[username] ? username
+           : Object.keys(DRAFT_DATA).find(k => k.toLowerCase() === (u.display_name||'').toLowerCase())
+           || username)
+        : username;
       rosterIdToTeam[String(r.roster_id)] = capKey;
       rosterIdToDisplayName[String(r.roster_id)] = u.display_name || u.username || `Roster ${r.roster_id}`;
+      // Map user_id → teamKey so picked_by (which is user_id) can be resolved
+      userIdToTeam[String(r.owner_id)] = capKey;  // module-level
+      // Map roster_id → owner user_id (for draft_order slot lookup)
+      rosterIdToUserId[String(r.roster_id)] = String(r.owner_id);
       // Store display name keyed by teamKey for historical season name lookup
       teamDisplayNames[capKey] = u.display_name || u.username || capKey;
-      console.log(`Roster ${r.roster_id} → ${capKey} (${u.display_name})`);
-    });
+      });
   } catch(e) {
     console.warn('loadRosterMapping:', e);
     // Last resort: try Firebase saved mapping
@@ -235,12 +245,6 @@ async function refreshDraft() {
   teamDisplayNames = {}; // reset for each season
   // Load roster mapping first so we can display team names
   await loadRosterMapping();
-  console.log('DRAFT DEBUG leagueId:', draftLeagueId(), 'viewing:', window.viewingDraftLeagueId);
-  console.log('DRAFT DEBUG teamDisplayNames:', JSON.stringify(teamDisplayNames));
-  console.log('DRAFT DEBUG rosterIdToTeam:', JSON.stringify(rosterIdToTeam));
-  console.log('=== DRAFT SEASON:', draftLeagueId());
-  console.log('=== rosterIdToTeam:', JSON.stringify(rosterIdToTeam));
-  console.log('=== teamDisplayNames:', JSON.stringify(teamDisplayNames));
 
   let draftPicks = {};    // key "r-slot" → { player, sleeperPick, rosterId }
   slotOwners = {};        // slot# → teamKey (from slot_to_roster_id)
@@ -310,7 +314,6 @@ async function refreshDraft() {
           const pick = (isSnakeD && r % 2 === 0) ? String(TEAMS_D + 1 - Number(slot)) : String(slot);
           slotOwners[`${r}-${pick}`] = val;
         }
-        console.log(`draft_order: user ${userId} → slot ${slot} → ${val}`);
       });
 
     } else {
@@ -344,16 +347,83 @@ async function refreshDraft() {
         const ln   = pk.metadata?.last_name  || '';
         const name = (fn || ln) ? `${fn} ${ln}`.trim() : null;
         if (name) {
+          // pk.roster_id = slot owner (who the pick belongs to)
+          // pk.picked_by = who actually made the pick (may differ if traded)
+          // picked_by is user_id; use userIdToTeam map built in loadRosterMapping
+          const resolvedTeam = (pk.picked_by ? userIdToTeam[String(pk.picked_by)] : null)
+                             || rosterIdToTeam[String(pk.roster_id)]
+                             || rosterIdToDisplayName[String(pk.roster_id)]
+                             || null;
+
           draftPicks[key] = {
             player: name,
             sleeperPick: true,
             rosterId: pk.roster_id,
-            // Who actually made this pick (may differ from slot owner if traded)
-            pickedByTeam: rosterIdToTeam[String(pk.roster_id)] || null,
+            pickedByUserId: pk.picked_by || null,
+            pickedByTeam: resolvedTeam,
           };
         }
       });
     }
+
+    // 3b. Overlay traded picks onto slotOwners using Sleeper traded_picks API
+    try {
+      const tradedPicks = await fetch(`https://api.sleeper.app/v1/league/${draftLeagueId()}/traded_picks`).then(r=>r.json());
+      console.log('[draft] tradedPicks:', Array.isArray(tradedPicks) ? tradedPicks.length : 'not array', tradedPicks?.[0] ? JSON.stringify(tradedPicks[0]).slice(0,150) : 'empty');
+      console.log('[draft] rosterIdToTeam:', JSON.stringify(rosterIdToTeam));
+      console.log('[draft] rosterIdToDisplayName:', JSON.stringify(rosterIdToDisplayName));
+      if (Array.isArray(tradedPicks) && tradedPicks.length) {
+        // Helper: resolve roster_id -> display name (use displayName since rosterIdToTeam may be empty)
+        const resolveTeam = (rid) =>
+          rosterIdToTeam[String(rid)] ||
+          rosterIdToDisplayName[String(rid)] ||
+          userIdToTeam[String(rid)] || null;
+
+        // Filter to current draft season only
+        const seasonPicks = tradedPicks.filter(tp => String(tp.season) === String(draftInfo.season));
+        console.log('[draft] seasonPicks for', draftInfo.season, ':', seasonPicks.length);
+
+        // Build roster_id -> draft slot from draft_order (userId->slot) + rosterIdToUserId
+        // draft_order: {userId: slotNumber}
+        const rosterToSlot = {}; // roster_id -> slot number
+        Object.entries(draftInfo.draft_order || {}).forEach(([userId, slot]) => {
+          // Find roster_id for this userId
+          const rid = Object.keys(rosterIdToUserId).find(r => rosterIdToUserId[r] === String(userId));
+          if (rid) rosterToSlot[rid] = slot;
+        });
+        console.log('[draft] rosterToSlot:', JSON.stringify(rosterToSlot));
+
+        // Track current owner of each pick: "round-slot" -> roster_id
+        // Start with original owners from rosterToSlot
+        const pickCurrentOwner = {}; // "round-slot" -> roster_id (string)
+        Object.entries(rosterToSlot).forEach(([rid, slot]) => {
+          for (let r = 1; r <= (draftInfo.settings?.rounds || 4); r++) {
+            pickCurrentOwner[`${r}-${slot}`] = rid;
+          }
+        });
+
+        // Apply each trade in order: previous_owner_id -> roster_id (current owner)
+        seasonPicks.forEach(tp => {
+          // Find which slot currently belongs to previous_owner_id
+          for (const [key, currentRid] of Object.entries(pickCurrentOwner)) {
+            const [round] = key.split('-').map(Number);
+            if (round !== tp.round) continue;
+            if (String(currentRid) === String(tp.previous_owner_id)) {
+              pickCurrentOwner[key] = String(tp.roster_id);
+            }
+          }
+        });
+
+        // Apply final ownership to slotOwners (only for unassigned picks)
+        Object.entries(pickCurrentOwner).forEach(([key, rid]) => {
+          if (!draftPicks[key]) {
+            slotOwners[key] = resolveTeam(rid) || slotOwners[key];
+          }
+        });
+        console.log('[draft] slotOwners after trade overlay (first 4):', 
+          JSON.stringify(Object.fromEntries(Object.entries(slotOwners).slice(0,4))));
+      }
+    } catch(e) { console.warn('traded picks:', e); }
 
     const statusLabel = {
       pre_draft: `📅 Scheduled — pick order is set`,
@@ -369,7 +439,6 @@ async function refreshDraft() {
       `${statusLabel} · ${draftInfo.season || ''} · type: ${draftInfo.type} · ID: ${draftInfo.draft_id}`;
     document.getElementById('draft-subtitle').title =
       `Slot owners: ${slotDebug || '(none)'}  |  rosterIdToTeam: ${JSON.stringify(rosterIdToTeam)}`;
-    console.log('Slot owners:', slotDebug);
 
     // Show "Assign All" button when draft is complete and user is commissioner
     const assignBtn = document.getElementById('assign-all-btn');
@@ -578,11 +647,12 @@ function renderBoard() {
   let html = '';
 
   for (let r = 1; r <= ROUNDS; r++) {
-    const salLabel = r===1 ? '$15M / $10M' : r===2 ? '$7.5M / $5M' : r===3 ? '$3M / $2M' : '$1M';
+    const isSal = (window._capLeagueType || 'salary_auction') === 'salary_auction';
+    const salLabel = isSal ? (r===1 ? '$15M / $10M' : r===2 ? '$7.5M / $5M' : r===3 ? '$3M / $2M' : '$1M') : '';
     html += `<div class="round-section">
       <div class="round-header">
         <span class="round-label">Round ${r}</span>
-        <span class="round-salary">${salLabel}</span>
+        ${salLabel ? `<span class="round-salary">${salLabel}</span>` : ""}
       </div>
       <div class="picks-grid">`;
 
@@ -599,6 +669,17 @@ function renderBoard() {
       const isSleeper = pick.sleeperPick && !pick.team;
       const assignedTeamKey  = pick.team || null;
       const assignedTeamName = assignedTeamKey ? (window.viewingDraftLeagueId ? (teamDisplayNames[assignedTeamKey] || assignedTeamKey) : (DRAFT_DATA[assignedTeamKey]?.team_name || assignedTeamKey)) : '';
+      // For Sleeper picks: resolve who actually made the pick (may differ from slot owner if traded)
+      const pickedByKey  = pick.pickedByTeam || null;
+      const pickedByName = pickedByKey
+        ? (window.viewingDraftLeagueId
+            ? (teamDisplayNames[pickedByKey] || pickedByKey)
+            : (DRAFT_DATA[pickedByKey]?.team_name || rosterIdToDisplayName[pickedByKey] || pickedByKey))
+        : null;
+      // Effective display name: for Sleeper picks use pickedByName, else assignedTeamName
+      const displayTeam = isSleeper ? (pickedByName || ownerName || '') : (assignedTeamName || ownerName || '');
+      // Was the pick traded? slot owner differs from picker
+      const wasTraded = isSleeper && pickedByKey && ownerKey && pickedByKey !== ownerKey;
       const isOverCap = assignedTeamKey && DRAFT_DATA[assignedTeamKey]?.cap_spent > CAP;
 
       const cardCls = assigned
@@ -608,18 +689,17 @@ function renderBoard() {
       html += `<div class="pick-card ${cardCls}">
         <div class="pick-num">
           <span>Pick ${r}.${String(p).padStart(2,'0')}</span>
-          <span class="pick-sal">${fmtM(sal)}</span>
+          ${isSal ? `<span class="pick-sal">${fmtM(sal)}</span>` : ""}
         </div>`;
 
       if (assigned) {
         // Only show slot owner if it differs from who made the pick (traded pick)
-        if (ownerName && ownerName !== (assignedTeamName || ownerName)) {
-          html += `<div class="pick-owner" title="Original pick owner">${ownerName}</div>`;
-        }
+        // traded pick note now shown below the player name
         html += `<div class="pick-player">${pick.player}</div>
           <div class="pick-team" style="${isOverCap?'color:var(--red);font-weight:600;':''}">
-            ${assignedTeamName || ownerName || ''}${isOverCap?' ⚠️ OVER CAP':''}
+            ${displayTeam}${isOverCap?' ⚠️ OVER CAP':''}
           </div>
+          ${wasTraded ? `<div class="pick-owner" style="font-size:9px;color:var(--accent2);margin-top:1px;" title="Original slot owner">📦 via trade (${ownerName})</div>` : ''}
           ${comm ? `<button class="pick-clear" onclick="clearPick('${key}')">✕ Clear</button>` : ''}`;
       } else {
         // Show owner name on all unassigned picks

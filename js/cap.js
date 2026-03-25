@@ -46,6 +46,12 @@ function subscribeRosters() {
 
   // Build player name lookup from cached Sleeper DB for age badges + photos
   try {
+    const cacheVer = localStorage.getItem('sb_players_ver');
+    if (cacheVer !== '2') {
+      // Old cache missing bio fields -- clear so it refetches fresh
+      localStorage.removeItem('sb_players');
+      localStorage.removeItem('sb_players_at');
+    }
     const cached = localStorage.getItem('sb_players');
     if (cached) {
       const players = JSON.parse(cached);
@@ -54,10 +60,20 @@ function subscribeRosters() {
         // Build reverse lookup: player_id -> player data
         if (p.first_name && p.last_name) {
           window._playerById[playerId] = {
-            name:     `${p.first_name} ${p.last_name}`,
-            pos:      p.fantasy_positions?.[0] || p.position || '—',
-            team:     p.team || '—',
-            rank:     p.search_rank || p.rank || 9999,
+            name:       `${p.first_name} ${p.last_name}`,
+            pos:        p.fantasy_positions?.[0] || p.position || '—',
+            team:       p.team || '—',
+            rank:       p.rank || p.search_rank || 9999,
+            age:        p.age || null,
+            birth_date: p.birth_date || null,
+            height:     p.height || null,
+            weight:     p.weight || null,
+            college:    p.college || null,
+            years_exp:  p.years_exp ?? null,
+            birth_country: p.birth_country || null,
+            depth_chart_order: p.depth_chart_order || null,
+            status:     p.status || null,
+            injury_status: p.injury_status || null,
           };
         }
         if (p.first_name && p.last_name) {
@@ -65,8 +81,14 @@ function subscribeRosters() {
           PLAYER_LOOKUP[key] = { birth_date: p.birth_date || null, player_id: playerId, nfl_team: p.team || null, age: p.age || null, years_exp: p.years_exp != null ? p.years_exp : null };
         }
       });
+      console.log('[players] _playerById built:', Object.keys(window._playerById||{}).length, 'players');
+      if (window._playerById) {
+        const sample = Object.entries(window._playerById).find(([,p]) => p.age);
+        console.log('[players] sample with age:', sample ? JSON.stringify(sample[1]) : 'none found');
+      }
+      localStorage.setItem('sb_players_ver', '2');
     }
-  } catch(e) {}
+  } catch(e) { console.warn('[players] build error:', e); }
 
   // Overlay confirmed playerIdMap from Firebase (player_matcher.html writes this)
   // Firebase keys have . # $ / [ ] encoded — decode them back to real names
@@ -102,10 +124,10 @@ function subscribeRosters() {
   };
   window._capRosterRef.on('value', snap => {
     const fbData = snap.val();
-    console.log('[cap.js] Firebase data:', fbData ? Object.keys(fbData).length + ' teams' : 'null');
-    console.log('[cap.js] _capLeagueType:', window._capLeagueType);
-    console.log('[cap.js] _capTeams:', window._capTeams ? window._capTeams.length + ' teams' : 'null');
-    console.log('[cap.js] isSalaryLeague:', isSalaryLeague());
+
+
+
+
     if (fbData && Object.keys(fbData).length > 0) {
       DATA = fbData;
       const _lu1 = document.getElementById('last-upd'); if(_lu1) _lu1.textContent = 'Live data';
@@ -113,7 +135,7 @@ function subscribeRosters() {
       // No Firebase roster data -- build from Sleeper live data if available
       // Build from Sleeper live teams -- window._capTeams set by app.js before capInit
       const appTeams = window._capTeams || window.App?.state?.teams || [];
-      console.log('[cap.js] appTeams for fallback:', appTeams.length);
+  
       if (appTeams.length > 0) {
         DATA = {};
         appTeams.forEach(t => {
@@ -434,7 +456,7 @@ function renderOverview() {
       ${scarBadges?`<div style="margin-bottom:8px;">${scarBadges}</div>`:''}
       <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px;">${showSal ? 'Top Salaries' : 'Top Players'}</div>
       ${top3.map(p=>`<div class="top-player">
-        <div class="tp-left">${badge(p.pos)}<span class="tp-name">${p.name}</span></div>
+        <div class="tp-left">${badge(p.pos)}<span class="tp-name" data-pname="${p.name}" data-pid="${PLAYER_LOOKUP[p.name.toLowerCase()]?.player_id||''}" onclick="showPlayerCard(this.dataset.pid,this.dataset.pname)" style="cursor:pointer;">${p.name}</span></div>
         ${showSal ? `<span class="tp-sal">${fmtM(p.salary)}</span>` : ''}
       </div>`).join('')}
       ${showSal && (t.ir||[]).filter(p=>p.name).length ? `<div style="margin-top:6px;padding:4px 8px;background:rgba(255,77,106,.1);border-radius:4px;font-size:11px;color:var(--red);font-weight:500;">🏥 ${(t.ir||[]).filter(p=>p.name).length} on IR — 75% cap hit</div>` : (t.ir||[]).filter(p=>p.name).length ? `<div style="margin-top:6px;padding:4px 8px;background:rgba(255,77,106,.1);border-radius:4px;font-size:11px;color:var(--red);font-weight:500;">🏥 ${(t.ir||[]).filter(p=>p.name).length} on IR</div>` : ''}
@@ -638,8 +660,8 @@ let apSearch = '';
 // Keep search state + stats cache at module level so search input 
 // doesn't get destroyed on each keystroke
 let apStatsMap  = null;   // player_id -> stats for current year
-let apSort      = { col: 'salary', dir: -1 };  // col: 'salary'|'pts', dir: 1=asc -1=desc
-let apStatYear  = 2025;   // 2023 | 2024 | 2025
+let apSort      = { col: 'pts', dir: -1 };  // col: 'name'|'pts'|'owner'|'salary'=desc
+let apStatYear  = 2025;   // 2023 | 2024 | 2025 (2025 = last completed season)
 
 async function loadApStats(year) {
   year = year || apStatYear;
@@ -692,11 +714,11 @@ function apBuildShell(el) {
         '<div style="overflow-x:auto;">' +
           '<table class="fa-table">' +
             '<thead><tr>' +
-              '<th>Player</th>' +
+              '<th id="ap-th-name" onclick="apSortBy(&quot;name&quot;)" style="cursor:pointer;user-select:none;">Player <span id="ap-sort-name"></span></th>' +
               '<th>NFL Team</th>' +
               '<th id="ap-th-pts" onclick="apSortBy(&quot;pts&quot;)"    style="cursor:pointer;user-select:none;">Pts <span id="ap-sort-pts"></span></th>' +
-              '<th>Owner</th>' +
-              '<th id="ap-th-sal" onclick="apSortBy(&quot;salary&quot;)" style="cursor:pointer;user-select:none;text-align:right;">Salary <span id="ap-sort-sal">▼</span></th>' +
+              '<th id="ap-th-owner" onclick="apSortBy(&quot;owner&quot;)" style="cursor:pointer;user-select:none;">Owner <span id="ap-sort-owner"></span></th>' +
+              (isSalaryLeague() ? '<th id="ap-th-sal" onclick="apSortBy(&quot;salary&quot;)" style="cursor:pointer;user-select:none;text-align:right;">Salary <span id="ap-sort-sal">▼</span></th>' : '') +
               '<th style="text-align:right;"></th>' +
             '</tr></thead>' +
             '<tbody id="ap-rows"></tbody>' +
@@ -713,11 +735,29 @@ function renderAllPlayers() {
 
   // Build flat player list from all roster slots
   const players = [];
-  Object.entries(DATA).forEach(([key, t]) => {
-    (t.starters||[]).forEach(p => { if(p.name) players.push({name:p.name, pos:p.pos||'—', salary:p.salary, slot:'Active', teamName:t.team_name, teamKey:key}); });
-    (t.ir||[]).forEach(p =>     { if(p.name) players.push({name:p.name, pos:p.pos||'—', salary:Math.round(p.salary*.75), rawSal:p.salary, slot:'IR',     teamName:t.team_name, teamKey:key}); });
-    (t.taxi||[]).forEach(p =>   { if(p.name) players.push({name:p.name, pos:p.pos||'—', salary:p.salary, slot:'Taxi',   teamName:t.team_name, teamKey:key}); });
-  });
+  if (!isSalaryLeague() && window._capTeams && window._capTeams.length > 0) {
+    // Dynasty: use Sleeper live roster data
+    const byId = window._playerById || {};
+    window._capTeams.forEach(tm => {
+      const key      = (tm.username||tm.display_name||'').toLowerCase().replace(/ /g,'_');
+      const teamName = tm.display_name || tm.username || `Team ${tm.roster_id}` || key;
+      const taxiSet  = new Set(tm.taxi    || []);
+      const resSet   = new Set(tm.reserve || []);
+      (tm.players || []).forEach(id => {
+        const p    = byId[id] || {};
+        const name = p.name  || `Player ${id}`;
+        const pos  = p.pos   || '—';
+        const slot = resSet.has(id) ? 'IR' : taxiSet.has(id) ? 'Taxi' : 'Active';
+        players.push({ name, pos, salary: 0, slot, teamName, teamKey: key, rank: p.rank || 9999, player_id: id });
+      });
+    });
+  } else {
+    Object.entries(DATA).forEach(([key, t]) => {
+      (t.starters||[]).forEach(p => { if(p.name) players.push({name:p.name, pos:p.pos||'—', salary:p.salary, slot:'Active', teamName:t.team_name, teamKey:key}); });
+      (t.ir||[]).forEach(p =>     { if(p.name) players.push({name:p.name, pos:p.pos||'—', salary:Math.round(p.salary*.75), rawSal:p.salary, slot:'IR',     teamName:t.team_name, teamKey:key}); });
+      (t.taxi||[]).forEach(p =>   { if(p.name) players.push({name:p.name, pos:p.pos||'—', salary:p.salary, slot:'Taxi',   teamName:t.team_name, teamKey:key}); });
+    });
+  }
 
   // Filter
   const apNflFilter   = (document.getElementById('ap-nfl-filter')?.value   || '').toUpperCase();
@@ -726,27 +766,35 @@ function renderAllPlayers() {
   if (apSearch)      filtered = filtered.filter(p => p.name.toLowerCase().includes(apSearch));
   if (apNflFilter)   filtered = filtered.filter(p => (PLAYER_LOOKUP[p.name.toLowerCase()]?.nfl_team||'').toUpperCase() === apNflFilter);
   if (apOwnerFilter) filtered = filtered.filter(p => p.teamKey === apOwnerFilter);
+  const stats = apStatsMap || {};
   // Sort
   const dir = apSort.dir;
   if (apSort.col === 'pts') {
     filtered.sort((a, b) => {
-      const pa = (stats[PLAYER_LOOKUP[a.name.toLowerCase()]?.player_id||'']?.pts_ppr ?? -1);
-      const pb = (stats[PLAYER_LOOKUP[b.name.toLowerCase()]?.player_id||'']?.pts_ppr ?? -1);
+      const pidA = a.player_id || PLAYER_LOOKUP[a.name.toLowerCase()]?.player_id || '';
+      const pidB = b.player_id || PLAYER_LOOKUP[b.name.toLowerCase()]?.player_id || '';
+      const pa = (stats[pidA]?.pts_ppr ?? -1);
+      const pb = (stats[pidB]?.pts_ppr ?? -1);
       return -dir * (pb - pa);
     });
+  } else if (apSort.col === 'name') {
+    filtered.sort((a, b) => dir * a.name.localeCompare(b.name));
+  } else if (apSort.col === 'owner') {
+    filtered.sort((a, b) => dir * (a.teamName||'').localeCompare(b.teamName||''));
   } else {
     filtered.sort((a, b) => -dir * (b.salary - a.salary));
   }
 
-  const stats    = apStatsMap || {};
   const totalSal = filtered.filter(p => p.slot === 'Active').reduce((s, p) => s + p.salary, 0);
   const wl       = JSON.parse(localStorage.getItem('sb_cap_watchlist') || '{}');
 
   // Build rows — identical structure to FA tab, with owner/salary/badges added
   const rows = filtered.map(p => {
     const lk       = PLAYER_LOOKUP[p.name.toLowerCase()] || {};
-    const pid      = lk.player_id || '';
-    const nflTeam  = lk.nfl_team  || '—';
+    const pid      = p.player_id || lk.player_id || '';
+    // For dynasty players, get NFL team from _playerById (built from Sleeper DB)
+    const byIdEntry = pid ? (window._playerById||{})[pid] : null;
+    const nflTeam  = lk.nfl_team || byIdEntry?.team || '—';
     const ho       = (holdouts[p.teamKey]||{})[p.name];
     const starred  = !!wl[p.name];
     const safeName = p.name.replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -778,7 +826,7 @@ function renderAllPlayers() {
             '<span style="display:none">' + (p.pos||'?') + '</span>' +
           '</div>' +
           '<div>' +
-            '<div style="font-weight:500;">' + p.name + ageBadge(p.name) + slotBadge + hoBadge + '</div>' +
+            '<div style="font-weight:500;"><span onclick="showPlayerCard(\'' + pid + '\',\'' + p.name.replace(/'/g,"&#39;") + '\')" style="cursor:pointer;" title="View player card">' + p.name + '</span>' + ageBadge(p.name) + slotBadge + hoBadge + '</div>' +
             '<div style="display:flex;gap:6px;margin-top:2px;"><span class="pos-badge pos-' + p.pos + '">' + (p.pos||'—') + '</span></div>' +
             statLine +
           '</div>' +
@@ -787,11 +835,15 @@ function renderAllPlayers() {
       '<td style="color:var(--text2);">' + nflTeam + '</td>' +
       '<td style="color:var(--text2);font-family:var(--font-mono);font-size:13px;">' + pts + '</td>' +
       '<td style="color:var(--text2);">' +
-        '<span onclick="openTeamPanel(\'' + p.teamKey + '\')" style="cursor:pointer;">' + p.teamName + ' <span style="color:var(--accent2);font-size:10px;">↗</span></span>' +
+('<span onclick="' + (isSalaryLeague() ? 'openTeamPanel' : 'openTeamPanelFromKey') + '(\'' + p.teamKey + '\')" style="cursor:pointer;">' +
+        (p.teamName || p.teamKey || '—') +
+        ' <span style="color:var(--accent2);font-size:10px;">↗</span></span>') +
       '</td>' +
-      '<td style="text-align:right;font-family:var(--font-mono);font-size:13px;color:' + salClr + ';">' +
-        fmtM(p.salary) + (p.rawSal ? '<br/><span style="font-size:10px;color:var(--text3);">(' + fmtM(p.rawSal) + ')</span>' : '') +
-      '</td>' +
+      (isSalaryLeague() ?
+        '<td style="text-align:right;font-family:var(--font-mono);font-size:13px;color:' + salClr + ';">' +
+          fmtM(p.salary) + (p.rawSal ? '<br/><span style="font-size:10px;color:var(--text3);">(' + fmtM(p.rawSal) + ')</span>' : '') +
+        '</td>' : '') +
+
       '<td style="text-align:right;">' +
         '<button class="btn btn-sm" data-pname="' + safeName + '" onclick="capToggleWatch(this)" ' +
           'style="background:transparent;border:1px solid var(--border);font-size:13px;padding:4px 7px;" ' +
@@ -815,10 +867,14 @@ function renderAllPlayers() {
   const ptsHeader = document.getElementById('ap-th-pts');
   if (ptsHeader) ptsHeader.innerHTML = apStatYear + ' Pts <span id="ap-sort-pts"></span>';
   // Update sort arrow indicators
-  const sortSal = document.getElementById('ap-sort-sal');
-  const sortPts = document.getElementById('ap-sort-pts');
-  if (sortSal) sortSal.textContent = apSort.col === 'salary' ? (apSort.dir < 0 ? '▼' : '▲') : '';
-  if (sortPts) sortPts.textContent = apSort.col === 'pts'    ? (apSort.dir < 0 ? '▼' : '▲') : '';
+  const sortSal   = document.getElementById('ap-sort-sal');
+  const sortPts   = document.getElementById('ap-sort-pts');
+  const sortName  = document.getElementById('ap-sort-name');
+  const sortOwner = document.getElementById('ap-sort-owner');
+  if (sortSal)   sortSal.textContent   = apSort.col === 'salary' ? (apSort.dir < 0 ? '▼' : '▲') : '';
+  if (sortPts)   sortPts.textContent   = apSort.col === 'pts'    ? (apSort.dir < 0 ? '▼' : '▲') : '';
+  if (sortName)  sortName.textContent  = apSort.col === 'name'   ? (apSort.dir < 0 ? '▼' : '▲') : '';
+  if (sortOwner) sortOwner.textContent = apSort.col === 'owner'  ? (apSort.dir < 0 ? '▼' : '▲') : '';
   // Highlight active year button
   [2023,2024,2025].forEach(y => {
     const btn = document.getElementById('ap-yr-' + y);
@@ -861,6 +917,21 @@ function capToggleWatch(nameOrBtn) {
 }
 
 // ── INLINE TEAM PANEL ────────────────────────────────────────
+function openTeamPanelFromKey(key) {
+  // For dynasty: find the appTeam and DATA entry by key
+  const t = DATA[key];
+  if (t) { openTeamPanelDynasty(key, t); return; }
+  // Key may not match DATA exactly -- find by username
+  const appTeam = (window._capTeams||[]).find(tm =>
+    (tm.username||'').toLowerCase().replace(/ /g,'_') === key ||
+    (tm.display_name||'').toLowerCase().replace(/ /g,'_') === key
+  );
+  if (appTeam) {
+    const fakeT = { team_name: appTeam.display_name||appTeam.username||key, starters:[], ir:[], taxi:[] };
+    openTeamPanelDynasty(key, fakeT);
+  }
+}
+
 async function openTeamPanelDynasty(key, t) {
   const appTeam = (window._capTeams||[]).find(tm =>
     (tm.username||'').toLowerCase() === key ||
@@ -880,7 +951,7 @@ async function openTeamPanelDynasty(key, t) {
             name: p.first_name + ' ' + p.last_name,
             pos:  (p.fantasy_positions||[])[0] || p.position || '—',
             team: p.team || '—',
-            rank: p.search_rank || p.rank || 9999,
+            rank: p.rank || p.search_rank || 9999,
           };
         }
       });
@@ -937,18 +1008,42 @@ async function openTeamPanelDynasty(key, t) {
       onerror="this.style.display='none'" />`;
     return `<div style="display:flex;align-items:center;gap:8px;padding:4px 0;${dimmed?'opacity:.6;':''}">
       ${photo}
-      <div style="flex:1;font-size:13px;">${name}${ageBadge(name)}</div>
+      <div style="flex:1;font-size:13px;"><span data-pid="${id}" data-pname="${name}" onclick="showPlayerCard(this.dataset.pid,this.dataset.pname)" style="cursor:pointer;">${name}</span>${ageBadge(name)}</div>
       <span style="font-size:10px;background:${pc}22;color:${pc};padding:1px 5px;border-radius:3px;">${pos}</span>
       <span style="font-size:10px;color:var(--text3);">${team}</span>
     </div>`;
   }
 
+  const POS_ORDER = ['QB','RB','WR','TE','K','DEF','DL','LB','DB'];
+
   function section(label, ids, dimmed) {
     if (!ids.length) return '';
+    // Group by position, sort each group by rank
+    const groups = {};
+    ids.forEach(id => {
+      const p   = byId[id] || {};
+      const pos = p.pos || 'OTH';
+      if (!groups[pos]) groups[pos] = [];
+      groups[pos].push(id);
+    });
+    // Sort ids within each group by rank
+    Object.keys(groups).forEach(pos => {
+      groups[pos].sort((a,b) => (byId[a]?.rank||9999) - (byId[b]?.rank||9999));
+    });
+    // Order positions
+    const orderedPos = [
+      ...POS_ORDER.filter(p => groups[p]),
+      ...Object.keys(groups).filter(p => !POS_ORDER.includes(p)).sort()
+    ];
+    const rows = orderedPos.map(pos => {
+      const posColor = POS_COLORS[pos] || '#888';
+      const posHeader = `<div style="font-size:10px;font-weight:600;color:${posColor};
+        padding:6px 0 2px;margin-top:4px;">${pos}</div>`;
+      return posHeader + groups[pos].map(id => playerRow(id, dimmed)).join('');
+    }).join('');
     return `<div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;
       color:var(--text3);padding:10px 0 4px;border-top:1px solid var(--border);margin-top:6px;">
-      ${label} (${ids.length})</div>
-      ${ids.map(id => playerRow(id, dimmed)).join('')}`;
+      ${label} (${ids.length})</div>${rows}`;
   }
 
   const rHTML = section('Active Roster', activeIds, false)
@@ -1015,7 +1110,7 @@ function openTeamPanel(key) {
     const irCapHit = onSleeperIR ? Math.round(p.salary * 0.75) : null;
     return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;gap:8px;${onSleeperIR?'opacity:.75;':''}">
       ${photo}
-      <div style="flex:1;font-size:13px;">${p.name}${ageBadge(p.name)}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:4px;">🔥</span>':''}${onSleeperIR?'<span style="font-size:10px;color:var(--red);margin-left:4px;" title="On Sleeper IR — move to IR in Commish tab for 75% cap hit">🏥 IR*</span>':''}</div>
+      <div style="flex:1;font-size:13px;"><span data-pname="${p.name}" data-pid="${PLAYER_LOOKUP[p.name.toLowerCase()]?.player_id||''}" onclick="showPlayerCard(this.dataset.pid,this.dataset.pname)" style="cursor:pointer;">${p.name}</span>${ageBadge(p.name)}${ho?'<span style="font-size:10px;color:var(--yellow);margin-left:4px;">🔥</span>':''}${onSleeperIR?'<span style="font-size:10px;color:var(--red);margin-left:4px;" title="On Sleeper IR — move to IR in Commish tab for 75% cap hit">🏥 IR*</span>':''}</div>
       ${panelShowSal ? `<div style="font-family:var(--font-mono);font-size:12px;flex-shrink:0;${onSleeperIR?'color:var(--red);':''}">
         ${onSleeperIR?`<span style="text-decoration:line-through;opacity:.5;">${fmtM(p.salary)}</span> ${fmtM(irCapHit)}`:fmtM(p.salary)}
       </div>` : ''}
@@ -1037,7 +1132,7 @@ function openTeamPanel(key) {
         :`<div style="width:26px;height:26px;border-radius:50%;background:${pc}22;flex-shrink:0;"></div>`;
       return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;gap:8px;">
         ${photo}
-        <div style="flex:1;font-size:13px;color:var(--text2);">${p.name}${ageBadge(p.name)}${p.pos&&p.pos!=='—'?`<span style="font-size:10px;background:${pc}22;color:${pc};padding:0 4px;border-radius:3px;margin-left:4px;">${p.pos}</span>`:''}
+        <div style="flex:1;font-size:13px;color:var(--text2);"><span data-pname="${p.name}" data-pid="${PLAYER_LOOKUP[p.name.toLowerCase()]?.player_id||''}" onclick="showPlayerCard(this.dataset.pid,this.dataset.pname)" style="cursor:pointer;">${p.name}</span>${ageBadge(p.name)}${p.pos&&p.pos!=='—'?`<span style="font-size:10px;background:${pc}22;color:${pc};padding:0 4px;border-radius:3px;margin-left:4px;">${p.pos}</span>`:''}
           <span style="font-size:10px;color:var(--text3);margin-left:4px;">(${fmtM(p.salary)} → 75%)</span></div>
         ${panelShowSal ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--red);flex-shrink:0;">${fmtM(capHit)}</div>` : ''}
       </div>`;
@@ -1076,7 +1171,7 @@ function openTeamPanel(key) {
       else gradBadge='';
     }
     return`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;gap:8px;">
-      <div style="flex:1;font-size:13px;color:var(--text3);">${p.name}${ageBadge(p.name)}${gradBadge}${p.pos&&p.pos!=='—'?`<span style="font-size:10px;background:${pc}22;color:${pc};padding:0 4px;border-radius:3px;margin-left:4px;">${p.pos}</span>`:''}${promo?'<span style="font-size:10px;color:var(--green);margin-left:4px;">⬆️</span>':''}</div>
+      <div style="flex:1;font-size:13px;color:var(--text3);"><span data-pname="${p.name}" data-pid="${PLAYER_LOOKUP[p.name.toLowerCase()]?.player_id||''}" onclick="showPlayerCard(this.dataset.pid,this.dataset.pname)" style="cursor:pointer;">${p.name}</span>${ageBadge(p.name)}${gradBadge}${p.pos&&p.pos!=='—'?`<span style="font-size:10px;background:${pc}22;color:${pc};padding:0 4px;border-radius:3px;margin-left:4px;">${p.pos}</span>`:''}${promo?'<span style="font-size:10px;color:var(--green);margin-left:4px;">⬆️</span>':''}</div>
       ${panelShowSal ? `<div style="font-family:var(--font-mono);font-size:12px;color:var(--text3);flex-shrink:0;">${fmtM(p.salary)}</div>` : ''}
     </div>`;
   }).join('');
@@ -1188,7 +1283,7 @@ function renderTopPaid() {
       <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(46,48,64,.4);">
         <span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);min-width:18px;text-align:right;">${i+1}</span>
         <div style="flex:1;min-width:0;">
-          <div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.name}</div>
+          <div style="font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"><span data-pname="${p.name}" data-pid="${PLAYER_LOOKUP[p.name.toLowerCase()]?.player_id||''}" onclick="showPlayerCard(this.dataset.pid,this.dataset.pname)" style="cursor:pointer;">${p.name}</span></div>
           <div style="height:3px;background:var(--surface3);border-radius:99px;margin-top:3px;overflow:hidden;">
             <div style="height:100%;width:${Math.round(p.salary/maxSal*100)}%;background:${clr};border-radius:99px;"></div>
           </div>
@@ -1420,7 +1515,9 @@ async function fetchRookiePlayers() {
   } catch(e) { return []; }
 }
 
-async function renderRookieDraft() {
+let _rookieDraftYear = null; // currently selected year
+
+async function renderRookieDraft(selectedDraftId) {
   const el = document.getElementById('tab-rookiedraft');
   _rookiePlayers = null;
   el.innerHTML = `<div style="padding:40px;text-align:center;color:var(--text3);"><div class="spinner"></div><div style="margin-top:12px;">Loading draft board…</div></div>`;
@@ -1428,11 +1525,29 @@ async function renderRookieDraft() {
   let draftData = null, sleeperPicks = {};
   if (leagueId()) {
     try {
-      const drafts = await fetch(`https://api.sleeper.app/v1/league/${leagueId()}/drafts`).then(r=>r.json());
-      if (drafts && drafts.length) {
-        // Prefer rookie/linear draft over startup
-        const rookie = drafts.find(d => d.type === 'rookie' || d.type === 'linear')
-                    || drafts.find(d => d.type !== 'startup')
+      const allDrafts = await fetch(`https://api.sleeper.app/v1/league/${leagueId()}/drafts`).then(r=>r.json());
+      // Filter to rookie/non-startup drafts across all years
+      const drafts = (allDrafts||[]).filter(d => d.type !== 'startup');
+
+      // Build year selector if multiple drafts exist
+      if (drafts.length > 1) {
+        const sorted = [...drafts].sort((a,b) => (b.season||0) - (a.season||0));
+        const yearBar = sorted.map(d =>
+          `<button onclick="renderRookieDraft('${d.draft_id}')"
+            style="padding:4px 10px;font-size:12px;background:${'${d.draft_id}'===selectedDraftId?'var(--accent)':'var(--surface2)'};
+            border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;
+            color:${'${d.draft_id}'===selectedDraftId?'#fff':'var(--text2)'};font-family:var(--font-body);">
+            ${d.season||d.draft_id}
+          </button>`
+        ).join('');
+        el.innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;padding:12px 0 4px;">${yearBar}</div>
+          <div id="rookie-board-inner"><div class="spinner"></div></div>`;
+      }
+
+      if (drafts.length) {
+        // Use selectedDraftId if provided, else most recent rookie/linear or last
+        const rookie = (selectedDraftId && drafts.find(d => d.draft_id === selectedDraftId))
+                    || drafts.find(d => d.type === 'rookie' || d.type === 'linear')
                     || drafts[drafts.length - 1];
         if (rookie) {
           draftData = rookie;
@@ -1466,7 +1581,8 @@ async function renderRookieDraft() {
 
   const rookies = await fetchRookiePlayers();
 
-  el.innerHTML = buildRookieDraftUI(draftData, board, rookies);
+  const boardEl = document.getElementById('rookie-board-inner') || el;
+  boardEl.innerHTML = buildRookieDraftUI(draftData, board, rookies);
 }
 
 function buildRookieDraftUI(draftData, board, rookies) {
@@ -1479,7 +1595,7 @@ function buildRookieDraftUI(draftData, board, rookies) {
   // ── Draft board grid ──────────────────────────────────────
   let gridHTML = '';
   for (let r = 1; r <= ROUNDS; r++) {
-    const salLabel = r===1?'$15M / $10M' : r===2?'$7.5M / $5M' : r===3?'$3M / $2M' : '$1M';
+    const salLabel = isSalaryLeague() ? (r===1?'$15M / $10M' : r===2?'$7.5M / $5M' : r===3?'$3M / $2M' : '$1M') : '';
     gridHTML += `<div style="margin-bottom:24px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
         <span style="font-size:13px;font-weight:600;color:var(--text2);">Round ${r}</span>
@@ -1497,7 +1613,7 @@ function buildRookieDraftUI(draftData, board, rookies) {
       gridHTML += `<div style="background:var(--surface);border:1px solid ${assigned?'var(--accent)':'var(--border)'};border-radius:var(--radius-sm);padding:10px 12px;min-height:80px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <span style="font-size:11px;font-weight:600;color:var(--accent2);">Pick ${r}.${p < 10 ? '0'+p : p}</span>
-          <span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);">${fmtM(sal)}</span>
+          ${isSalaryLeague() ? '<span style="font-size:11px;color:var(--text3);font-family:var(--font-mono);">' + fmtM(sal) + '</span>' : ''}
         </div>
         ${assigned
           ? `<div style="font-size:13px;font-weight:500;line-height:1.3;">${pick.player}</div>
@@ -1521,7 +1637,19 @@ function buildRookieDraftUI(draftData, board, rookies) {
                <button onclick="rookieAssignPick('${key}',${sal})" style="padding:5px 8px;background:var(--accent);border:none;border-radius:4px;color:#fff;font-size:12px;cursor:pointer;font-family:var(--font-body);">Assign to Taxi</button>
              </div>
 `
-          : `<div style="font-size:12px;color:var(--text3);">Open</div>`
+          : (() => {
+          // Show current owner of this pick slot
+          const slotToRoster = window._sleeperSlotToRoster || {};
+          const rosterId = slotToRoster[String(p)];
+          const ownerTeam = rosterId
+            ? ((window._capTeams||[]).find(tm => String(tm.roster_id) === String(rosterId)))
+            : null;
+          const ownerName = ownerTeam ? (ownerTeam.display_name||ownerTeam.username||'') : '';
+          return ownerName
+            ? `<div style="font-size:11px;color:var(--accent2);margin-bottom:2px;">${ownerName}</div>
+               <div style="font-size:12px;color:var(--text3);">Open</div>`
+            : `<div style="font-size:12px;color:var(--text3);">Open</div>`;
+        })()
         }
       </div>`;
     }
@@ -2383,7 +2511,6 @@ function capInit() {
         cap_spent: 0, starters: [], ir: [], taxi: [],
       };
     });
-    console.log('[cap.js] Early DATA from _capTeams:', Object.keys(DATA).length, 'teams');
   }
 
   subscribeRosters();
@@ -2397,3 +2524,277 @@ if (document.getElementById('edit-modal')) {
   // index.html calls capInit() after injecting buildRosterHTML()
   window._capInitPending = true;
 }
+
+// ── PLAYER CARD ───────────────────────────────────────────────
+let _pcYear      = 2025;
+let _pcPlayerId  = null;
+let _pcWeekCache = {};  // year -> weekly data
+
+function fmtHeight(inches) {
+  if (!inches) return null;
+  const ft = Math.floor(inches/12), ins = inches%12;
+  return `${ft}'${ins}"`;
+}
+
+async function showPlayerCard(playerId, playerName) {
+  if (!playerId && !playerName) return;
+  const modal = document.getElementById('player-card-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  _pcWeekCache = {};
+
+  // Resolve player data
+  const byId = window._playerById || {};
+  let pData  = playerId ? byId[playerId] : null;
+  if (!pData && playerName) {
+    const lk = PLAYER_LOOKUP[(playerName||'').toLowerCase()] || {};
+    playerId = lk.player_id || playerId;
+    pData    = playerId ? byId[playerId] : null;
+  }
+  _pcPlayerId = playerId || null;
+  console.log('[pc] pData:', JSON.stringify(pData), 'playerId:', _pcPlayerId);
+
+  const name    = pData?.name  || playerName || 'Unknown';
+  const pos     = pData?.pos   || '—';
+  const nflTeam = pData?.team  || '—';
+  const pc      = POS_COLORS[pos] || '#888';
+
+  // Header
+  document.getElementById('pc-name').textContent = name;
+  document.getElementById('pc-team').textContent = nflTeam;
+
+  // Photo
+  const photoEl = document.getElementById('pc-photo');
+  if (_pcPlayerId) {
+    photoEl.src = `https://sleepercdn.com/content/nfl/players/${_pcPlayerId}.jpg`;
+    photoEl.style.display = '';
+  } else {
+    photoEl.style.display = 'none';
+  }
+
+  // Position badge
+  const posEl = document.getElementById('pc-pos');
+  posEl.textContent      = pos;
+  posEl.style.background = pc + '22';
+  posEl.style.color      = pc;
+
+  // Bio details
+  const bioItems = [];
+  if (pData?.age)        bioItems.push(`Age ${pData.age}`);
+  if (pData?.height)     bioItems.push(fmtHeight(pData.height));
+  if (pData?.weight)     bioItems.push(`${pData.weight} lbs`);
+  if (pData?.college)    bioItems.push(pData.college);
+  if (pData?.years_exp != null) bioItems.push(`Yr ${pData.years_exp + 1}`);
+  if (pData?.birth_country && pData.birth_country !== 'USA') bioItems.push(pData.birth_country);
+  if (pData?.status && pData.status !== 'Active') bioItems.push(`⚠️ ${pData.status}`);
+  if (pData?.injury_status) bioItems.push(`🏥 ${pData.injury_status}`);
+  if (pData?.rank && pData.rank < 9999) bioItems.push(`Rank #${pData.rank}`);
+  document.getElementById('pc-age').textContent = bioItems.slice(0, 4).join(' · ');
+  document.getElementById('pc-exp').textContent = bioItems.slice(4).join(' · ');
+
+  // Owner
+  let ownerLabel = '';
+  if (window._capTeams) {
+    const capT = window._capTeams.find(tm => (tm.players||[]).includes(_pcPlayerId));
+    if (capT) ownerLabel = capT.display_name || capT.username || '';
+  }
+  if (!ownerLabel && DATA) {
+    for (const [key, t] of Object.entries(DATA)) {
+      const all = [...(t.starters||[]),...(t.ir||[]),...(t.taxi||[])];
+      if (all.some(p => p.name === name)) { ownerLabel = t.team_name || key; break; }
+    }
+  }
+  document.getElementById('pc-owner').textContent = ownerLabel ? `📋 ${ownerLabel}` : '';
+
+  // Year tabs
+  const years   = [2022, 2023, 2024, 2025];
+  const tabsEl  = document.getElementById('pc-year-tabs');
+  tabsEl.innerHTML = years.map(y =>
+    `<button onclick="pcSetYear(${y})" id="pc-yr-${y}"
+      style="padding:6px 14px;font-size:12px;font-family:var(--font-body);
+      background:${y===_pcYear?'var(--accent)':'var(--surface2)'};
+      color:${y===_pcYear?'#fff':'var(--text2)'};
+      border:1px solid var(--border);border-radius:var(--radius-sm) var(--radius-sm) 0 0;
+      cursor:pointer;margin-right:2px;">${y}</button>`
+  ).join('');
+
+  await pcLoadYear(_pcYear);
+}
+
+function pcSetYear(y) {
+  _pcYear = y;
+  [2022,2023,2024,2025].forEach(yr => {
+    const btn = document.getElementById(`pc-yr-${yr}`);
+    if (btn) {
+      btn.style.background = yr===y ? 'var(--accent)' : 'var(--surface2)';
+      btn.style.color      = yr===y ? '#fff' : 'var(--text2)';
+    }
+  });
+  pcLoadYear(y);
+}
+
+async function pcLoadYear(year) {
+  console.log('[pc] pcLoadYear called, year:', year, 'playerId:', _pcPlayerId, 'byIdSize:', Object.keys(window._playerById||{}).length);
+  if (!_pcPlayerId) { pcShowNoStats(); return; }
+  const sumEl = document.getElementById('pc-season-summary');
+  const logEl = document.getElementById('pc-game-log');
+  sumEl.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px;">Loading…</div>';
+  logEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);">Loading…</div>';
+
+  try {
+    // Use cached bulk stats for current year if available
+    let seasonStats = null;
+    if (year === apStatYear && apStatsMap && apStatsMap[_pcPlayerId]) {
+      seasonStats = apStatsMap[_pcPlayerId];
+    }
+
+    // Weekly stats: per-player endpoint WITHOUT grouping returns array of weekly objects
+    // Each object: { week: N, pts_ppr: x, rush_yd: y, ... }
+    let weeklyArr = _pcWeekCache[year];
+    if (!weeklyArr) {
+      // Try season-level stats (no grouping param) which returns weekly breakdown
+      const url = `https://api.sleeper.app/v1/stats/nfl/player/${_pcPlayerId}?season_type=regular&season=${year}`;
+      const r   = await fetch(url);
+      const raw = r.ok ? await r.json() : null;
+
+      if (Array.isArray(raw) && raw.length > 0) {
+        // Array of weekly stat objects
+        weeklyArr = raw.filter(w => w.week > 0 || w.pts_ppr != null);
+      } else if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
+        // Object keyed by week number -- but verify it has actual stats not just rankings
+        const firstVal = Object.values(raw)[0] || {};
+        const hasStats = 'pts_ppr' in firstVal || 'rush_yd' in firstVal || 'pass_yd' in firstVal;
+        if (hasStats) {
+          weeklyArr = Object.entries(raw)
+            .filter(([k]) => !isNaN(parseInt(k)))
+            .map(([wk, s]) => ({ week: parseInt(wk), ...s }));
+        } else {
+          // Rankings only -- try bulk year stats instead
+          weeklyArr = null;
+        }
+      }
+
+      if (!weeklyArr) {
+        // Fallback: fetch bulk year stats and use season total only
+        const bulkKey = 'sb_stats_' + year;
+        let bulkData = null;
+        try { bulkData = JSON.parse(localStorage.getItem(bulkKey) || 'null'); } catch(e) {}
+        if (!bulkData) {
+          const br = await fetch(`https://api.sleeper.app/v1/stats/nfl/regular/${year}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE`);
+          if (br.ok) {
+            bulkData = await br.json();
+            try { localStorage.setItem(bulkKey, JSON.stringify(bulkData)); } catch(e) {}
+          }
+        }
+        if (bulkData && bulkData[_pcPlayerId]) {
+          seasonStats = bulkData[_pcPlayerId];
+          weeklyArr   = [];  // no weekly breakdown available
+        }
+      }
+
+      if (weeklyArr) _pcWeekCache[year] = weeklyArr;
+    }
+
+    if (!seasonStats && weeklyArr?.length) {
+      // Compute season totals from weekly
+      seasonStats = weeklyArr.reduce((acc, w) => {
+        acc.pts_ppr  = (acc.pts_ppr  || 0) + (w.pts_ppr  || 0);
+        acc.pass_yd  = (acc.pass_yd  || 0) + (w.pass_yd  || 0);
+        acc.pass_td  = (acc.pass_td  || 0) + (w.pass_td  || 0);
+        acc.rush_yd  = (acc.rush_yd  || 0) + (w.rush_yd  || 0);
+        acc.rush_td  = (acc.rush_td  || 0) + (w.rush_td  || 0);
+        acc.rec      = (acc.rec      || 0) + (w.rec      || 0);
+        acc.rec_yd   = (acc.rec_yd   || 0) + (w.rec_yd   || 0);
+        acc.rec_td   = (acc.rec_td   || 0) + (w.rec_td   || 0);
+        acc.gp       = (acc.gp       || 0) + 1;
+        return acc;
+      }, {});
+    }
+
+    if (!seasonStats) { pcShowNoStats(sumEl, logEl); return; }
+
+    // Season summary
+    const gp  = seasonStats.gp || (weeklyArr?.length) || 1;
+    const avg = seasonStats.pts_ppr ? (seasonStats.pts_ppr / gp).toFixed(1) : null;
+    const summaryItems = [
+      ['Total Pts', seasonStats.pts_ppr ? seasonStats.pts_ppr.toFixed(1) : null],
+      ['Avg/Gm',    avg],
+      ['GP',        gp],
+      seasonStats.pass_yd ? ['Pass Yd', Math.round(seasonStats.pass_yd)]  : null,
+      seasonStats.pass_td ? ['Pass TD', seasonStats.pass_td]              : null,
+      seasonStats.rush_yd ? ['Rush Yd', Math.round(seasonStats.rush_yd)]  : null,
+      seasonStats.rush_td ? ['Rush TD', seasonStats.rush_td]              : null,
+      seasonStats.rec     ? ['Rec',     seasonStats.rec]                  : null,
+      seasonStats.rec_yd  ? ['Rec Yd',  Math.round(seasonStats.rec_yd)]   : null,
+      seasonStats.rec_td  ? ['Rec TD',  seasonStats.rec_td]               : null,
+    ].filter(Boolean).filter(([,v]) => v !== null && v !== undefined && v !== 0);
+
+    sumEl.innerHTML = summaryItems.map(([l,v]) =>
+      `<div style="text-align:center;background:var(--surface2);border-radius:6px;padding:8px 10px;min-width:48px;">
+        <div style="font-family:var(--font-mono);font-size:15px;font-weight:600;">${v}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px;">${l}</div>
+      </div>`
+    ).join('');
+
+    // Game log
+    if (!weeklyArr?.length) {
+      logEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);">Weekly breakdown not available for this season.</div>';
+      return;
+    }
+
+    const weeks = [...weeklyArr].sort((a,b) => (a.week||0)-(b.week||0));
+    const rows  = weeks.map(w => {
+      const pts   = w.pts_ppr != null ? w.pts_ppr.toFixed(1) : '—';
+      const color = w.pts_ppr == null ? 'var(--text3)' : w.pts_ppr >= 20 ? 'var(--green)' : w.pts_ppr >= 10 ? 'var(--text)' : 'var(--red)';
+      const bits  = [];
+      if (w.pass_yd)  bits.push(Math.round(w.pass_yd)+'Pa');
+      if (w.pass_td)  bits.push(w.pass_td+'PTD');
+      if (w.rush_att) bits.push(w.rush_att+' car');
+      if (w.rush_yd)  bits.push(Math.round(w.rush_yd)+'Ru');
+      if (w.rush_td)  bits.push(w.rush_td+'RTD');
+      if (w.rec)      bits.push(w.rec+'/'+Math.round(w.rec_yd||0)+'Re');
+      if (w.rec_td)   bits.push(w.rec_td+'ReTD');
+      if (w.pass_int) bits.push(w.pass_int+'INT');
+      return `<tr style="border-bottom:1px solid var(--border)">
+        <td style="padding:5px 8px;font-size:12px;color:var(--text3);">Wk ${w.week}</td>
+        <td style="padding:5px 8px;font-family:var(--font-mono);font-size:13px;font-weight:600;color:${color};">${pts}</td>
+        <td style="padding:5px 8px;font-size:11px;color:var(--text2);">${bits.join(' · ') || '—'}</td>
+      </tr>`;
+    }).join('');
+
+    logEl.innerHTML = `<table style="width:100%;border-collapse:collapse;">
+      <thead><tr style="background:var(--surface2);">
+        <th style="text-align:left;font-size:11px;color:var(--text3);padding:5px 8px;font-weight:600;">Week</th>
+        <th style="text-align:left;font-size:11px;color:var(--text3);padding:5px 8px;font-weight:600;">Pts PPR</th>
+        <th style="text-align:left;font-size:11px;color:var(--text3);padding:5px 8px;font-weight:600;">Stats</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+  } catch(e) {
+    console.warn('pcLoadYear error:', e);
+    sumEl.innerHTML = '';
+    logEl.innerHTML = `<div style="text-align:center;padding:20px;color:var(--red);">
+      Could not load ${year} stats.<br><small style="opacity:.6;">${e.message}</small></div>`;
+  }
+}
+
+
+function pcShowNoStats(sumEl, logEl) {
+  if (sumEl) sumEl.innerHTML = '';
+  if (logEl) logEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);">No stats available for this season.</div>';
+}
+
+function calcAge(name) {
+  const lk = PLAYER_LOOKUP[(name||'').toLowerCase()] || {};
+  if (!lk.birth_date) return null;
+  const [y,m,d] = lk.birth_date.split('-').map(Number);
+  const today = new Date();
+  let age = today.getFullYear() - y;
+  if (today.getMonth()+1 < m || (today.getMonth()+1===m && today.getDate()<d)) age--;
+  return age;
+}
+
+
+
+

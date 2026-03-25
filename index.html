@@ -652,9 +652,7 @@ function initRosterView() {
   if (!window._capLeagueType) {
     window._capLeagueType = window.App?.state?.leagueType || 'salary_auction';
   }
-  console.log('[roster] initRosterView called, viewsLoaded.roster=', viewsLoaded.roster, '_capLeagueType=', window._capLeagueType);
   if (viewsLoaded.roster) {
-    console.log('[roster] early return -- re-running capInit for new league');
     if (window.capInit) { window.capUnsubscribe && window.capUnsubscribe(); capInit(); }
     applyCapTabVisibility();
     if (window.setTab) setTab(window.tab || 'overview');
@@ -732,13 +730,14 @@ function buildDraftHTML() {
     '      </div>\n' +
     '    </div>\n' +
     '\n' +
+    ((window._capLeagueType||'salary_auction')==='salary_auction' ?
     '    <div class="salary-legend">\n' +
     '      <div class="legend-item"><span style="font-family:var(--font-mono);color:var(--accent2);">R1</span> picks 1–6 = $15M &nbsp;·&nbsp; 7–12 = $10M</div>\n' +
     '      <div class="legend-item"><span style="font-family:var(--font-mono);color:var(--accent2);">R2</span> picks 1–6 = $7.5M &nbsp;·&nbsp; 7–12 = $5M</div>\n' +
     '      <div class="legend-item"><span style="font-family:var(--font-mono);color:var(--accent2);">R3</span> picks 1–6 = $3M &nbsp;·&nbsp; 7–12 = $2M</div>\n' +
     '      <div class="legend-item"><span style="font-family:var(--font-mono);color:var(--accent2);">R4</span> all picks = $1M</div>\n' +
     '      <div class="legend-item" style="margin-left:auto;color:var(--green);">■ via Sleeper &nbsp; <span style="color:var(--accent2);">■</span> manual</div>\n' +
-    '    </div>\n' +
+    '    </div>\n' : '') +
     '\n' +
     '    <div class="draft-layout">\n' +
     '      <div id="board-container"></div>\n' +
@@ -1338,6 +1337,50 @@ if('serviceWorker' in navigator){
         color:#fff;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font-body);">
         Register League →
       </button>
+    </div>
+  </div>
+</div>
+
+
+<!-- Player Card Modal -->
+<div id="player-card-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.8);
+  z-index:10000;align-items:center;justify-content:center;padding:16px;">
+  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+    width:560px;max-width:100%;max-height:90vh;overflow-y:auto;box-shadow:0 16px 64px rgba(0,0,0,.6);
+    display:flex;flex-direction:column;">
+    <!-- Header -->
+    <div style="display:flex;align-items:center;gap:16px;padding:20px;background:var(--surface2);
+      border-bottom:1px solid var(--border);position:sticky;top:0;z-index:1;">
+      <img id="pc-photo" src="" style="width:72px;height:72px;border-radius:50%;object-fit:cover;
+        background:var(--surface3);flex-shrink:0;" onerror="this.style.display='none'" />
+      <div style="flex:1;min-width:0;">
+        <div id="pc-name" style="font-size:18px;font-weight:700;margin-bottom:4px;"></div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <span id="pc-pos" style="font-size:11px;font-weight:600;padding:2px 8px;border-radius:4px;"></span>
+          <span id="pc-team" style="font-size:12px;color:var(--text2);"></span>
+          <span id="pc-age" style="font-size:12px;color:var(--text3);"></span>
+          <span id="pc-exp" style="font-size:12px;color:var(--text3);"></span>
+        </div>
+        <div id="pc-owner" style="font-size:11px;color:var(--accent2);margin-top:4px;"></div>
+      </div>
+      <button onclick="document.getElementById('player-card-modal').style.display='none'"
+        style="background:none;border:none;color:var(--text3);font-size:22px;cursor:pointer;
+        padding:4px;flex-shrink:0;align-self:flex-start;">✕</button>
+    </div>
+    <!-- Year tabs -->
+    <div style="display:flex;gap:0;padding:12px 16px 0;border-bottom:1px solid var(--border);">
+      <div id="pc-year-tabs" style="display:flex;gap:4px;"></div>
+    </div>
+    <!-- Season summary -->
+    <div id="pc-season-summary" style="padding:12px 16px;border-bottom:1px solid var(--border);
+      display:flex;gap:12px;flex-wrap:wrap;"></div>
+    <!-- Game log -->
+    <div style="padding:0 16px 16px;">
+      <div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;
+        color:var(--text3);padding:10px 0 6px;">Game Log</div>
+      <div id="pc-game-log" style="overflow-x:auto;">
+        <div style="text-align:center;padding:20px;color:var(--text3);">Loading…</div>
+      </div>
     </div>
   </div>
 </div>

@@ -126,5 +126,24 @@ const Sleeper = (() => {
     return r.json();
   }
 
-    return { fetchUser, fetchLeague, fetchRosters, fetchLeagueUsers, fetchPlayers, fetchStats, calculatePoints, invalidatePlayerCache, fetchUserLeagues, fetchMatchups, fetchWinnersBracket, fetchLosersBracket };
+  async function fetchTradedPicks(leagueId) {
+    const r = await fetch(`${BASE}/league/${leagueId}/traded_picks`);
+    if (!r.ok) return [];
+    return r.json();
+  }
+
+  async function fetchTransactions(leagueId, week) {
+    const r = await fetch(`${BASE}/league/${leagueId}/transactions/${week}`);
+    if (!r.ok) return [];
+    return r.json();
+  }
+
+  async function fetchAllTransactions(leagueId, maxWeek) {
+    // Fetch transactions for all weeks up to maxWeek (or 18)
+    const weeks = Array.from({length: maxWeek || 18}, (_,i) => i+1);
+    const results = await Promise.all(weeks.map(w => fetchTransactions(leagueId, w).catch(()=>[])));
+    return results.flat();
+  }
+
+    return { fetchUser, fetchLeague, fetchRosters, fetchLeagueUsers, fetchPlayers, fetchStats, calculatePoints, invalidatePlayerCache, fetchUserLeagues, fetchMatchups, fetchWinnersBracket, fetchLosersBracket, fetchTradedPicks, fetchTransactions, fetchAllTransactions };
 })();

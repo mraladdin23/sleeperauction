@@ -201,6 +201,9 @@ const App = (() => {
 
     state.leagueId   = leagueId;
     session.leagueId = leagueId;
+    // Reset draft viewing state so draft shows correct league
+    window.viewingDraftLeagueId = null;
+    window.draftSeasons = null;
     UI.showScreen('loading');
     UI.setLoading('Loading league…');
     await initApp();
@@ -807,9 +810,9 @@ This only removes it from the registry — all league data in Firebase is preser
     // Make teams available to cap.js before capInit runs
     window._capTeams      = state.teams;
     window._capLeagueType = state.leagueType || 'salary_auction';
-    console.log('[app.js] _capTeams set:', state.teams.length, 'teams');
-    console.log('[app.js] _capLeagueType set:', window._capLeagueType);
-    console.log('[app.js] state.leagueType:', state.leagueType);
+
+
+
 
     // Write username -> roster_id map so cap.js can sync rosterSizes
     try {
@@ -944,6 +947,9 @@ This only removes it from the registry — all league data in Firebase is preser
       updateHomeFeed(feed);
     });
 
+    // Load Sleeper transactions for activity feed (non-blocking)
+    loadSleeperTransactions(state.leagueId);
+
     // Watchlist — keyed by Sleeper user_id
     const uid = state.user?.user_id;
     if (uid) {
@@ -986,6 +992,153 @@ This only removes it from the registry — all league data in Firebase is preser
       opt.textContent = '⚙️ Commissioner';
       dd.appendChild(opt);
     }
+  }
+
+  async function loadSleeperTransactions(leagueId) {
+    if (!leagueId) return;
+    try {
+      // Default to current year (2026), can toggle to 2025
+      const year = window._txnYear || 2026;
+      const weekNums = Array.from({length: 18}, (_, i) => i + 1);
+      const weekResults = await Promise.all(
+        weekNums.map(w => Sleeper.fetchTransactions(leagueId, w).catch(() => []))
+      );
+      const txns = weekResults.flat();
+      console.log('[txn] leagueId:', leagueId, 'year:', year, 'total txns:', txns.length);
+      if (txns.length) console.log('[txn] sample:', JSON.stringify(txns[0]).slice(0,200));
+      if (!Array.isArray(txns) || !txns.length) {
+        // No transactions yet for this year -- show empty state with year toggle
+        window._sleeperTxns = [];
+        renderActivityFeedSleeperTxns();
+        return;
+      }
+
+      const rosterMap = {};
+      (state.teams||[]).forEach(t => {
+        if (t.roster_id) rosterMap[String(t.roster_id)] = t.display_name || t.username || `Team ${t.roster_id}`;
+      });
+      // Build player ID -> name map from localStorage cache (may not be loaded yet)
+      let byId = window._playerById || {};
+      if (Object.keys(byId).length < 100) {
+        try {
+          const cached = localStorage.getItem('sb_players');
+          if (cached) {
+            const players = JSON.parse(cached);
+            byId = {};
+            Object.entries(players).forEach(([id, p]) => {
+              if (p.first_name && p.last_name) byId[id] = { name: p.first_name + ' ' + p.last_name };
+            });
+          }
+        } catch(e) {}
+      }
+      console.log('[txn] byId size:', Object.keys(byId).length);
+
+      const items = txns
+        .filter(t => ['waiver','free_agent','trade'].includes(t.type) && t.status === 'complete')
+        .sort((a,b) => (b.created||0) - (a.created||0))
+        .map(t => {
+          const adds      = Object.keys(t.adds  || {});
+          const drops     = Object.keys(t.drops || {});
+          const addNames  = adds.map(id  => byId[id]?.name || id).join(', ');
+          const dropNames = drops.map(id => byId[id]?.name || id).join(', ');
+          const teams     = (t.roster_ids||[]).map(id => rosterMap[String(id)] || `Roster ${id}`);
+          const teamStr   = teams[0] || 'A team';
+          const date      = t.created ? new Date(t.created).toLocaleDateString('en-US', {month:'short',day:'numeric'}) : '';
+          let msg = '', icon = '';
+          if (t.type === 'trade') {
+            msg = `Trade: ${teams.join(' & ')}`;
+            icon = '🔄';
+          } else if (t.type === 'waiver' && addNames) {
+            msg = `${teamStr} claimed ${addNames}${dropNames ? ` / dropped ${dropNames}` : ''}`;
+            icon = '✅';
+          } else if (t.type === 'free_agent' && addNames) {
+            msg = `${teamStr} added ${addNames}${dropNames ? ` / dropped ${dropNames}` : ''}`;
+            icon = '➕';
+          } else if (dropNames) {
+            msg = `${teamStr} dropped ${dropNames}`;
+            icon = '➖';
+          }
+          return msg ? { icon, msg, date, type: t.type, teams: t.roster_ids||[], ts: t.created } : null;
+        })
+        .filter(Boolean);
+
+      window._sleeperTxns   = items;
+      window._txnPage       = 0;
+      window._txnTeamFilter = '';
+      renderActivityFeedSleeperTxns();
+    } catch(e) { /* transactions optional */ }
+  }
+
+  function renderActivityFeedSleeperTxns() {
+    const el = document.getElementById('home-activity-feed');
+    if (!el) return;
+    const hasFbActivity = el.querySelector('.feed-item:not(.txn-item)');
+    if (hasFbActivity) return;
+
+    const items      = window._sleeperTxns || [];
+    const teamFilter = window._txnTeamFilter || '';
+    const page       = window._txnPage || 0;
+    const year       = window._txnYear || 2026;
+    const PAGE_SIZE  = 10;
+
+    const rosterMap = {};
+    (state.teams||[]).forEach(t => {
+      if (t.roster_id) rosterMap[String(t.roster_id)] = t.display_name || t.username;
+    });
+    const teamOpts = Object.entries(rosterMap)
+      .map(([id, name]) => `<option value="${id}"${teamFilter===id?' selected':''}>${name}</option>`)
+      .join('');
+
+    const filtered = teamFilter
+      ? items.filter(i => i.teams.map(String).includes(teamFilter))
+      : items;
+
+    const total = filtered.length;
+    const start = page * PAGE_SIZE;
+    const slice = filtered.slice(start, start + PAGE_SIZE);
+    const pages = Math.ceil(total / PAGE_SIZE);
+
+    // Year toggle
+    const yearToggle = `
+      <div style="display:flex;gap:4px;margin-bottom:8px;align-items:center;">
+        <span style="font-size:11px;color:var(--text3);margin-right:4px;">Season:</span>
+        ${[2026,2025].map(y => `<button onclick="window._txnYear=${y};window._txnPage=0;loadSleeperTransactions(App?.state?.leagueId||'')"
+          style="padding:2px 8px;font-size:11px;font-family:var(--font-body);
+          background:${y===year?'var(--accent)':'var(--surface2)'};
+          color:${y===year?'#fff':'var(--text2)'};
+          border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">${y}</button>`).join('')}
+      </div>`;
+
+    const teamSelect = `
+      <div style="margin-bottom:8px;">
+        <select onchange="window._txnTeamFilter=this.value;window._txnPage=0;renderActivityFeedSleeperTxns()"
+          style="width:100%;padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;">
+          <option value="">All Teams</option>${teamOpts}
+        </select>
+      </div>`;
+
+    const rows = slice.map(i =>
+      `<div class="feed-item txn-item" style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);">
+        <span style="font-size:14px;flex-shrink:0;">${i.icon}</span>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:12px;line-height:1.4;">${i.msg}</div>
+        </div>
+        <div style="font-size:11px;color:var(--text3);flex-shrink:0;">${i.date}</div>
+      </div>`
+    ).join('');
+
+    const emptyMsg = `<div style="padding:12px 0;color:var(--text3);font-size:12px;">No transactions yet for ${year}.</div>`;
+
+    const pager = pages > 1 ? `
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 2px;gap:8px;">
+        <button onclick="window._txnPage=Math.max(0,${page}-1);renderActivityFeedSleeperTxns()"
+          ${page===0?'disabled':''} style="padding:3px 10px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;color:var(--text2);font-family:var(--font-body);">← Prev</button>
+        <span style="font-size:11px;color:var(--text3);">${start+1}–${Math.min(start+PAGE_SIZE,total)} of ${total}</span>
+        <button onclick="window._txnPage=Math.min(${pages-1},${page}+1);renderActivityFeedSleeperTxns()"
+          ${page>=pages-1?'disabled':''} style="padding:3px 10px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;color:var(--text2);font-family:var(--font-body);">Next →</button>
+      </div>` : '';
+
+    el.innerHTML = yearToggle + teamSelect + (rows || emptyMsg) + pager;
   }
 
   function updateHomeFeed(feed) {
