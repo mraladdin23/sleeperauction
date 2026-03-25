@@ -47,7 +47,7 @@ function subscribeRosters() {
   // Build player name lookup from cached Sleeper DB for age badges + photos
   try {
     const cacheVer = localStorage.getItem('sb_players_ver');
-    if (cacheVer !== '2') {
+    if (cacheVer !== '3') {
       // Old cache missing bio fields -- clear so it refetches fresh
       localStorage.removeItem('sb_players');
       localStorage.removeItem('sb_players_at');
@@ -86,7 +86,7 @@ function subscribeRosters() {
         const sample = Object.entries(window._playerById).find(([,p]) => p.age);
         console.log('[players] sample with age:', sample ? JSON.stringify(sample[1]) : 'none found');
       }
-      localStorage.setItem('sb_players_ver', '2');
+      localStorage.setItem('sb_players_ver', '3');
     }
   } catch(e) { console.warn('[players] build error:', e); }
 
