@@ -81,9 +81,14 @@ function subscribeRosters() {
           PLAYER_LOOKUP[key] = { birth_date: p.birth_date || null, player_id: playerId, nfl_team: p.team || null, age: p.age || null, years_exp: p.years_exp != null ? p.years_exp : null };
         }
       });
+      console.log('[players] _playerById built:', Object.keys(window._playerById||{}).length, 'players');
+      if (window._playerById) {
+        const sample = Object.entries(window._playerById).find(([,p]) => p.age);
+        console.log('[players] sample with age:', sample ? JSON.stringify(sample[1]) : 'none found');
+      }
       localStorage.setItem('sb_players_ver', '2');
     }
-  } catch(e) {}
+  } catch(e) { console.warn('[players] build error:', e); }
 
   // Overlay confirmed playerIdMap from Firebase (player_matcher.html writes this)
   // Firebase keys have . # $ / [ ] encoded — decode them back to real names

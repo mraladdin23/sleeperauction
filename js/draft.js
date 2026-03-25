@@ -365,6 +365,9 @@ async function refreshDraft() {
     // 3b. Overlay traded picks onto slotOwners using Sleeper traded_picks API
     try {
       const tradedPicks = await fetch(`https://api.sleeper.app/v1/league/${draftLeagueId()}/traded_picks`).then(r=>r.json());
+      console.log('[draft] tradedPicks:', Array.isArray(tradedPicks) ? tradedPicks.length : 'not array', tradedPicks?.[0] ? JSON.stringify(tradedPicks[0]).slice(0,150) : 'empty');
+      console.log('[draft] rosterIdToTeam:', JSON.stringify(rosterIdToTeam));
+      console.log('[draft] rosterIdToDisplayName:', JSON.stringify(rosterIdToDisplayName));
       if (Array.isArray(tradedPicks) && tradedPicks.length) {
         // Helper: resolve roster_id -> display name (use displayName since rosterIdToTeam may be empty)
         const resolveTeam = (rid) =>

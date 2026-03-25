@@ -1004,6 +1004,8 @@ This only removes it from the registry — all league data in Firebase is preser
         weekNums.map(w => Sleeper.fetchTransactions(leagueId, w).catch(() => []))
       );
       const txns = weekResults.flat();
+      console.log('[txn] leagueId:', leagueId, 'year:', year, 'total txns:', txns.length);
+      if (txns.length) console.log('[txn] sample:', JSON.stringify(txns[0]).slice(0,200));
       if (!Array.isArray(txns) || !txns.length) {
         // No transactions yet for this year -- show empty state with year toggle
         window._sleeperTxns = [];
