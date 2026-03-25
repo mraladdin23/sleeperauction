@@ -402,28 +402,30 @@ const App = (() => {
         session.setUser(state.user);
         state.leagueId = session.leagueId;
 
-        // Check if this user has a password -- require it even on reconnect
+        // Skip password re-check if already authenticated this browser session
         const username = session.username.toLowerCase();
-        try {
+        const alreadyAuthed = sessionStorage.getItem('sb_authed');
+        if (!alreadyAuthed) {
+          try {
             const pwSnap = await db.ref(`users/${username}/password`).once('value');
-          if (pwSnap.val()) {
-            // Check mustChange flag first
-            const mcSnap = await db.ref(`users/${username}/passwordMustChange`).once('value');
-            UI.showScreen('login');
-            document.getElementById('login-username').value = session.username;
-            window._pendingLoginUser = state.user;
-            window._pendingLoginHash = pwSnap.val();
-            if (mcSnap.val()) {
-              showChangePasswordModal(username, session.leagueId, true);
-            } else {
-              // Show password field to re-authenticate
-              const pwWrap = document.getElementById('login-password-wrap');
-              if (pwWrap) { pwWrap.style.display = ''; }
-              document.getElementById('login-password')?.focus();
+            if (pwSnap.val()) {
+              // Check mustChange flag first
+              const mcSnap = await db.ref(`users/${username}/passwordMustChange`).once('value');
+              UI.showScreen('login');
+              document.getElementById('login-username').value = session.username;
+              window._pendingLoginUser = state.user;
+              window._pendingLoginHash = pwSnap.val();
+              if (mcSnap.val()) {
+                showChangePasswordModal(username, session.leagueId, true);
+              } else {
+                const pwWrap = document.getElementById('login-password-wrap');
+                if (pwWrap) { pwWrap.style.display = ''; }
+                document.getElementById('login-password')?.focus();
+              }
+              return;
             }
-            return;
-          }
-        } catch(e) { /* no password set, continue normally */ }
+          } catch(e) { /* no password set, continue normally */ }
+        }
 
         await initApp();
         return;
@@ -482,7 +484,8 @@ const App = (() => {
         }
       } catch(e) {}
 
-      // No password — go to league picker
+      // No password — mark as authenticated
+      sessionStorage.setItem('sb_authed', username);
       await showLeaguePicker();
     } catch (e) {
       UI.showScreen('login');
@@ -521,8 +524,14 @@ const App = (() => {
       return;
     }
 
-    // Password verified — go to league picker
-    await showLeaguePicker();
+    // Password verified — mark session as authenticated to skip re-auth on refresh
+    sessionStorage.setItem('sb_authed', session.username || '1');
+    // Go directly to league if one is already selected
+    if (session.leagueId) {
+      await initApp();
+    } else {
+      await showLeaguePicker();
+    }
   }
 
   // ── Change Password flow ──────────────────────────────────────
@@ -717,6 +726,7 @@ This only removes it from the registry — all league data in Firebase is preser
 
   // ── Logout ──────────────────────────────────────────────
   function logout() {
+    sessionStorage.removeItem('sb_authed'); // clear auth flag so next login requires password
     const savedLeagueId = session.leagueId; // preserve for next login
     Auction.unsubscribe(state.leagueId);
     session.clear(); // clears username + leagueId

@@ -702,10 +702,11 @@ async function autoSaveCompletedDraft(draftPicks) {
 
 // ── Render board ──────────────────────────────────────────────
 function renderBoard() {
-  const ROUNDS = 4, PICKS = 12;
+  const ROUNDS = (draftInfo?.settings?.rounds) || 4;
+  const PICKS  = (draftInfo?.settings?.teams)  || 12;
   const comm = isComm();
   let html = '';
-  console.log('[board] renderBoard called, slotOwners keys:', Object.keys(slotOwners).length, 'sample:', JSON.stringify(Object.fromEntries(Object.entries(slotOwners).slice(0,3))));
+  console.log('[board] renderBoard called, ROUNDS:', ROUNDS, 'PICKS:', PICKS, 'isDraftSnake:', isDraftSnake);
   console.log('[board] slotOwners sample:', JSON.stringify(Object.fromEntries(Object.entries(slotOwners).slice(0,4))));
 
   for (let r = 1; r <= ROUNDS; r++) {
