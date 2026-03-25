@@ -1,3 +1,4 @@
+// SleeperBid draft.js v20260325-via-trade-from
 // draft.js — extracted from draft.html, works standalone or in SPA
 
 // ── Auth helpers ─────────────────────────────────────────────
