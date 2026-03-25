@@ -60,6 +60,7 @@ var fmtM = n => n >= 1e6 ? '$' + (n/1e6).toFixed(1) + 'M' : n >= 1e3 ? '$' + (n/
 let DRAFT_DATA = null;            // roster data
 let board = {};             // { 'r-p': { player, team, salary, sleeperPick } }
 let rookiePlayers = [];     // available rookie list
+let isDraftSnake = false;   // true for redraft (snake), false for rookie (linear)
 let availPosFilter = 'ALL';
 let availSearch = '';
 let draftInfo = null;
@@ -69,6 +70,7 @@ let draftInfo = null;
 
 // ── Draft season history ───────────────────────────────────────
 async function loadDraftSeasons() {
+  if (!window.draftSeasons) window.draftSeasons = [];
   if (window.draftSeasons.length) { renderDraftSeasonBar(); return; }
   const lid = leagueId();
 
@@ -271,6 +273,16 @@ async function refreshDraft() {
       draft_order: draftInfo.draft_order,
       settings: draftInfo.settings,
     }, null, 2));
+    // Detect draft type: snake = redraft (all players), linear = rookie
+    isDraftSnake = (draftInfo.type === 'snake');
+    console.log('[draft] isDraftSnake:', isDraftSnake, 'type:', draftInfo.type);
+    // Update board title and available panel header
+    const titleEl = document.getElementById('draft-board-title');
+    if (titleEl) titleEl.textContent = isDraftSnake ? '🏈 Draft Board' : '🎓 Rookie Draft Board';
+    const availTitleEl = document.querySelector('.avail-title');
+    if (availTitleEl && !availTitleEl.querySelector('span')) {
+      availTitleEl.firstChild.textContent = isDraftSnake ? 'Available Players ' : 'Available Rookies ';
+    }
     console.log('=== rosterIdToTeam ===', JSON.stringify(rosterIdToTeam));
 
     // 2. Build slotOwners from slot_to_roster_id OR draft_order
@@ -550,33 +562,58 @@ async function loadRookiePlayers() {
       });
     });
 
-    rookiePlayers = Object.entries(players)
-      .filter(([,p]) => {
-        if (!p.fantasy_positions?.some(pos => SKILL.has(pos))) return false;
-        // Only confirmed 2026 NFL draftees: years_exp===0 AND active===true
-        if (p.years_exp !== 0) return false;
-        if (p.active !== true) return false;
-        return true;
-      })
-      .map(([id, p]) => ({
-        id,
-        name: `${p.first_name} ${p.last_name}`.trim(),
-        pos:  p.fantasy_positions?.find(pos => SKILL.has(pos)) || '',
-        nflTeam: (p.team && p.team !== 'FA') ? p.team : '—',
-        adp: p.search_rank || 999,
-        active: p.active === true,
-        age: p.age || null,
-        ye: p.years_exp != null ? Number(p.years_exp) : null,
-        taken: draftedNames.has(`${p.first_name} ${p.last_name}`.trim().toLowerCase())
-            || rostered.has(`${p.first_name} ${p.last_name}`.trim().toLowerCase()),
-      }))
-      .filter(rk => rk.name && rk.name.trim().length > 1)  // remove blank / single-char names
-      .sort((a, b) => a.adp - b.adp);
-
-    const ye0  = rookiePlayers.filter(r => r.ye === 0).length;
-    const ye1  = rookiePlayers.filter(r => r.ye === 1).length;
-    const yeN  = rookiePlayers.filter(r => r.ye === null).length;
-    console.log(`Loaded ${rookiePlayers.length} rookie players (ye=0: ${ye0}, ye=1: ${ye1}, ye=null: ${yeN})`);
+    if (isDraftSnake) {
+      // Redraft (snake): load ALL active skill position players
+      rookiePlayers = Object.entries(players)
+        .filter(([,p]) => {
+          if (!p.fantasy_positions?.some(pos => SKILL.has(pos))) return false;
+          if (!p.active) return false;
+          if (!p.first_name || !p.last_name) return false;
+          return true;
+        })
+        .map(([id, p]) => ({
+          id,
+          name: `${p.first_name} ${p.last_name}`.trim(),
+          pos:  p.fantasy_positions?.find(pos => SKILL.has(pos)) || '',
+          nflTeam: (p.team && p.team !== 'FA') ? p.team : '—',
+          adp: p.search_rank || 999,
+          active: true,
+          age: p.age || null,
+          ye: p.years_exp != null ? Number(p.years_exp) : null,
+          taken: draftedNames.has(`${p.first_name} ${p.last_name}`.trim().toLowerCase())
+              || rostered.has(`${p.first_name} ${p.last_name}`.trim().toLowerCase()),
+        }))
+        .filter(rk => rk.name && rk.name.trim().length > 1)
+        .sort((a, b) => a.adp - b.adp);
+      console.log(`Loaded ${rookiePlayers.length} redraft players (all active skill positions)`);
+    } else {
+      // Rookie draft (linear): only confirmed rookies (years_exp===0)
+      rookiePlayers = Object.entries(players)
+        .filter(([,p]) => {
+          if (!p.fantasy_positions?.some(pos => SKILL.has(pos))) return false;
+          if (p.years_exp !== 0) return false;
+          if (p.active !== true) return false;
+          return true;
+        })
+        .map(([id, p]) => ({
+          id,
+          name: `${p.first_name} ${p.last_name}`.trim(),
+          pos:  p.fantasy_positions?.find(pos => SKILL.has(pos)) || '',
+          nflTeam: (p.team && p.team !== 'FA') ? p.team : '—',
+          adp: p.search_rank || 999,
+          active: p.active === true,
+          age: p.age || null,
+          ye: p.years_exp != null ? Number(p.years_exp) : null,
+          taken: draftedNames.has(`${p.first_name} ${p.last_name}`.trim().toLowerCase())
+              || rostered.has(`${p.first_name} ${p.last_name}`.trim().toLowerCase()),
+        }))
+        .filter(rk => rk.name && rk.name.trim().length > 1)
+        .sort((a, b) => a.adp - b.adp);
+      const ye0  = rookiePlayers.filter(r => r.ye === 0).length;
+      const ye1  = rookiePlayers.filter(r => r.ye === 1).length;
+      const yeN  = rookiePlayers.filter(r => r.ye === null).length;
+      console.log(`Loaded ${rookiePlayers.length} rookie players (ye=0: ${ye0}, ye=1: ${ye1}, ye=null: ${yeN})`);
+    }
   } catch(e) {
     console.warn('loadRookiePlayers:', e);
     rookiePlayers = [];
@@ -681,7 +718,14 @@ function renderBoard() {
       </div>
       <div class="picks-grid">`;
 
-    for (let p = 1; p <= PICKS; p++) {
+    // Snake draft: even rounds pick in reverse order (unless reversal_round set)
+    const reversalRound = draftInfo?.settings?.reversal_round || 0;
+    const isReversed = isDraftSnake && (
+      reversalRound === 0 ? (r % 2 === 0)  // standard snake: all even rounds reverse
+      : (r === reversalRound)              // 3rd-round-reversal: only that round
+    );
+    for (let pIdx = 1; pIdx <= PICKS; pIdx++) {
+      const p = isReversed ? (PICKS - pIdx + 1) : pIdx;
       const key = `${r}-${p}`;
       const sal = rookieSal(r, p);
       const pick = board[key] || {};
@@ -717,9 +761,10 @@ function renderBoard() {
         ? (pick.team ? 'assigned' : 'sleeper-pick')
         : (ownerKey ? 'has-owner' : '');
 
+      const overallPick = (r-1)*PICKS + (isReversed ? (PICKS - pIdx + 1) : pIdx);
       html += `<div class="pick-card ${cardCls}">
         <div class="pick-num">
-          <span>Pick ${r}.${String(p).padStart(2,'0')}</span>
+          <span>${isDraftSnake ? 'Pick '+overallPick : r+'.'+String(p).padStart(2,'0')}</span>
           ${isSal ? `<span class="pick-sal">${fmtM(sal)}</span>` : ""}
         </div>`;
 
