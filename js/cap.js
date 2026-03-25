@@ -46,15 +46,14 @@ function subscribeRosters() {
 
   // Build player name lookup from cached Sleeper DB for age badges + photos
   try {
-    const cached = localStorage.getItem('sb_players');
-    // Check cache version -- if bio fields missing, force rebuild
     const cacheVer = localStorage.getItem('sb_players_ver');
     if (cacheVer !== '2') {
+      // Old cache missing bio fields -- clear so it refetches fresh
       localStorage.removeItem('sb_players');
       localStorage.removeItem('sb_players_at');
-      localStorage.removeItem('sb_players_ver');
     }
-    if (cached && cacheVer === '2') {
+    const cached = localStorage.getItem('sb_players');
+    if (cached) {
       const players = JSON.parse(cached);
       window._playerById = {};  // always rebuild fresh
       Object.entries(players).forEach(([playerId, p]) => {
@@ -82,6 +81,7 @@ function subscribeRosters() {
           PLAYER_LOOKUP[key] = { birth_date: p.birth_date || null, player_id: playerId, nfl_team: p.team || null, age: p.age || null, years_exp: p.years_exp != null ? p.years_exp : null };
         }
       });
+      localStorage.setItem('sb_players_ver', '2');
     }
   } catch(e) {}
 
@@ -656,7 +656,7 @@ let apSearch = '';
 // doesn't get destroyed on each keystroke
 let apStatsMap  = null;   // player_id -> stats for current year
 let apSort      = { col: 'pts', dir: -1 };  // col: 'name'|'pts'|'owner'|'salary'=desc
-let apStatYear  = 2025;   // 2023 | 2024 | 2025
+let apStatYear  = 2025;   // 2023 | 2024 | 2025 (2025 = last completed season)
 
 async function loadApStats(year) {
   year = year || apStatYear;
