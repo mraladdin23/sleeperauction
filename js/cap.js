@@ -2642,108 +2642,85 @@ async function pcLoadYear(year) {
   logEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);">Loading…</div>';
 
   try {
-    // Use cached bulk stats for current year if available
-    let seasonStats = null;
-    if (year === apStatYear && apStatsMap && apStatsMap[_pcPlayerId]) {
-      seasonStats = apStatsMap[_pcPlayerId];
+    // Step 1: Get season totals from bulk stats (most reliable)
+    const bulkKey = 'sb_stats_' + year;
+    let bulkData = null;
+    try { bulkData = JSON.parse(localStorage.getItem(bulkKey) || 'null'); } catch(e) {}
+    if (!bulkData) {
+      console.log('[pc] fetching bulk stats for', year);
+      const br = await fetch(`https://api.sleeper.app/v1/stats/nfl/regular/${year}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=K`);
+      if (br.ok) {
+        bulkData = await br.json();
+        try { localStorage.setItem(bulkKey, JSON.stringify(bulkData)); } catch(e) {}
+      }
     }
 
-    // Weekly stats: per-player endpoint WITHOUT grouping returns array of weekly objects
-    // Each object: { week: N, pts_ppr: x, rush_yd: y, ... }
-    let weeklyArr = _pcWeekCache[year];
+    const seasonStats = bulkData?.[_pcPlayerId] || null;
+    console.log('[pc] seasonStats:', seasonStats ? JSON.stringify(seasonStats).slice(0,100) : 'NOT FOUND in bulk');
+
+    // Step 2: Get weekly breakdown from per-player endpoint
+    let weeklyArr = _pcWeekCache[year] || null;
     if (!weeklyArr) {
-      // Try season-level stats (no grouping param) which returns weekly breakdown
-      const url = `https://api.sleeper.app/v1/stats/nfl/player/${_pcPlayerId}?season_type=regular&season=${year}`;
-      const r   = await fetch(url);
-      const raw = r.ok ? await r.json() : null;
-
-      if (Array.isArray(raw) && raw.length > 0) {
-        // Array of weekly stat objects
-        weeklyArr = raw.filter(w => w.week > 0 || w.pts_ppr != null);
-      } else if (raw && typeof raw === 'object' && !Array.isArray(raw)) {
-        // Object keyed by week number -- but verify it has actual stats not just rankings
-        const firstVal = Object.values(raw)[0] || {};
-        const hasStats = 'pts_ppr' in firstVal || 'rush_yd' in firstVal || 'pass_yd' in firstVal;
-        if (hasStats) {
-          weeklyArr = Object.entries(raw)
-            .filter(([k]) => !isNaN(parseInt(k)))
-            .map(([wk, s]) => ({ week: parseInt(wk), ...s }));
-        } else {
-          // Rankings only -- try bulk year stats instead
-          console.log('[pc] per-player endpoint returned rankings only, falling back to bulk');
-          weeklyArr = null;
-        }
-      }
-
-      if (!weeklyArr) {
-        // Fallback: fetch bulk year stats and use season total only
-        const bulkKey = 'sb_stats_' + year;
-        let bulkData = null;
-        try { bulkData = JSON.parse(localStorage.getItem(bulkKey) || 'null'); } catch(e) {}
-        console.log('[pc] trying bulk stats, cached:', !!bulkData);
-        if (!bulkData) {
-          const br = await fetch(`https://api.sleeper.app/v1/stats/nfl/regular/${year}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE`);
-          if (br.ok) {
-            bulkData = await br.json();
-            try { localStorage.setItem(bulkKey, JSON.stringify(bulkData)); } catch(e) {}
+      try {
+        const wr = await fetch(`https://api.sleeper.app/v1/stats/nfl/player/${_pcPlayerId}?season_type=regular&season=${year}&grouping=week`);
+        const raw = wr.ok ? await wr.json() : null;
+        if (raw && typeof raw === 'object') {
+          if (Array.isArray(raw)) {
+            weeklyArr = raw.filter(w => w.week && w.pts_ppr != null);
+          } else {
+            // Object keyed by week -- only use if has actual stats (pts_ppr)
+            const entries = Object.entries(raw).filter(([k,v]) => !isNaN(parseInt(k)) && v.pts_ppr != null);
+            if (entries.length) {
+              weeklyArr = entries.map(([wk, s]) => ({ week: parseInt(wk), ...s }));
+            }
           }
         }
-        if (bulkData && bulkData[_pcPlayerId]) {
-          seasonStats = bulkData[_pcPlayerId];
-          weeklyArr   = [];  // no weekly breakdown available
-          console.log('[pc] bulk stats found for player:', JSON.stringify(seasonStats).slice(0,150));
-        } else {
-          console.log('[pc] bulk stats NOT found for player', _pcPlayerId, 'bulkData keys:', bulkData ? Object.keys(bulkData).length : 0);
-        }
-      }
-
-      if (weeklyArr) _pcWeekCache[year] = weeklyArr;
+        console.log('[pc] weeklyArr from per-player:', weeklyArr?.length ?? 'null');
+        if (weeklyArr?.length) _pcWeekCache[year] = weeklyArr;
+      } catch(e) { console.warn('[pc] weekly fetch failed:', e.message); }
     }
 
-    if (!seasonStats && weeklyArr?.length) {
-      // Compute season totals from weekly
-      seasonStats = weeklyArr.reduce((acc, w) => {
-        acc.pts_ppr  = (acc.pts_ppr  || 0) + (w.pts_ppr  || 0);
-        acc.pass_yd  = (acc.pass_yd  || 0) + (w.pass_yd  || 0);
-        acc.pass_td  = (acc.pass_td  || 0) + (w.pass_td  || 0);
-        acc.rush_yd  = (acc.rush_yd  || 0) + (w.rush_yd  || 0);
-        acc.rush_td  = (acc.rush_td  || 0) + (w.rush_td  || 0);
-        acc.rec      = (acc.rec      || 0) + (w.rec      || 0);
-        acc.rec_yd   = (acc.rec_yd   || 0) + (w.rec_yd   || 0);
-        acc.rec_td   = (acc.rec_td   || 0) + (w.rec_td   || 0);
-        acc.gp       = (acc.gp       || 0) + 1;
-        return acc;
-      }, {});
+    // If no weekly from per-player, compute from bulk weekly endpoint
+    if (!weeklyArr?.length && bulkData) {
+      // Build weekly from individual week fetches is too slow -- show season total only
+      weeklyArr = [];
     }
 
-    if (!seasonStats) { pcShowNoStats(sumEl, logEl); return; }
+    if (!seasonStats && !weeklyArr?.length) {
+      pcShowNoStats(sumEl, logEl);
+      return;
+    }
 
     // Season summary
-    const gp  = seasonStats.gp || (weeklyArr?.length) || 1;
-    const avg = seasonStats.pts_ppr ? (seasonStats.pts_ppr / gp).toFixed(1) : null;
+    const st   = seasonStats || {};
+    const gp   = st.gp || weeklyArr?.length || 1;
+    const total = st.pts_ppr || weeklyArr?.reduce((s,w) => s+(w.pts_ppr||0), 0) || 0;
+    const avg  = total ? (total / gp).toFixed(1) : null;
+
     const summaryItems = [
-      ['Total Pts', seasonStats.pts_ppr ? seasonStats.pts_ppr.toFixed(1) : null],
+      ['Total Pts', total ? total.toFixed(1) : null],
       ['Avg/Gm',    avg],
-      ['GP',        gp],
-      seasonStats.pass_yd ? ['Pass Yd', Math.round(seasonStats.pass_yd)]  : null,
-      seasonStats.pass_td ? ['Pass TD', seasonStats.pass_td]              : null,
-      seasonStats.rush_yd ? ['Rush Yd', Math.round(seasonStats.rush_yd)]  : null,
-      seasonStats.rush_td ? ['Rush TD', seasonStats.rush_td]              : null,
-      seasonStats.rec     ? ['Rec',     seasonStats.rec]                  : null,
-      seasonStats.rec_yd  ? ['Rec Yd',  Math.round(seasonStats.rec_yd)]   : null,
-      seasonStats.rec_td  ? ['Rec TD',  seasonStats.rec_td]               : null,
+      ['GP',        gp || null],
+      st.pass_yd  ? ['Pass Yd', Math.round(st.pass_yd)]  : null,
+      st.pass_td  ? ['Pass TD', st.pass_td]               : null,
+      st.rush_yd  ? ['Rush Yd', Math.round(st.rush_yd)]   : null,
+      st.rush_td  ? ['Rush TD', st.rush_td]               : null,
+      st.rec      ? ['Rec',     st.rec]                   : null,
+      st.rec_yd   ? ['Rec Yd',  Math.round(st.rec_yd)]    : null,
+      st.rec_td   ? ['Rec TD',  st.rec_td]                : null,
     ].filter(Boolean).filter(([,v]) => v !== null && v !== undefined && v !== 0);
 
-    sumEl.innerHTML = summaryItems.map(([l,v]) =>
-      `<div style="text-align:center;background:var(--surface2);border-radius:6px;padding:8px 10px;min-width:48px;">
-        <div style="font-family:var(--font-mono);font-size:15px;font-weight:600;">${v}</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:2px;">${l}</div>
-      </div>`
-    ).join('');
+    sumEl.innerHTML = summaryItems.length
+      ? summaryItems.map(([l,v]) =>
+          `<div style="text-align:center;background:var(--surface2);border-radius:6px;padding:8px 10px;min-width:48px;">
+            <div style="font-family:var(--font-mono);font-size:15px;font-weight:600;">${v}</div>
+            <div style="font-size:10px;color:var(--text3);margin-top:2px;">${l}</div>
+          </div>`).join('')
+      : '<div style="color:var(--text3);font-size:12px;padding:8px;">No stats found.</div>';
 
     // Game log
     if (!weeklyArr?.length) {
-      logEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);">Weekly breakdown not available for this season.</div>';
+      logEl.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);">Weekly breakdown not available — season totals shown above.</div>';
       return;
     }
 
@@ -2783,6 +2760,7 @@ async function pcLoadYear(year) {
       Could not load ${year} stats.<br><small style="opacity:.6;">${e.message}</small></div>`;
   }
 }
+
 
 
 function pcShowNoStats(sumEl, logEl) {

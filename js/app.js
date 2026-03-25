@@ -988,6 +988,7 @@ This only removes it from the registry — all league data in Firebase is preser
     });
 
     // Load Sleeper transactions for activity feed (non-blocking)
+    window._reloadTxns = () => loadSleeperTransactions(state.leagueId);
     loadSleeperTransactions(state.leagueId);
 
     // Watchlist — keyed by Sleeper user_id
@@ -1095,6 +1096,7 @@ This only removes it from the registry — all league data in Firebase is preser
         })
         .filter(Boolean);
 
+      console.log('[txn] total items after filter:', items.length, 'sample:', items[0]?.msg);
       window._sleeperTxns   = items;
       window._txnPage       = 0;
       window._txnTeamFilter = '';
@@ -1104,7 +1106,11 @@ This only removes it from the registry — all league data in Firebase is preser
 
   function renderActivityFeedSleeperTxns() {
     const el = document.getElementById('home-activity-feed');
-    if (!el) return;
+    if (!el) {
+      // Element not in DOM yet -- retry after a delay
+      setTimeout(renderActivityFeedSleeperTxns, 500);
+      return;
+    }
     const hasFbActivity = el.querySelector('.feed-item:not(.txn-item)');
     if (hasFbActivity) return;
 
@@ -1135,7 +1141,7 @@ This only removes it from the registry — all league data in Firebase is preser
     const yearToggle = `
       <div style="display:flex;gap:4px;margin-bottom:8px;align-items:center;">
         <span style="font-size:11px;color:var(--text3);margin-right:4px;">Season:</span>
-        ${[2026,2025].map(y => `<button onclick="window._txnYear=${y};window._txnPage=0;loadSleeperTransactions(App?.state?.leagueId||'')"
+        ${[2026,2025].map(y => `<button onclick="window._txnYear=${y};window._txnPage=0;window._reloadTxns && window._reloadTxns()"
           style="padding:2px 8px;font-size:11px;font-family:var(--font-body);
           background:${y===year?'var(--accent)':'var(--surface2)'};
           color:${y===year?'#fff':'var(--text2)'};
@@ -1171,6 +1177,7 @@ This only removes it from the registry — all league data in Firebase is preser
           ${page>=pages-1?'disabled':''} style="padding:3px 10px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;color:var(--text2);font-family:var(--font-body);">Next →</button>
       </div>` : '';
 
+    console.log('[txn] render setting innerHTML, items:', items.length, 'filtered:', filtered.length, 'rows:', slice.length);
     el.innerHTML = yearToggle + teamSelect + (rows || emptyMsg) + pager;
   }
 
