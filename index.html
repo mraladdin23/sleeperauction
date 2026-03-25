@@ -203,8 +203,7 @@ body.light-mode .login-card{box-shadow:0 4px 24px rgba(0,0,0,.08);}
 function toggleAvatarMenu() {
   const dd     = document.getElementById('avatar-dropdown');
   const avatar = document.getElementById('user-avatar');
-  console.log('[avatar] toggle called, dd:', !!dd, 'avatar:', !!avatar, 'open:', dd?.classList.contains('open'));
-  if (!dd || !avatar) { console.log('[avatar] MISSING ELEMENTS'); return; }
+  if (!dd || !avatar) return;
   if (dd.classList.contains('open')) {
     dd.classList.remove('open');
   } else {
@@ -223,9 +222,7 @@ function toggleAvatarMenu() {
     dd.style.top      = (rect.bottom + 8) + 'px';
     dd.style.right    = (window.innerWidth - rect.right) + 'px';
     dd.style.left     = 'auto';
-    console.log('[avatar] opening dropdown, rect:', JSON.stringify({top:rect.top,bottom:rect.bottom,right:rect.right,width:rect.width}));
     dd.classList.add('open');
-    console.log('[avatar] dd classes after:', dd.className, 'display:', window.getComputedStyle(dd).display);
   }
 }
 // ── League Setup Wizard ───────────────────────────────────────
@@ -253,7 +250,7 @@ function initWizard(leagueName, leagueMeta, sleeperLeague, isComm) {
     // Pre-select auto-detected type and hide the type selector
     const typeEl = document.getElementById('wizard-type-section');
     if (typeEl) typeEl.style.display = 'none';
-    const autoEl = document.querySelector(\`input[value="\${autoType}"]\`);
+    const autoEl = document.querySelector(`input[value="${autoType}"]`);
     if (autoEl) { autoEl.checked = true; updateWizardSections(autoType); }
   } else {
     const noticeEl = document.getElementById('wizard-comm-notice');
@@ -280,7 +277,7 @@ function initWizard(leagueName, leagueMeta, sleeperLeague, isComm) {
   document.querySelectorAll('.wizard-opt').forEach(lbl => {
     lbl.querySelector('input')?.addEventListener('change', () => {
       const group = lbl.dataset.group;
-      document.querySelectorAll(\`.wizard-opt[data-group="\${group}"]\`).forEach(l => {
+      document.querySelectorAll(`.wizard-opt[data-group="${group}"]`).forEach(l => {
         l.style.borderColor = l.querySelector('input')?.checked ? 'var(--accent)' : 'var(--border)';
       });
     });
