@@ -1037,6 +1037,10 @@ This only removes it from the registry — all league data in Firebase is preser
 
   async function loadSleeperTransactions(leagueId) {
     if (!leagueId) return;
+    // Don't re-fetch if already loaded for this league+year
+    const _txnCacheKey = `${leagueId}_${window._txnYear||2026}`;
+    if (window._txnLoadedKey === _txnCacheKey && window._sleeperTxns?.length) return;
+    window._txnLoadedKey = _txnCacheKey;
     try {
       // Default to current year (2026), can toggle to 2025
       const year = window._txnYear || 2026;
