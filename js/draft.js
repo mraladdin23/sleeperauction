@@ -659,6 +659,7 @@ function renderBoard() {
   const ROUNDS = 4, PICKS = 12;
   const comm = isComm();
   let html = '';
+  console.log('[board] slotOwners sample:', JSON.stringify(Object.fromEntries(Object.entries(slotOwners).slice(0,4))));
 
   for (let r = 1; r <= ROUNDS; r++) {
     const isSal = (window._capLeagueType || 'salary_auction') === 'salary_auction';
