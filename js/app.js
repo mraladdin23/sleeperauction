@@ -989,6 +989,7 @@ This only removes it from the registry — all league data in Firebase is preser
 
     // Load Sleeper transactions for activity feed (non-blocking)
     window._reloadTxns = () => { window._sleeperTxnsLoaded = false; window._txnLoadedKey = null; loadSleeperTransactions(state.leagueId); };
+    window.renderActivityFeedSleeperTxns = () => renderActivityFeedSleeperTxns();
     loadSleeperTransactions(state.leagueId);
 
     // Watchlist — keyed by Sleeper user_id
@@ -1037,32 +1038,51 @@ This only removes it from the registry — all league data in Firebase is preser
 
   async function loadSleeperTransactions(leagueId) {
     if (!leagueId) return;
+    const year = window._txnYear || 2026;
     // Don't re-fetch if already loaded for this league+year
-    const _txnCacheKey = `${leagueId}_${window._txnYear||2026}`;
+    const _txnCacheKey = `${leagueId}_${year}`;
     if (window._txnLoadedKey === _txnCacheKey && window._sleeperTxns?.length) return;
     window._txnLoadedKey = _txnCacheKey;
+
+    // For historical years, need to find the correct league ID for that season
+    // Sleeper stores each season as a separate league -- get previous league via league.previous_league_id
+    let targetLeagueId = leagueId;
+    if (year < 2026) {
+      try {
+        let lid = leagueId;
+        let checked = 0;
+        while (lid && checked < 4) {
+          const info = await fetch(`https://api.sleeper.app/v1/league/${lid}`).then(r=>r.json());
+          if (String(info.season) === String(year)) { targetLeagueId = lid; break; }
+          lid = info.previous_league_id || null;
+          checked++;
+        }
+      } catch(e) {}
+    }
+
     try {
-      // Default to current year (2026), can toggle to 2025
-      const year = window._txnYear || 2026;
       const weekNums = Array.from({length: 18}, (_, i) => i + 1);
       const weekResults = await Promise.all(
-        weekNums.map(w => Sleeper.fetchTransactions(leagueId, w).catch(() => []))
+        weekNums.map(w => Sleeper.fetchTransactions(targetLeagueId, w).catch(() => []))
       );
       const txns = weekResults.flat();
-      console.log('[txn] leagueId:', leagueId, 'year:', year, 'total txns:', txns.length);
+      console.log('[txn] leagueId:', targetLeagueId, 'year:', year, 'total txns:', txns.length);
       if (txns.length) console.log('[txn] sample:', JSON.stringify(txns[0]).slice(0,200));
+
       if (!Array.isArray(txns) || !txns.length) {
-        // No transactions yet for this year -- show empty state with year toggle
         window._sleeperTxns = [];
+        window._sleeperTxnsLoaded = true;
         renderActivityFeedSleeperTxns();
         return;
       }
 
+      // Build roster_id -> team name map
       const rosterMap = {};
       (state.teams||[]).forEach(t => {
         if (t.roster_id) rosterMap[String(t.roster_id)] = t.display_name || t.username || `Team ${t.roster_id}`;
       });
-      // Wait up to 3s for _playerById to be built by initApp's async fetch
+
+      // Wait for _playerById if needed
       let waited = 0;
       while ((!window._playerById || Object.keys(window._playerById).length < 100) && waited < 3000) {
         await new Promise(r => setTimeout(r, 200));
@@ -1082,28 +1102,46 @@ This only removes it from the registry — all league data in Firebase is preser
           const teams     = (t.roster_ids||[]).map(id => rosterMap[String(id)] || `Roster ${id}`);
           const teamStr   = teams[0] || 'A team';
           const date      = t.created ? new Date(t.created).toLocaleDateString('en-US', {month:'short',day:'numeric'}) : '';
-          let msg = '', icon = '';
+
+          let msg = '', icon = '', detail = '', type = t.type;
+
           if (t.type === 'trade') {
-            msg = `Trade: ${teams.join(' & ')}`;
             icon = '🔄';
+            // Build per-team breakdown
+            const sideA = rosterMap[String(t.roster_ids?.[0])] || teams[0] || '?';
+            const sideB = rosterMap[String(t.roster_ids?.[1])] || teams[1] || '?';
+            msg = `Trade: ${teams.join(' & ')}`;
+            // What each side received
+            const aReceived = adds.filter(id => t.adds[id] === t.roster_ids?.[0]);
+            const bReceived = adds.filter(id => t.adds[id] === t.roster_ids?.[1]);
+            const aNames = aReceived.map(id => byId[id]?.name || id).join(', ');
+            const bNames = bReceived.map(id => byId[id]?.name || id).join(', ');
+            const picks  = (t.draft_picks||[]).map(p => `${p.season} R${p.round}`).join(', ');
+            const detailParts = [];
+            if (aNames) detailParts.push(`${sideA} gets: ${aNames}`);
+            if (bNames) detailParts.push(`${sideB} gets: ${bNames}`);
+            if (picks)  detailParts.push(`Picks: ${picks}`);
+            detail = detailParts.join(' | ');
           } else if (t.type === 'waiver' && addNames) {
-            msg = `${teamStr} claimed ${addNames}${dropNames ? ` / dropped ${dropNames}` : ''}`;
-            icon = '✅';
+            msg    = `${teamStr} claimed ${addNames}${dropNames ? ` / dropped ${dropNames}` : ''}`;
+            icon   = '✅';
           } else if (t.type === 'free_agent' && addNames) {
-            msg = `${teamStr} added ${addNames}${dropNames ? ` / dropped ${dropNames}` : ''}`;
-            icon = '➕';
+            msg    = `${teamStr} added ${addNames}${dropNames ? ` / dropped ${dropNames}` : ''}`;
+            icon   = '➕';
           } else if (dropNames) {
-            msg = `${teamStr} dropped ${dropNames}`;
-            icon = '➖';
+            msg    = `${teamStr} dropped ${dropNames}`;
+            icon   = '➖';
+            type   = 'drop';
           }
-          return msg ? { icon, msg, date, type: t.type, teams: t.roster_ids||[], ts: t.created } : null;
+          return msg ? { icon, msg, detail, date, type, teams: t.roster_ids||[], ts: t.created } : null;
         })
         .filter(Boolean);
 
       console.log('[txn] total items after filter:', items.length, 'sample:', items[0]?.msg);
-      window._sleeperTxns    = items;
-      window._txnPage        = 0;
-      window._txnTeamFilter  = '';
+      window._sleeperTxns      = items;
+      window._txnPage          = 0;
+      window._txnTeamFilter    = window._txnTeamFilter || '';
+      window._txnTypeFilter    = window._txnTypeFilter || '';
       window._sleeperTxnsLoaded = true;
       console.log('[feed] _sleeperTxnsLoaded set to true');
       renderActivityFeedSleeperTxns();
@@ -1113,7 +1151,6 @@ This only removes it from the registry — all league data in Firebase is preser
   function renderActivityFeedSleeperTxns() {
     const el = document.getElementById('home-activity-feed');
     if (!el) {
-      // Element not in DOM yet -- retry after a delay
       setTimeout(renderActivityFeedSleeperTxns, 500);
       return;
     }
@@ -1122,6 +1159,7 @@ This only removes it from the registry — all league data in Firebase is preser
 
     const items      = window._sleeperTxns || [];
     const teamFilter = window._txnTeamFilter || '';
+    const typeFilter = window._txnTypeFilter || '';
     const page       = window._txnPage || 0;
     const year       = window._txnYear || 2026;
     const PAGE_SIZE  = 10;
@@ -1130,61 +1168,80 @@ This only removes it from the registry — all league data in Firebase is preser
     (state.teams||[]).forEach(t => {
       if (t.roster_id) rosterMap[String(t.roster_id)] = t.display_name || t.username;
     });
-    const teamOpts = Object.entries(rosterMap)
-      .map(([id, name]) => `<option value="${id}"${teamFilter===id?' selected':''}>${name}</option>`)
-      .join('');
 
-    const filtered = teamFilter
-      ? items.filter(i => i.teams.map(String).includes(teamFilter))
-      : items;
+    // Filter
+    let filtered = items;
+    if (typeFilter) filtered = filtered.filter(i => i.type === typeFilter);
+    if (teamFilter) filtered = filtered.filter(i => i.teams.map(String).includes(teamFilter));
 
-    const total = filtered.length;
-    const start = page * PAGE_SIZE;
-    const slice = filtered.slice(start, start + PAGE_SIZE);
-    const pages = Math.ceil(total / PAGE_SIZE);
+    const total  = filtered.length;
+    const start  = page * PAGE_SIZE;
+    const slice  = filtered.slice(start, start + PAGE_SIZE);
+    const pages  = Math.ceil(total / PAGE_SIZE);
 
     // Year toggle
     const yearToggle = `
-      <div style="display:flex;gap:4px;margin-bottom:8px;align-items:center;">
-        <span style="font-size:11px;color:var(--text3);margin-right:4px;">Season:</span>
-        ${[2026,2025].map(y => `<button onclick="window._txnYear=${y};window._txnPage=0;window._reloadTxns && window._reloadTxns()"
+      <div style="display:flex;gap:4px;margin-bottom:8px;align-items:center;flex-wrap:wrap;">
+        <span style="font-size:11px;color:var(--text3);margin-right:2px;">Season:</span>
+        ${[2026,2025,2024].map(y => `<button onclick="window._txnYear=${y};window._txnPage=0;window._sleeperTxnsLoaded=false;window._txnLoadedKey=null;window._reloadTxns&&window._reloadTxns()"
           style="padding:2px 8px;font-size:11px;font-family:var(--font-body);
           background:${y===year?'var(--accent)':'var(--surface2)'};
           color:${y===year?'#fff':'var(--text2)'};
           border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">${y}</button>`).join('')}
       </div>`;
 
-    const teamSelect = `
-      <div style="margin-bottom:8px;">
-        <select onchange="window._txnTeamFilter=this.value;window._txnPage=0;renderActivityFeedSleeperTxns()"
-          style="width:100%;padding:5px 8px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:12px;outline:none;">
+    // Team filter
+    const teamOpts = Object.entries(rosterMap)
+      .map(([id, name]) => `<option value="${id}"${teamFilter===id?' selected':''}>${name}</option>`)
+      .join('');
+
+    // Type filter
+    const typeOpts = [
+      ['', 'All Types'],
+      ['trade', '🔄 Trades'],
+      ['waiver', '✅ Waivers'],
+      ['free_agent', '➕ Free Agent'],
+      ['drop', '➖ Drops'],
+    ].map(([v,l]) => `<option value="${v}"${typeFilter===v?' selected':''}>${l}</option>`).join('');
+
+    const filters = `
+      <div style="display:flex;gap:6px;margin-bottom:8px;">
+        <select onchange="window._txnTypeFilter=this.value;window._txnPage=0;window.renderActivityFeedSleeperTxns&&window.renderActivityFeedSleeperTxns()"
+          style="flex:1;padding:5px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:11px;outline:none;">
+          ${typeOpts}
+        </select>
+        <select onchange="window._txnTeamFilter=this.value;window._txnPage=0;window.renderActivityFeedSleeperTxns&&window.renderActivityFeedSleeperTxns()"
+          style="flex:1;padding:5px 6px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:11px;outline:none;">
           <option value="">All Teams</option>${teamOpts}
         </select>
       </div>`;
 
     const rows = slice.map(i =>
-      `<div class="feed-item txn-item" style="display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);">
-        <span style="font-size:14px;flex-shrink:0;">${i.icon}</span>
-        <div style="flex:1;min-width:0;">
-          <div style="font-size:12px;line-height:1.4;">${i.msg}</div>
+      `<div class="feed-item txn-item" style="padding:7px 0;border-bottom:1px solid var(--border);">
+        <div style="display:flex;align-items:flex-start;gap:8px;">
+          <span style="font-size:14px;flex-shrink:0;">${i.icon}</span>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;line-height:1.4;">${i.msg}</div>
+            ${i.detail ? `<div style="font-size:11px;color:var(--text3);margin-top:2px;line-height:1.4;">${i.detail}</div>` : ''}
+          </div>
+          <div style="font-size:11px;color:var(--text3);flex-shrink:0;">${i.date}</div>
         </div>
-        <div style="font-size:11px;color:var(--text3);flex-shrink:0;">${i.date}</div>
       </div>`
     ).join('');
 
-    const emptyMsg = `<div style="padding:12px 0;color:var(--text3);font-size:12px;">No transactions yet for ${year}.</div>`;
+    const emptyMsg = `<div style="padding:12px 0;color:var(--text3);font-size:12px;">No transactions found${typeFilter||teamFilter?' for this filter':` for ${year}`}.</div>`;
 
     const pager = pages > 1 ? `
       <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0 2px;gap:8px;">
-        <button onclick="window._txnPage=Math.max(0,${page}-1);renderActivityFeedSleeperTxns()"
+        <button onclick="window._txnPage=Math.max(0,${page}-1);window.renderActivityFeedSleeperTxns&&window.renderActivityFeedSleeperTxns()"
           ${page===0?'disabled':''} style="padding:3px 10px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;color:var(--text2);font-family:var(--font-body);">← Prev</button>
         <span style="font-size:11px;color:var(--text3);">${start+1}–${Math.min(start+PAGE_SIZE,total)} of ${total}</span>
-        <button onclick="window._txnPage=Math.min(${pages-1},${page}+1);renderActivityFeedSleeperTxns()"
+        <button onclick="window._txnPage=Math.min(${pages-1},${page}+1);window.renderActivityFeedSleeperTxns&&window.renderActivityFeedSleeperTxns()"
           ${page>=pages-1?'disabled':''} style="padding:3px 10px;font-size:11px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;color:var(--text2);font-family:var(--font-body);">Next →</button>
       </div>` : '';
 
     console.log('[txn] render setting innerHTML, items:', items.length, 'filtered:', filtered.length, 'rows:', slice.length);
-    el.innerHTML = yearToggle + teamSelect + (rows || emptyMsg) + pager;
+    el.innerHTML = yearToggle + filters + (rows || emptyMsg) + pager;
   }
 
   function updateHomeFeed(feed) {
