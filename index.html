@@ -652,9 +652,7 @@ function initRosterView() {
   if (!window._capLeagueType) {
     window._capLeagueType = window.App?.state?.leagueType || 'salary_auction';
   }
-  console.log('[roster] initRosterView called, viewsLoaded.roster=', viewsLoaded.roster, '_capLeagueType=', window._capLeagueType);
   if (viewsLoaded.roster) {
-    console.log('[roster] early return -- re-running capInit for new league');
     if (window.capInit) { window.capUnsubscribe && window.capUnsubscribe(); capInit(); }
     applyCapTabVisibility();
     if (window.setTab) setTab(window.tab || 'overview');
