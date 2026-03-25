@@ -167,7 +167,7 @@ function insertSmackTalk() {
   if (input) { input.value = line; input.focus(); }
 }
 
-// GIF search via Tenor
+// GIF search via Giphy
 let _gifTimer = null;
 function openGifSearch() {
   const panel = document.getElementById('gif-panel');
@@ -192,17 +192,22 @@ function searchGifs(query) {
       const data = await r.json();
       const results = data.data || [];
       if (!results.length) { el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:12px;">No GIFs found</div>'; return; }
+      const gifUrls2 = [];
       el.innerHTML = results.map(g => {
         const preview = g.images?.fixed_height_small?.url || g.images?.downsized_small?.url || '';
         const full    = g.images?.downsized?.url || preview;
         if (!preview) return '';
-        const safeFull = full.split('?')[0];
+        const idx = gifUrls2.length;
+        gifUrls2.push(full);
         return `<img src="${preview}" style="width:100%;height:80px;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid transparent;"
-          onclick="sendGif(this.dataset.full)"
-          data-full="${safeFull}"
+          data-gif-idx="${idx}"
           onmouseover="this.style.borderColor='var(--accent)'"
           onmouseout="this.style.borderColor='transparent'" loading="lazy" />`;
       }).join('');
+      el.onclick = e => {
+        const img = e.target.closest('img[data-gif-idx]');
+        if (img) sendGif(gifUrls2[parseInt(img.dataset.gifIdx)]);
+      };
     } catch(e) {
       el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:12px;padding:12px;">Could not load GIFs</div>';
     }
@@ -382,17 +387,25 @@ function searchSidebarGifs(query) {
       const data = await r.json();
       const results = data.data || [];
       if (!results.length) { el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">No GIFs found</div>'; return; }
+      // Store URLs in a closure array, use index-based onclick to avoid URL encoding issues
+      const gifUrls = [];
       el.innerHTML = results.map(g => {
         const preview = g.images?.fixed_height_small?.url || g.images?.downsized_small?.url || '';
         const full    = g.images?.downsized?.url || preview;
         if (!preview) return '';
+        const idx = gifUrls.length;
+        gifUrls.push(full);
         return `<img src="${preview}"
           style="width:100%;height:60px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid transparent;"
           onmouseover="this.style.borderColor='var(--accent)'"
           onmouseout="this.style.borderColor='transparent'"
-          onclick="sendSidebarGif('${full.replace(/'/g,"\'")}')"
+          data-gif-idx="${idx}"
           loading="lazy" />`;
       }).join('');
+      el.onclick = e => {
+        const img = e.target.closest('img[data-gif-idx]');
+        if (img) sendSidebarGif(gifUrls[parseInt(img.dataset.gifIdx)]);
+      };
     } catch(e) {
       el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Could not load GIFs</div>';
     }
