@@ -988,7 +988,7 @@ This only removes it from the registry — all league data in Firebase is preser
     });
 
     // Load Sleeper transactions for activity feed (non-blocking)
-    window._reloadTxns = () => loadSleeperTransactions(state.leagueId);
+    window._reloadTxns = () => { window._sleeperTxnsLoaded = false; window._txnLoadedKey = null; loadSleeperTransactions(state.leagueId); };
     loadSleeperTransactions(state.leagueId);
 
     // Watchlist — keyed by Sleeper user_id
@@ -1101,9 +1101,10 @@ This only removes it from the registry — all league data in Firebase is preser
         .filter(Boolean);
 
       console.log('[txn] total items after filter:', items.length, 'sample:', items[0]?.msg);
-      window._sleeperTxns   = items;
-      window._txnPage       = 0;
-      window._txnTeamFilter = '';
+      window._sleeperTxns    = items;
+      window._txnPage        = 0;
+      window._txnTeamFilter  = '';
+      window._sleeperTxnsLoaded = true;
       renderActivityFeedSleeperTxns();
     } catch(e) { console.error('[txn] ERROR:', e.message, e.stack?.split('\n')[1]); }
   }
@@ -1188,8 +1189,9 @@ This only removes it from the registry — all league data in Firebase is preser
   function updateHomeFeed(feed) {
     const el = document.getElementById('home-activity-feed');
     if (!el) return;
+    // Never overwrite Sleeper transactions once loaded
+    if (window._sleeperTxnsLoaded) return;
     if (!feed || !Object.keys(feed).length) {
-      // Don't overwrite if Sleeper transactions already displayed
       if (el.querySelector('.txn-item')) return;
       el.innerHTML = '<div class="feed-empty">No activity yet.</div>';
       return;
