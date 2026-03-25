@@ -1105,6 +1105,7 @@ This only removes it from the registry — all league data in Firebase is preser
       window._txnPage        = 0;
       window._txnTeamFilter  = '';
       window._sleeperTxnsLoaded = true;
+      console.log('[feed] _sleeperTxnsLoaded set to true');
       renderActivityFeedSleeperTxns();
     } catch(e) { console.error('[txn] ERROR:', e.message, e.stack?.split('\n')[1]); }
   }
@@ -1190,9 +1191,10 @@ This only removes it from the registry — all league data in Firebase is preser
     const el = document.getElementById('home-activity-feed');
     if (!el) return;
     // Never overwrite Sleeper transactions once loaded
-    if (window._sleeperTxnsLoaded) return;
+    if (window._sleeperTxnsLoaded) { console.log('[feed] updateHomeFeed blocked by flag'); return; }
     if (!feed || !Object.keys(feed).length) {
       if (el.querySelector('.txn-item')) return;
+      console.log('[feed] updateHomeFeed setting empty');
       el.innerHTML = '<div class="feed-empty">No activity yet.</div>';
       return;
     }
@@ -1212,7 +1214,8 @@ This only removes it from the registry — all league data in Firebase is preser
     const dotColors = { nomination:'var(--accent)', bid:'var(--accent2)', claim:'var(--green)',
                         cancel:'var(--red)', pass:'var(--text3)', autoclose:'var(--yellow)' };
     // Don't overwrite Sleeper transactions with Firebase auction feed
-    if (window._sleeperTxnsLoaded) return;
+    if (window._sleeperTxnsLoaded) { console.log('[feed] updateHomeFeed FB items blocked by flag'); return; }
+    console.log('[feed] updateHomeFeed rendering FB items:', Object.keys(feed).length);
     const items = Object.values(feed).sort((a,b) => (b.timestamp||0)-(a.timestamp||0)).slice(0,10);
     el.innerHTML = items.map(item => {
       const color = dotColors[item.type] || 'var(--text3)';
