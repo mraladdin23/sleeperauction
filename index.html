@@ -1226,7 +1226,12 @@ window.addEventListener('sb:ready', function() {
 <script>
 if('serviceWorker' in navigator){
   window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('SW:',e));
+    // Unregister all old service workers then re-register fresh
+    navigator.serviceWorker.getRegistrations().then(regs=>{
+      return Promise.all(regs.map(r=>r.unregister()));
+    }).then(()=>{
+      navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('SW:',e));
+    });
   });
 }
 </script>
