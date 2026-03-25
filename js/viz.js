@@ -416,14 +416,15 @@ async function renderDraftGrades(el) {
       const name = teamNames[rid] || `Roster ${rid}`;
       const totalPts = rPicks.reduce((s,p) => s + (p.pts||0), 0);
       const topPicks = rPicks.filter(p=>p.round<=2).sort((a,b)=>a.overall-b.overall);
-      // Steals: players whose actual value rank is much better than draft rank
+      // Steal: drafted OUTSIDE round 1 (overall > teams) AND performed like a round 1 pick (value rank <= teams)
       const steals = rPicks
-        .filter(p => valueRankMap[p.overall] && valueRankMap[p.overall] < p.overall * 0.6)
+        .filter(p => p.overall > teams && valueRankMap[p.overall] && valueRankMap[p.overall] <= teams)
         .sort((a,b) => valueRankMap[a.overall] - valueRankMap[b.overall])
         .slice(0, 2);
+      // Bust: drafted IN round 1 (overall <= teams) AND did NOT perform like a round 1 pick (value rank > teams)
       const busts = rPicks
-        .filter(p => p.pts !== null && p.pts < 30 && p.round <= 3)
-        .sort((a,b) => a.overall - b.overall)
+        .filter(p => p.overall <= teams && valueRankMap[p.overall] && valueRankMap[p.overall] > teams)
+        .sort((a,b) => (valueRankMap[b.overall]||999) - (valueRankMap[a.overall]||999))
         .slice(0, 2);
       return { rid, name, picks: rPicks, totalPts, topPicks, steals, busts };
     }).sort((a,b) => b.totalPts - a.totalPts || a.picks[0]?.overall - b.picks[0]?.overall);
@@ -450,10 +451,10 @@ async function renderDraftGrades(el) {
             `<span style="color:var(--text2);">${p.name}</span><span style="color:var(--text3);font-size:10px;"> #${p.overall}</span>`
           ).join('<span style="color:var(--border);"> · </span>');
           const stealStr = s.steals.map(p =>
-            `<span style="color:var(--green);">🎯 ${p.name} <span style="color:var(--text3);font-size:10px;">(#${p.overall}→ #${valueRankMap[p.overall]} actual)</span></span>`
+            `<span style="color:var(--green);">🎯 ${p.name} <span style="color:var(--text3);font-size:10px;">(picked #${p.overall}, ranked #${valueRankMap[p.overall]} by pts)</span></span>`
           ).join(' ');
           const bustStr = s.busts.map(p =>
-            `<span style="color:var(--red);">💥 ${p.name} <span style="color:var(--text3);font-size:10px;">(Rd ${p.round}, ${p.pts?.toFixed(0)||0} pts)</span></span>`
+            `<span style="color:var(--red);">💥 ${p.name} <span style="color:var(--text3);font-size:10px;">(pick #${p.overall}, ranked #${valueRankMap[p.overall]||'?'} by pts)</span></span>`
           ).join(' ');
           return `
             <div style="background:var(--surface2);border-radius:var(--radius-sm);padding:12px 16px;border-left:3px solid ${rank<3?'var(--accent)':'var(--border)'};">
