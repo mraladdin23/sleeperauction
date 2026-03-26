@@ -255,14 +255,30 @@ async function refreshDraft() {
   try {
     // 1. GET all drafts for this league
     const drafts = await fetch(`https://api.sleeper.app/v1/league/${draftLeagueId()}/drafts`).then(r=>r.json());
-    if (!drafts?.length) throw new Error('no drafts');
+    if (!drafts?.length) {
+      const bc3 = document.getElementById('board-container');
+      if (bc3) bc3.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3);">' +
+        '<div style="font-size:32px;margin-bottom:12px;">📋</div>' +
+        '<div style="font-size:15px;font-weight:600;margin-bottom:8px;">No draft found</div>' +
+        '<div style="font-size:13px;">This league has no Sleeper draft. Salary auction leagues use the Auction tab instead.</div>' +
+        '</div>';
+      return;
+    }
 
     // Prefer rookie/linear type over startup
     draftInfo = drafts.find(d => d.type === 'rookie' || d.type === 'linear')
              || drafts.find(d => d.type !== 'startup')
              || drafts[drafts.length - 1];
 
-    if (!draftInfo) throw new Error('no suitable draft');
+    if (!draftInfo) {
+      const bc3 = document.getElementById('board-container');
+      if (bc3) bc3.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3);">' +
+        '<div style="font-size:32px;margin-bottom:12px;">📋</div>' +
+        '<div style="font-size:15px;font-weight:600;margin-bottom:8px;">No draft available</div>' +
+        '<div style="font-size:13px;">Could not find a suitable draft for this league.</div>' +
+        '</div>';
+      return;
+    }
 
     // Log the raw draft object so we can see what Sleeper returned
     

@@ -262,32 +262,36 @@ function renderSidebarMessages(msgs) {
   const me = localStorage.getItem('sb_username') || '';
   const isBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
 
+  if (!msgs.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:20px;">No messages yet</div>';
+    return;
+  }
+
   el.innerHTML = msgs.map(m => {
     const isMine = m.user?.toLowerCase() === me.toLowerCase();
-    const cls    = isMine ? 'sidebar-msg sidebar-msg-mine' : 'sidebar-msg sidebar-msg-other';
-    const bubble = m.type === 'gif'
-      ? `<img src="${m.text}" style="max-width:140px;border-radius:8px;" loading="lazy" />`
-      : `<div class="sidebar-msg-bubble">${m.text?.replace(/</g,'&lt;').replace(/>/g,'&gt;')||''}</div>`;
-    const deleteBtn = isMine
-      ? `<button onclick="deleteChatMsg('${m.id}')" title="Delete"
-           style="background:none;border:none;color:var(--text3);font-size:10px;cursor:pointer;
-           padding:0 2px;opacity:0;transition:opacity .15s;flex-shrink:0;" class="msg-del-btn">✕</button>`
+    const align  = isMine ? 'right' : 'left';
+    const bgColor = isMine ? 'var(--accent)' : 'var(--surface2)';
+    const txtColor = isMine ? '#fff' : 'var(--text)';
+    const radius   = isMine ? '12px 12px 2px 12px' : '12px 12px 12px 2px';
+
+    const content = m.type === 'gif'
+      ? `<img src="${m.text}" style="max-width:160px;border-radius:8px;display:block;" loading="lazy" />`
+      : `<div style="display:inline-block;padding:6px 10px;border-radius:${radius};background:${bgColor};color:${txtColor};font-size:12px;line-height:1.4;word-break:break-word;max-width:85%;">${(m.text||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
+
+    const delBtn = isMine
+      ? `<button onclick="deleteChatMsg('${m.id}')" style="background:none;border:none;color:var(--text3);font-size:10px;cursor:pointer;padding:0 2px;opacity:0;vertical-align:bottom;" class="msg-del-btn">✕</button>`
       : '';
-    return `<div class="${cls}" style="display:flex;align-items:flex-end;gap:3px;width:100%;box-sizing:border-box;"
-        onmouseover="this.querySelector('.msg-del-btn')&&(this.querySelector('.msg-del-btn').style.opacity='1')"
-        onmouseout="this.querySelector('.msg-del-btn')&&(this.querySelector('.msg-del-btn').style.opacity='0')">
-      ${isMine ? deleteBtn : ''}
-      <div style="flex:1;display:flex;flex-direction:column;align-items:${isMine?'flex-end':'flex-start'};">
-        <div class="sidebar-msg-user" style="font-size:10px;color:var(--text3);${isMine?'text-align:right;':''}">${m.user||''}</div>
-        ${bubble}
-      </div>
-      ${!isMine ? deleteBtn : ''}
+
+    return `<div style="display:block;width:100%;margin-bottom:6px;text-align:${align};"
+        onmouseover="const b=this.querySelector('.msg-del-btn');if(b)b.style.opacity='1'"
+        onmouseout="const b=this.querySelector('.msg-del-btn');if(b)b.style.opacity='0'">
+      <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${m.user||''}</div>
+      ${isMine ? delBtn : ''}${content}${!isMine ? delBtn : ''}
     </div>`;
   }).join('');
 
   if (isBottom) el.scrollTop = el.scrollHeight;
 
-  // Unread badge
   if (_sidebarCollapsed && msgs.length) {
     const badge = document.getElementById('chat-unread-badge');
     if (badge) { badge.style.display = ''; badge.textContent = '●'; }
