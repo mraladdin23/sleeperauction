@@ -302,12 +302,10 @@ async function createCommGroup(leagues) {
     try {
       // Use pre-computed flag from picker if available (set on l.isComm by showLeaguePicker)
       if (l.isComm === true) { commLeagues.push(l); return; }
-      // Otherwise hit Sleeper API directly (fresh, no cache)
-      const info = await fetch(`https://api.sleeper.app/v1/league/${l.id}`).then(r=>r.json());
-      const isComm = String(info.commissioner_id) === String(userId) ||
-                     (info.commissioner_ids || []).map(String).includes(String(userId));
-      sessionStorage.setItem(`sb_iscomm_${l.id}`, isComm ? '1' : '0');
-      if (isComm) commLeagues.push(l);
+      // Otherwise check via league users is_owner field
+      const users = await fetch(`https://api.sleeper.app/v1/league/${l.id}/users`).then(r=>r.json());
+      const me = (users||[]).find(u => String(u.user_id) === String(userId));
+      if (me?.is_owner === true) commLeagues.push(l);
     } catch(e) {
       console.warn('Commissioner check failed for', l.id, e);
     }

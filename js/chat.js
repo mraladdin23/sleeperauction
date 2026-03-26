@@ -267,28 +267,33 @@ function renderSidebarMessages(msgs) {
     return;
   }
 
-  el.innerHTML = msgs.map(m => {
-    const isMine = m.user?.toLowerCase() === me.toLowerCase();
-    const align  = isMine ? 'right' : 'left';
-    const bgColor = isMine ? 'var(--accent)' : 'var(--surface2)';
-    const txtColor = isMine ? '#fff' : 'var(--text)';
-    const radius   = isMine ? '12px 12px 2px 12px' : '12px 12px 12px 2px';
+  // Build as an array of strings then join — no CSS classes, all inline styles
+  const rows = [];
+  for (const m of msgs) {
+    const isMine   = (m.user || '').toLowerCase() === me.toLowerCase();
+    const bubbleBg = isMine ? 'var(--accent)' : 'var(--surface2)';
+    const bubbleFg = isMine ? '#fff' : 'var(--text)';
+    const align    = isMine ? 'right' : 'left';
+    const delId    = 'del_' + m.id;
 
-    const content = m.type === 'gif'
-      ? `<img src="${m.text}" style="max-width:160px;border-radius:8px;display:block;" loading="lazy" />`
-      : `<div style="display:inline-block;padding:6px 10px;border-radius:${radius};background:${bgColor};color:${txtColor};font-size:12px;line-height:1.4;word-break:break-word;max-width:85%;">${(m.text||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
+    let inner;
+    if (m.type === 'gif') {
+      inner = `<img src="${m.text}" style="max-width:160px;border-radius:8px;display:block;${isMine?'margin-left:auto;':''}" loading="lazy" />`;
+    } else {
+      inner = `<span style="display:inline-block;padding:6px 10px;border-radius:12px;background:${bubbleBg};color:${bubbleFg};font-size:12px;line-height:1.5;word-break:break-word;max-width:80%;">${(m.text||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>`;
+    }
 
-    const delBtn = isMine
-      ? `<button onclick="deleteChatMsg('${m.id}')" style="background:none;border:none;color:var(--text3);font-size:10px;cursor:pointer;padding:0 2px;opacity:0;vertical-align:bottom;" class="msg-del-btn">✕</button>`
-      : '';
-
-    return `<div style="display:block;width:100%;margin-bottom:6px;text-align:${align};"
-        onmouseover="const b=this.querySelector('.msg-del-btn');if(b)b.style.opacity='1'"
-        onmouseout="const b=this.querySelector('.msg-del-btn');if(b)b.style.opacity='0'">
-      <div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${m.user||''}</div>
-      ${isMine ? delBtn : ''}${content}${!isMine ? delBtn : ''}
-    </div>`;
-  }).join('');
+    rows.push(
+      `<div style="display:block;width:100%;text-align:${align};margin-bottom:8px;padding:0 4px;box-sizing:border-box;"` +
+      (isMine ? ` onmouseover="document.getElementById('${delId}').style.opacity='1'" onmouseout="document.getElementById('${delId}').style.opacity='0'"` : '') +
+      `>` +
+      `<div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${m.user||''}</div>` +
+      inner +
+      (isMine ? `<button id="${delId}" onclick="deleteChatMsg('${m.id}')" style="display:inline-block;background:none;border:none;color:var(--text3);font-size:10px;cursor:pointer;padding:0 2px;opacity:0;vertical-align:middle;">✕</button>` : '') +
+      `</div>`
+    );
+  }
+  el.innerHTML = rows.join('');
 
   if (isBottom) el.scrollTop = el.scrollHeight;
 
