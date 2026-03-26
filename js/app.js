@@ -162,17 +162,14 @@ const App = (() => {
       ];
 
       // Sort: active first, then by name
-      // Tag each league with commissioner status via Sleeper API (always fresh, no cache)
+      // Tag each league with commissioner status using is_owner field from league users
       const userId = String(state.user?.user_id || '');
-      console.log('[picker] userId:', userId, 'leagues to check:', displayLeagues.filter(l=>!l.unregistered&&!l.isRenewal).length);
       if (userId) {
         await Promise.all(displayLeagues.filter(l=>!l.unregistered&&!l.isRenewal).map(async l => {
           try {
-            const info = await fetch(`https://api.sleeper.app/v1/league/${l.id}`).then(r=>r.json());
-            const commId  = String(info.commissioner_id || '');
-            const commIds = (info.commissioner_ids || []).map(String);
-            l.isComm = (commId === userId) || commIds.includes(userId);
-            console.log(`[picker] league ${l.name}: commId=${commId} userId=${userId} isComm=${l.isComm}`);
+            const users = await fetch(`https://api.sleeper.app/v1/league/${l.id}/users`).then(r=>r.json());
+            const me = (users||[]).find(u => String(u.user_id) === userId);
+            l.isComm = me?.is_owner === true;
           } catch(e) { l.isComm = false; }
         }));
       }
