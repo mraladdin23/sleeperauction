@@ -385,6 +385,7 @@ window.addEventListener('DOMContentLoaded',function(){
     <div style="margin-bottom:24px;">
       <div style="font-size:20px;font-weight:700;margin-bottom:4px;">Choose a League</div>
       <div style="font-size:13px;color:var(--text3);" id="picker-subtitle">Your registered leagues</div>
+      <button id="picker-player-report-btn" onclick="if(window.showCrossLeagueReport){showCrossLeagueReport();}else{loadScript('js/playerreport.js',()=>showCrossLeagueReport());}" style="display:none;margin-top:8px;padding:7px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);font-family:var(--font-body);font-size:12px;cursor:pointer;">📋 My Player Report (All Leagues)</button>
     </div>
     <div id="picker-leagues" style="display:flex;flex-direction:column;gap:10px;">
       <div style="color:var(--text3);font-size:13px;padding:20px 0;">Loading your leagues…</div>
