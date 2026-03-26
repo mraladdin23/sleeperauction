@@ -265,17 +265,10 @@ async function refreshDraft() {
     if (!draftInfo) throw new Error('no suitable draft');
 
     // Log the raw draft object so we can see what Sleeper returned
-    console.log('=== draftInfo ===', JSON.stringify({
-      draft_id: draftInfo.draft_id,
-      type: draftInfo.type,
-      status: draftInfo.status,
-      slot_to_roster_id: draftInfo.slot_to_roster_id,
-      draft_order: draftInfo.draft_order,
-      settings: draftInfo.settings,
-    }, null, 2));
+    
     // Detect draft type: snake = redraft (all players), linear = rookie
     isDraftSnake = (draftInfo.type === 'snake');
-    console.log('[draft] isDraftSnake:', isDraftSnake, 'type:', draftInfo.type);
+    
     // Update board title and available panel header
     const titleEl = document.getElementById('draft-board-title');
     if (titleEl) titleEl.textContent = isDraftSnake ? '🏈 Draft Board' : '🎓 Rookie Draft Board';
@@ -283,8 +276,7 @@ async function refreshDraft() {
     if (availTitleEl && !availTitleEl.querySelector('span')) {
       availTitleEl.firstChild.textContent = isDraftSnake ? 'Available Players ' : 'Available Rookies ';
     }
-    console.log('=== rosterIdToTeam ===', JSON.stringify(rosterIdToTeam));
-
+    
     // 2. Build slotOwners from slot_to_roster_id OR draft_order
     //
     // slot_to_roster_id: { "1": roster_id, ... } — set after commissioner locks order
@@ -382,9 +374,9 @@ async function refreshDraft() {
     // 3b. Overlay traded picks onto slotOwners using Sleeper traded_picks API
     try {
       const tradedPicks = await fetch(`https://api.sleeper.app/v1/league/${draftLeagueId()}/traded_picks`).then(r=>r.json());
-      console.log('[draft] tradedPicks:', Array.isArray(tradedPicks) ? tradedPicks.length : 'not array', tradedPicks?.[0] ? JSON.stringify(tradedPicks[0]).slice(0,150) : 'empty');
-      console.log('[draft] rosterIdToTeam:', JSON.stringify(rosterIdToTeam));
-      console.log('[draft] rosterIdToDisplayName:', JSON.stringify(rosterIdToDisplayName));
+      
+      
+      
       if (Array.isArray(tradedPicks) && tradedPicks.length) {
         // Helper: resolve roster_id -> display name (use displayName since rosterIdToTeam may be empty)
         const resolveTeam = (rid) =>
@@ -394,11 +386,10 @@ async function refreshDraft() {
 
         // Filter to current draft season only
         const seasonPicks = tradedPicks.filter(tp => String(tp.season) === String(draftInfo.season));
-        console.log('[draft] seasonPicks for', draftInfo.season, ':', seasonPicks.length);
-
+        
         // Build roster_id -> draft slot from draft_order (userId->slot) + rosterIdToUserId
         const rosterToSlot = {}; // roster_id -> slot number
-        console.log('[draft] rosterIdToUserId:', JSON.stringify(rosterIdToUserId));
+        
         Object.entries(draftInfo.draft_order || {}).forEach(([userId, slot]) => {
           // Find roster_id whose owner matches this userId
           const rid = Object.keys(rosterIdToUserId).find(r => rosterIdToUserId[r] === String(userId));
@@ -413,8 +404,7 @@ async function refreshDraft() {
             }
           }
         });
-        console.log('[draft] rosterToSlot:', JSON.stringify(rosterToSlot));
-
+        
         // Track current owner of each pick: "round-slot" -> roster_id
         // Start with original owners from rosterToSlot
         const pickCurrentOwner = {}; // "round-slot" -> roster_id (string)
@@ -454,9 +444,8 @@ async function refreshDraft() {
         });
         // Store globally for renderBoard to use
         window._draftOriginalSlotOwners = originalSlotOwners;
-        console.log('[draft] ALL slotOwners after overlay:', JSON.stringify(slotOwners));
-        console.log('[draft] slotOwners after trade overlay (first 4):', 
-          JSON.stringify(Object.fromEntries(Object.entries(slotOwners).slice(0,4))));
+        
+        
       }
     } catch(e) { console.warn('traded picks:', e); }
 
@@ -706,9 +695,8 @@ function renderBoard() {
   const PICKS  = (draftInfo?.settings?.teams)  || 12;
   const comm = isComm();
   let html = '';
-  console.log('[board] renderBoard called, ROUNDS:', ROUNDS, 'PICKS:', PICKS, 'isDraftSnake:', isDraftSnake);
-  console.log('[board] slotOwners sample:', JSON.stringify(Object.fromEntries(Object.entries(slotOwners).slice(0,4))));
-
+  
+  
   for (let r = 1; r <= ROUNDS; r++) {
     const isSal = (window._capLeagueType || 'salary_auction') === 'salary_auction';
     const salLabel = isSal ? (r===1 ? '$15M / $10M' : r===2 ? '$7.5M / $5M' : r===3 ? '$3M / $2M' : '$1M') : '';
