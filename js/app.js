@@ -164,9 +164,33 @@ const App = (() => {
       // Sort: active first, then by name
       // Apply hide-commish-only filter
       const hideCommishOnly = document.getElementById('hide-commish-only')?.checked;
-      const filteredLeagues = hideCommishOnly
-        ? displayLeagues.filter(l => l.unregistered || l.isRenewal || !l.meta?.addedBy || (l.meta?.addedBy||'').toLowerCase() !== (state.user?.username||'').toLowerCase() || matches.some(m=>m.league_id===l.id))
-        : displayLeagues;
+      // Build hide-commish-only filter
+      // "Hide leagues without my team" = hide leagues where user has no roster (owner_id match)
+      // We check rosters lazily and cache in sessionStorage
+      let filteredLeagues = displayLeagues;
+      if (hideCommishOnly) {
+        // For leagues the user IS a Sleeper member of (matches), check if they own a roster
+        const userId = state.user?.user_id;
+        const rosterChecks = await Promise.all(
+          matches.map(async l => {
+            const cacheKey = `sb_hasroster_${l.league_id}`;
+            const cached = sessionStorage.getItem(cacheKey);
+            if (cached !== null) return { id: l.league_id, hasRoster: cached === '1' };
+            try {
+              const rosters = await fetch(`https://api.sleeper.app/v1/league/${l.league_id}/rosters`).then(r=>r.json());
+              const has = (rosters||[]).some(r => r.owner_id === userId);
+              sessionStorage.setItem(cacheKey, has ? '1' : '0');
+              return { id: l.league_id, hasRoster: has };
+            } catch(e) { return { id: l.league_id, hasRoster: true }; } // fail open
+          })
+        );
+        const hasRosterIds = new Set(rosterChecks.filter(r => r.hasRoster).map(r => r.id));
+        // Keep league if: user has a roster in it, OR it's unregistered/renewal (handle separately)
+        // Only keep leagues where user has an actual roster, plus unregistered/renewal cards
+        filteredLeagues = displayLeagues.filter(l =>
+          l.unregistered || l.isRenewal || hasRosterIds.has(l.id)
+        );
+      }
 
       // Sort: active first, then alphabetical
       filteredLeagues.sort((a,b) => {
