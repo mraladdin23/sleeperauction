@@ -261,10 +261,7 @@ const App = (() => {
             <div style="background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);padding:16px 18px;opacity:.85;">
               <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
                 <div style="min-width:0;">
-                  <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
-                  <div style="font-size:15px;font-weight:600;">${l.name}</div>
-                  ${l.isComm ? '<span style="font-size:10px;padding:1px 6px;border-radius:99px;background:var(--accent)22;color:var(--accent);border:1px solid var(--accent)55;font-weight:600;flex-shrink:0;">⚙ Commish</span>' : ''}
-                </div>
+                  <div style="font-size:15px;font-weight:600;margin-bottom:3px;">${l.name}</div>
                   <div style="font-size:12px;color:var(--text3);">${l.season} Season · Not yet added</div>
                 </div>
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">

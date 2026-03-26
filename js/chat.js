@@ -278,7 +278,7 @@ function renderSidebarMessages(msgs) {
         onmouseout="this.querySelector('.msg-del-btn')&&(this.querySelector('.msg-del-btn').style.opacity='0')">
       ${isMine ? deleteBtn : ''}
       <div style="flex:1;display:flex;flex-direction:column;align-items:${isMine?'flex-end':'flex-start'};">
-        ${!isMine ? `<div class="sidebar-msg-user">${m.user||''}</div>` : ''}
+        <div class="sidebar-msg-user" style="font-size:10px;color:var(--text3);${isMine?'text-align:right;':''}">${m.user||''}</div>
         ${bubble}
       </div>
       ${!isMine ? deleteBtn : ''}

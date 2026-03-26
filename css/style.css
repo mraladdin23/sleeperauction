@@ -1030,7 +1030,8 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
 #chat-sidebar-inner {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
 }
 
 /* Push main content to leave room for sidebar on desktop */
