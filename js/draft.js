@@ -256,6 +256,10 @@ async function refreshDraft() {
     // 1. GET all drafts for this league
     const drafts = await fetch(`https://api.sleeper.app/v1/league/${draftLeagueId()}/drafts`).then(r=>r.json());
     if (!drafts?.length) {
+      const _draftLoading = document.getElementById('draft-loading');
+      const _draftApp = document.getElementById('draft-app');
+      if (_draftLoading) _draftLoading.style.display = 'none';
+      if (_draftApp) _draftApp.style.display = '';
       const bc3 = document.getElementById('board-container');
       if (bc3) bc3.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3);">' +
         '<div style="font-size:32px;margin-bottom:12px;">📋</div>' +
@@ -271,6 +275,10 @@ async function refreshDraft() {
              || drafts[drafts.length - 1];
 
     if (!draftInfo) {
+      const _draftLoading2 = document.getElementById('draft-loading');
+      const _draftApp2 = document.getElementById('draft-app');
+      if (_draftLoading2) _draftLoading2.style.display = 'none';
+      if (_draftApp2) _draftApp2.style.display = '';
       const bc3 = document.getElementById('board-container');
       if (bc3) bc3.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3);">' +
         '<div style="font-size:32px;margin-bottom:12px;">📋</div>' +

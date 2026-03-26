@@ -164,6 +164,7 @@ const App = (() => {
       // Sort: active first, then by name
       // Tag each league with commissioner status via Sleeper API (always fresh, no cache)
       const userId = String(state.user?.user_id || '');
+      console.log('[picker] userId:', userId, 'leagues to check:', displayLeagues.filter(l=>!l.unregistered&&!l.isRenewal).length);
       if (userId) {
         await Promise.all(displayLeagues.filter(l=>!l.unregistered&&!l.isRenewal).map(async l => {
           try {
@@ -171,6 +172,7 @@ const App = (() => {
             const commId  = String(info.commissioner_id || '');
             const commIds = (info.commissioner_ids || []).map(String);
             l.isComm = (commId === userId) || commIds.includes(userId);
+            console.log(`[picker] league ${l.name}: commId=${commId} userId=${userId} isComm=${l.isComm}`);
           } catch(e) { l.isComm = false; }
         }));
       }
@@ -1006,7 +1008,8 @@ This only removes it from the registry — all league data in Firebase is preser
     window._capLeagueType = state.leagueType || 'salary_auction';
 
     // Build _playerById now so player cards and activity feed have names ready
-    if (!window._playerById || Object.keys(window._playerById).length < 100) {
+    const _needsRebuild = !window._playerById || Object.keys(window._playerById).length < 100 || localStorage.getItem('sb_players_ver') !== '4' || !window._playerById[Object.keys(window._playerById)[0]]?.active;
+    if (_needsRebuild) {
       (async () => {
         try {
           let cached = localStorage.getItem('sb_players');
