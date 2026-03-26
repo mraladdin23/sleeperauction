@@ -187,8 +187,7 @@ function searchGifs(query) {
     if (!el) return;
     el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Searching…</div>';
     try {
-      const url = 'https://g.tenor.com/v1/search?key=LIVDSRZULELA&contentfilter=low&media_filter=minimal&limit=12&q=' + encodeURIComponent(query);
-      const resp = await fetch(url);
+      const resp = await fetch('https://g.tenor.com/v1/search?key=LIVDSRZULELA&contentfilter=low&media_filter=minimal&limit=12&q=' + encodeURIComponent(query));
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const results = data.results || [];
@@ -196,15 +195,17 @@ function searchGifs(query) {
         el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">No GIFs found</div>';
         return;
       }
-      window._fullGifUrls = [];
       el.innerHTML = results.map(g => {
-        const mediaObj = (g.media || [])[0] || {};
-        const preview  = (mediaObj.tinygif || mediaObj.nanogif || mediaObj.gif || {}).url || '';
-        const full     = (mediaObj.gif || mediaObj.mediumgif || mediaObj.tinygif || {}).url || preview;
+        const fmt     = (g.media || [])[0] || {};
+        const preview = (fmt.tinygif || fmt.nanogif || fmt.gif || {}).url || '';
+        const full    = (fmt.gif || fmt.mediumgif || fmt.tinygif || {}).url || preview;
         if (!preview) return '';
-        const idx = window._fullGifUrls.length;
-        window._fullGifUrls.push(full);
-        return '<img src="' + preview + '" style="width:100%;height:80px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid transparent;" onclick="sendGif(window._fullGifUrls[' + idx + '])" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'transparent\'"/>';
+        const safeUrl = encodeURIComponent(full);
+        return `<img src="${preview}" data-gifurl="${safeUrl}"
+          style="width:100%;height:80px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid transparent;"
+          onmouseover="this.style.borderColor='var(--accent)'"
+          onmouseout="this.style.borderColor='transparent'"
+          onclick="sendGif(decodeURIComponent(this.dataset.gifurl))" />`;
       }).join('');
     } catch(e) {
       console.warn('searchGifs error:', e);
@@ -267,9 +268,20 @@ function renderSidebarMessages(msgs) {
     const bubble = m.type === 'gif'
       ? `<img src="${m.text}" style="max-width:140px;border-radius:8px;" loading="lazy" />`
       : `<div class="sidebar-msg-bubble">${m.text?.replace(/</g,'&lt;').replace(/>/g,'&gt;')||''}</div>`;
-    return `<div class="${cls}">
-      ${!isMine ? `<div class="sidebar-msg-user">${m.user||''}</div>` : ''}
-      ${bubble}
+    const deleteBtn = isMine
+      ? `<button onclick="deleteChatMsg('${m.id}')" title="Delete"
+           style="background:none;border:none;color:var(--text3);font-size:10px;cursor:pointer;
+           padding:0 2px;opacity:0;transition:opacity .15s;flex-shrink:0;" class="msg-del-btn">✕</button>`
+      : '';
+    return `<div class="${cls}" style="display:flex;align-items:flex-end;gap:3px;"
+        onmouseover="this.querySelector('.msg-del-btn')&&(this.querySelector('.msg-del-btn').style.opacity='1')"
+        onmouseout="this.querySelector('.msg-del-btn')&&(this.querySelector('.msg-del-btn').style.opacity='0')">
+      ${isMine ? deleteBtn : ''}
+      <div style="flex:1;display:flex;flex-direction:column;align-items:${isMine?'flex-end':'flex-start'};">
+        ${!isMine ? `<div class="sidebar-msg-user">${m.user||''}</div>` : ''}
+        ${bubble}
+      </div>
+      ${!isMine ? deleteBtn : ''}
     </div>`;
   }).join('');
 
@@ -318,6 +330,14 @@ function toggleChatDrawer() {
       }, 100);
     }
   }
+}
+
+async function deleteChatMsg(msgId) {
+  const lid = localStorage.getItem('sb_leagueId');
+  if (!lid || !msgId) return;
+  try {
+    await db.ref(`leagues/${lid}/chat/${msgId}`).remove();
+  } catch(e) { console.warn('Delete failed:', e); }
 }
 
 async function sendSidebarMessage() {
@@ -382,8 +402,7 @@ function searchSidebarGifs(query) {
     if (!el) return;
     el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Searching…</div>';
     try {
-      const url = 'https://g.tenor.com/v1/search?key=LIVDSRZULELA&contentfilter=low&media_filter=minimal&limit=9&q=' + encodeURIComponent(query);
-      const resp = await fetch(url);
+      const resp = await fetch('https://g.tenor.com/v1/search?key=LIVDSRZULELA&contentfilter=low&media_filter=minimal&limit=9&q=' + encodeURIComponent(query));
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
       const results = data.results || [];
@@ -391,15 +410,17 @@ function searchSidebarGifs(query) {
         el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">No GIFs found</div>';
         return;
       }
-      window._sidebarGifUrls = [];
       el.innerHTML = results.map(g => {
-        const mediaObj = (g.media || [])[0] || {};
-        const preview  = (mediaObj.tinygif || mediaObj.nanogif || mediaObj.gif || {}).url || '';
-        const full     = (mediaObj.gif || mediaObj.mediumgif || mediaObj.tinygif || {}).url || preview;
+        const fmt     = (g.media || [])[0] || {};
+        const preview = (fmt.tinygif || fmt.nanogif || fmt.gif || {}).url || '';
+        const full    = (fmt.gif || fmt.mediumgif || fmt.tinygif || {}).url || preview;
         if (!preview) return '';
-        const idx = window._sidebarGifUrls.length;
-        window._sidebarGifUrls.push(full);
-        return '<img src="' + preview + '" style="width:100%;height:60px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid transparent;" onclick="sendSidebarGif(window._sidebarGifUrls[' + idx + '])" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'transparent\'"/>';
+        const safeUrl = encodeURIComponent(full);
+        return `<img src="${preview}" data-gifurl="${safeUrl}"
+          style="width:100%;height:60px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid transparent;"
+          onmouseover="this.style.borderColor='var(--accent)'"
+          onmouseout="this.style.borderColor='transparent'"
+          onclick="sendSidebarGif(decodeURIComponent(this.dataset.gifurl))" />`;
       }).join('');
     } catch(e) {
       console.warn('searchSidebarGifs error:', e);

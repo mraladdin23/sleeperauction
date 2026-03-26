@@ -232,7 +232,7 @@ async function renderCommTab(leagues) {
       Only commissioners of those leagues can create or manage groups.
     </div>
     ${myGroups.length || true ? `
-    <button onclick="createCommGroup(${JSON.stringify(leagues).replace(/"/g,'&quot;')})"
+    <button id="create-comm-group-btn" onclick="createCommGroup(${JSON.stringify(leagues).replace(/"/g,'&quot;')})"
       style="padding:6px 14px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius-sm);font-family:var(--font-body);font-size:12px;font-weight:600;cursor:pointer;margin-bottom:14px;">
       + New Commissioner Group
     </button>` : ''}
@@ -282,33 +282,47 @@ async function createCommGroup(leagues) {
   const userJson = localStorage.getItem('sb_user');
   const userId   = userJson ? JSON.parse(userJson)?.user_id : null;
 
-  // Only show leagues where this user is commissioner
-  // Check by: addedBy matches username OR we verify via Sleeper commissioner_id
-  let commLeagues = leagues.filter(l => !l.unregistered && !l.isRenewal);
-
-  // Verify commissioner status for each league via Sleeper API
-  if (commLeagues.length && userId) {
-    const checks = await Promise.all(commLeagues.map(async l => {
-      try {
-        const info = await fetch(`https://api.sleeper.app/v1/league/${l.id}`).then(r=>r.json());
-        const isComm = info.commissioner_id === userId ||
-                       (info.commissioner_ids || []).includes(userId);
-        return isComm ? l : null;
-      } catch(e) { return null; }
-    }));
-    commLeagues = checks.filter(Boolean);
-  }
-
-  if (!commLeagues.length) {
-    alert('You are not the commissioner of any registered leagues.\n\nCommissioner groups can only be created by league commissioners.');
+  if (!userId) {
+    alert('Could not verify your identity. Please log out and back in.');
     return;
   }
 
-  const name = prompt('Commissioner group name (e.g. "2026 Tournament Series", "Dynasty Universe"):');
+  // Show loading state
+  const btn = document.getElementById('create-comm-group-btn');
+  if (btn) { btn.textContent = 'Checking…'; btn.disabled = true; }
+
+  // Verify via Sleeper API only — addedBy is NOT sufficient since non-commissioners can add leagues
+  let commLeagues = [];
+  const candidates = leagues.filter(l => !l.unregistered && !l.isRenewal);
+
+  await Promise.all(candidates.map(async l => {
+    try {
+      const cacheKey = `sb_iscomm_${l.id}`;
+      const cached = sessionStorage.getItem(cacheKey);
+      let isComm;
+      if (cached !== null) {
+        isComm = cached === '1';
+      } else {
+        const info = await fetch(`https://api.sleeper.app/v1/league/${l.id}`).then(r=>r.json());
+        isComm = String(info.commissioner_id) === String(userId) ||
+                 (info.commissioner_ids || []).map(String).includes(String(userId));
+        sessionStorage.setItem(cacheKey, isComm ? '1' : '0');
+      }
+      if (isComm) commLeagues.push(l);
+    } catch(e) {} // skip leagues we can't verify
+  }));
+
+  if (btn) { btn.textContent = '+ New Commissioner Group'; btn.disabled = false; }
+
+  if (!commLeagues.length) {
+    alert('You are not the commissioner of any registered leagues.\n\nCommissioner groups require Sleeper commissioner status — being a league member or having added the league is not enough.');
+    return;
+  }
+
+  const name = prompt(`Create a commissioner group\n(You are commissioner of ${commLeagues.length} league${commLeagues.length > 1 ? 's' : ''})\n\nGroup name:`);
   if (!name?.trim()) return;
   const color = LABEL_COLORS[Math.floor(Math.random() * LABEL_COLORS.length)];
 
-  // Only let them pick from leagues they actually commish
   openLeagueSelector(name.trim(), color, null, commLeagues, async (selectedIds) => {
     if (!selectedIds.length) return;
     const gid = 'cg_' + Date.now();
