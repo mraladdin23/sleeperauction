@@ -196,20 +196,16 @@ function searchGifs(query) {
         el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">No GIFs found</div>';
         return;
       }
-      const gifUrls = [];
+      window._fullGifUrls = [];
       el.innerHTML = results.map(g => {
-        // Tenor v1: media is an array of format objects
         const mediaObj = (g.media || [])[0] || {};
-        const preview  = (mediaObj.tinygif  || mediaObj.nanogif || mediaObj.gif || {}).url || '';
+        const preview  = (mediaObj.tinygif || mediaObj.nanogif || mediaObj.gif || {}).url || '';
         const full     = (mediaObj.gif || mediaObj.mediumgif || mediaObj.tinygif || {}).url || preview;
         if (!preview) return '';
-        gifUrls.push(full);
-        return '<img src="' + preview + '" style="width:100%;height:80px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid transparent;" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'transparent\'" data-gif-idx="' + (gifUrls.length - 1) + '" loading="lazy" />';
+        const idx = window._fullGifUrls.length;
+        window._fullGifUrls.push(full);
+        return '<img src="' + preview + '" style="width:100%;height:80px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid transparent;" onclick="sendGif(window._fullGifUrls[' + idx + '])" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'transparent\'"/>';
       }).join('');
-      el.onclick = e => {
-        const img = e.target.closest('img[data-gif-idx]');
-        if (img) sendGif(gifUrls[parseInt(img.dataset.gifIdx)]);
-      };
     } catch(e) {
       console.warn('searchGifs error:', e);
       el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Could not load GIFs</div>';
@@ -395,20 +391,16 @@ function searchSidebarGifs(query) {
         el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">No GIFs found</div>';
         return;
       }
-      const gifUrls = [];
+      window._sidebarGifUrls = [];
       el.innerHTML = results.map(g => {
-        // Tenor v1: media is an array of format objects
         const mediaObj = (g.media || [])[0] || {};
-        const preview  = (mediaObj.tinygif  || mediaObj.nanogif || mediaObj.gif || {}).url || '';
+        const preview  = (mediaObj.tinygif || mediaObj.nanogif || mediaObj.gif || {}).url || '';
         const full     = (mediaObj.gif || mediaObj.mediumgif || mediaObj.tinygif || {}).url || preview;
         if (!preview) return '';
-        gifUrls.push(full);
-        return '<img src="' + preview + '" style="width:100%;height:60px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid transparent;" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'transparent\'" data-gif-idx="' + (gifUrls.length - 1) + '" loading="lazy" />';
+        const idx = window._sidebarGifUrls.length;
+        window._sidebarGifUrls.push(full);
+        return '<img src="' + preview + '" style="width:100%;height:60px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid transparent;" onclick="sendSidebarGif(window._sidebarGifUrls[' + idx + '])" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'transparent\'"/>';
       }).join('');
-      el.onclick = e => {
-        const img = e.target.closest('img[data-gif-idx]');
-        if (img) sendSidebarGif(gifUrls[parseInt(img.dataset.gifIdx)]);
-      };
     } catch(e) {
       console.warn('searchSidebarGifs error:', e);
       el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Could not load GIFs</div>';

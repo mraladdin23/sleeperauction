@@ -79,6 +79,9 @@ const App = (() => {
 
   async function showLeaguePicker() {
     UI.showScreen('picker');
+    if (!window.applyLeagueOrder) {
+      loadScript('js/leaguegroups.js', () => {});
+    }
     UI.setAvatar(document.getElementById('picker-avatar'), state.user);
     const el       = document.getElementById('picker-leagues');
     const subtitle = document.getElementById('picker-subtitle');
@@ -109,7 +112,13 @@ const App = (() => {
         return (meta?.addedBy || '').toLowerCase() === myUsername;
       });
       // Leagues user is in on Sleeper but NOT yet registered -- offer to add
-      const unregistered   = (sleeperLeagues || []).filter(l => !registeredIds.has(l.league_id));
+      // Also detect "renewed" leagues: new league_id whose previous_league_id IS registered
+      const registeredPrevIds = new Set(
+        Object.values(registry).map(r => r.previousLeagueId).filter(Boolean)
+      );
+      const unregistered = (sleeperLeagues || []).filter(l => !registeredIds.has(l.league_id));
+      // Tag renewals: new league whose predecessor is registered
+      const renewals = unregistered.filter(l => registeredIds.has(l.previous_league_id));
 
       // Build display list
       const displayLeagues = [
@@ -130,23 +139,45 @@ const App = (() => {
           meta:         registry[id],
           unregistered: false,
         })),
-        ...unregistered.map(l => ({
+        ...unregistered.filter(l => !registeredIds.has(l.previous_league_id)).map(l => ({
           id:           l.league_id,
           name:         l.name,
           season:       l.season || season,
           status:       l.status,
           meta:         null,
           unregistered: true,
+          isRenewal:    false,
+        })),
+        // Renewed leagues: current season version of a registered league
+        ...renewals.map(l => ({
+          id:           l.league_id,
+          name:         l.name,
+          season:       l.season || season,
+          status:       l.status,
+          meta:         registry[l.previous_league_id],
+          unregistered: false,
+          isRenewal:    true,
+          previousId:   l.previous_league_id,
         })),
       ];
 
       // Sort: active first, then by name
-      displayLeagues.sort((a,b) => {
+      // Apply hide-commish-only filter
+      const hideCommishOnly = document.getElementById('hide-commish-only')?.checked;
+      const filteredLeagues = hideCommishOnly
+        ? displayLeagues.filter(l => l.unregistered || l.isRenewal || !l.meta?.addedBy || (l.meta?.addedBy||'').toLowerCase() !== (state.user?.username||'').toLowerCase() || matches.some(m=>m.league_id===l.id))
+        : displayLeagues;
+
+      // Sort: active first, then alphabetical
+      filteredLeagues.sort((a,b) => {
         const aActive = a.status === 'in_season' || a.status === 'pre_draft';
         const bActive = b.status === 'in_season' || b.status === 'pre_draft';
         if (aActive !== bActive) return aActive ? -1 : 1;
         return (a.name||'').localeCompare(b.name||'');
       });
+
+      // Apply user-defined drag order if leaguegroups.js is loaded
+      const orderedLeagues = window.applyLeagueOrder ? applyLeagueOrder(filteredLeagues) : filteredLeagues;
 
       if (!displayLeagues.length) {
         el.innerHTML = `
@@ -166,7 +197,10 @@ const App = (() => {
       const reportBtn = document.getElementById('picker-player-report-btn');
       if (reportBtn) reportBtn.style.display = matches.length > 1 ? '' : 'none';
 
-      el.innerHTML = displayLeagues.map(l => {
+      window._pickerLeagues = orderedLeagues;
+      // Build personal label map for card chips
+      const labelMap = window.getLeagueLabelMap ? getLeagueLabelMap() : {};
+      el.innerHTML = orderedLeagues.map(l => {
         const statusColor = { in_season:'var(--green)', pre_draft:'var(--yellow)',
           drafting:'var(--accent2)', complete:'var(--text3)' }[l.status] || 'var(--text3)';
         const statusLabel = { in_season:'🟢 In Season', pre_draft:'🟡 Pre-Draft',
@@ -177,10 +211,14 @@ const App = (() => {
           .map(([k]) => `<span style="font-size:10px;padding:2px 7px;border-radius:99px;
             background:var(--surface2);color:var(--text3);border:1px solid var(--border);">${k}</span>`)
           .join('');
+        const labelChip = labelMap[l.id]
+          ? `<span style="font-size:10px;padding:2px 8px;border-radius:99px;
+              background:${labelMap[l.id].color}22;color:${labelMap[l.id].color};
+              border:1px solid ${labelMap[l.id].color}55;font-weight:600;">${labelMap[l.id].name}</span>`
+          : '';
         if (l.unregistered) {
           return `
-            <div style="background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);
-              padding:16px 18px;opacity:.85;">
+            <div style="background:var(--surface);border:1px dashed var(--border);border-radius:var(--radius);padding:16px 18px;opacity:.85;">
               <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
                 <div style="min-width:0;">
                   <div style="font-size:15px;font-weight:600;margin-bottom:3px;">${l.name}</div>
@@ -189,9 +227,28 @@ const App = (() => {
                 <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
                   <div style="font-size:12px;color:${statusColor};font-weight:500;">${statusLabel}</div>
                   <button onclick="document.getElementById('picker-league-id').value='${l.id}';App.registerLeague()"
-                    style="font-size:11px;padding:4px 12px;background:var(--accent);color:#fff;border:none;
-                    border-radius:4px;cursor:pointer;font-family:var(--font-body);font-weight:600;">
+                    style="font-size:11px;padding:4px 12px;background:var(--accent);color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:var(--font-body);font-weight:600;">
                     + Add League
+                  </button>
+                </div>
+              </div>
+            </div>`;
+        }
+        if (l.isRenewal) {
+          return `
+            <div style="background:var(--surface);border:1px solid var(--accent2);border-radius:var(--radius);padding:16px 18px;">
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                <div style="min-width:0;">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:3px;">
+                    <div style="font-size:15px;font-weight:600;">${l.name}</div>
+                    <span style="font-size:10px;padding:2px 7px;background:var(--accent2);color:#fff;border-radius:99px;font-weight:600;">NEW SEASON</span>
+                  </div>
+                  <div style="font-size:12px;color:var(--text3);">${l.season} · Previous league updated to new ID</div>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
+                  <button onclick="App.updateLeagueSeason('${l.id}','${l.previousId}')"
+                    style="font-size:11px;padding:5px 14px;background:var(--accent2);color:#fff;border:none;border-radius:4px;cursor:pointer;font-family:var(--font-body);font-weight:600;">
+                    🔄 Update to ${l.season}
                   </button>
                 </div>
               </div>
@@ -199,6 +256,13 @@ const App = (() => {
         }
         return `
           <div onclick="App.pickLeague('${l.id}')"
+            data-league-id="${l.id}"
+            draggable="true"
+            ondragstart="if(window.onLeagueDragStart)onLeagueDragStart(event,'${l.id}')"
+            ondragend="if(window.onLeagueDragEnd)onLeagueDragEnd(event)"
+            ondragover="if(window.onLeagueDragOver)onLeagueDragOver(event)"
+            ondragleave="if(window.onLeagueDragLeave)onLeagueDragLeave(event)"
+            ondrop="if(window.onLeagueDrop)onLeagueDrop(event,'${l.id}')"
             style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
             padding:16px 18px;cursor:pointer;transition:border-color .15s;"
             onmouseover="this.style.borderColor='var(--accent)'"
@@ -207,7 +271,7 @@ const App = (() => {
               <div style="min-width:0;">
                 <div style="font-size:15px;font-weight:600;margin-bottom:3px;">${l.name}</div>
                 <div style="font-size:12px;color:var(--text3);">${l.season} Season</div>
-                ${featureTags ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;">${featureTags}</div>` : ''}
+                <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;">${[featureTags, labelChip].filter(Boolean).join('')}</div>
               </div>
               <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
                 <div style="font-size:12px;color:${statusColor};font-weight:500;">${statusLabel}</div>
@@ -399,6 +463,38 @@ const App = (() => {
       if(errEl) errEl.textContent = 'Failed to save: ' + (e.message || e);
     }
   }
+
+  // Update a league's registry entry to a new season's league ID
+  async function updateLeagueSeason(newId, oldId) {
+    try {
+      const snap = await db.ref(`leagues/_registry/${oldId}`).once('value');
+      const meta = snap.val();
+      if (!meta) { UI.toast('Could not find previous league data.', 'error'); return; }
+      const newLeague = await Sleeper.fetchLeague(newId);
+      // Copy registry entry to new ID, preserve settings
+      await db.ref(`leagues/_registry/${newId}`).set({
+        ...meta,
+        name:           newLeague.name || meta.name,
+        season:         newLeague.season || meta.season,
+        status:         newLeague.status || meta.status,
+        previousLeagueId: oldId,
+        updatedAt:      Date.now(),
+      });
+      // Copy settings to new league path
+      const settingsSnap = await db.ref(`leagues/${oldId}/settings`).once('value');
+      if (settingsSnap.val()) await db.ref(`leagues/${newId}/settings`).set(settingsSnap.val());
+      // Copy rules
+      const rulesSnap = await db.ref(`leagues/${oldId}/rules`).once('value');
+      if (rulesSnap.val()) await db.ref(`leagues/${newId}/rules`).set(rulesSnap.val());
+      UI.toast(`League updated to ${newLeague.season} season!`, 'success');
+      showLeaguePicker();
+    } catch(e) {
+      UI.toast('Update failed: ' + e.message, 'error');
+    }
+  }
+
+  // Refresh picker respecting the hide-commish-only toggle
+  function refreshLeaguePicker() { showLeaguePicker(); }
 
   async function boot() {
     // Clean up any stale modals that may have persisted from a previous session
@@ -2014,7 +2110,7 @@ This only removes it from the registry — all league data in Firebase is preser
     doSetup,
     switchTab,
     setFilter, renderFreeAgents, loadFreeAgents,
-    browseAsGuest, submitPassword, submitChangePassword, openChangePassword, skipChangePassword, switchLeague, deleteLeague, showLeaguePicker, pickLeague, registerLeague, submitLeaguePassword, submitLeagueSetup, refreshAll, renderAll, updateHomeFeed, faSort, setStatYear,
+    browseAsGuest, submitPassword, submitChangePassword, openChangePassword, skipChangePassword, switchLeague, deleteLeague, showLeaguePicker, pickLeague, registerLeague, updateLeagueSeason, refreshLeaguePicker, submitLeaguePassword, submitLeagueSetup, refreshAll, renderAll, updateHomeFeed, faSort, setStatYear,
     enableNotifications,
     computeCustomPts,
     toggleWatch,
