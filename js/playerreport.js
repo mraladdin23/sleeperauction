@@ -91,9 +91,19 @@ async function buildPlayerReport() {
     return { pid, name: info.name||pid, pos: info.pos||'?', team: info.team||'—', leagues, count: leagues.length, adp: info.adp||9999 };
   }).sort((a,b) => b.count - a.count || (a.adp||9999)-(b.adp||9999) || a.name.localeCompare(b.name));
 
-  // Build unowned top players from _playerById by ADP/rank
+  // Build unowned top players:
+  // Include if: (currently active AND on an NFL team) OR (search_rank < 350, meaning
+  // Sleeper considers them fantasy-relevant — covers IR players who played last year)
   const unowned = Object.entries(byId)
-    .filter(([pid, p]) => !ownedIds.has(pid) && p.active && ['QB','RB','WR','TE'].includes(p.pos) && (p.adp||9999) < 9000)
+    .filter(([pid, p]) => {
+      if (ownedIds.has(pid)) return false;
+      if (!['QB','RB','WR','TE'].includes(p.pos)) return false;
+      const hasTeam = p.team && p.team !== '—' && p.team !== 'FA';
+      const isRelevant = (p.adp || 9999) < 350; // Sleeper only ranks relevant players
+      if (!isRelevant) return false; // exclude truly inactive/retired
+      if (!p.active && !hasTeam) return false; // must be active or on a team
+      return true;
+    })
     .map(([pid, p]) => ({ pid, name: p.name, pos: p.pos, team: p.team||'—', adp: p.adp||9999 }))
     .sort((a,b) => a.adp - b.adp)
     .slice(0, 150);
