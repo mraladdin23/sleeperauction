@@ -182,7 +182,7 @@ function addPresetLabel(name, colorIdx, leagues) {
     const lid = 'lbl_' + Date.now();
     labels[lid] = { name, color, leagueIds: selectedIds };
     savePersonalLabels(labels);
-    renderLabelsTab(leagues);
+    showGroupManager(leagues);  // reopen to show updated state
   });
 }
 
@@ -195,7 +195,7 @@ function createCustomLabel(leagues) {
     const labels = getPersonalLabels();
     labels['lbl_' + Date.now()] = { name: name.trim(), color, leagueIds: selectedIds };
     savePersonalLabels(labels);
-    renderLabelsTab(leagues);
+    showGroupManager(leagues);
   });
 }
 
@@ -206,7 +206,7 @@ function editLabelLeagues(labelId, leagues) {
   openLeagueSelector(label.name, label.color, label.leagueIds, leagues, (selectedIds) => {
     labels[labelId].leagueIds = selectedIds;
     savePersonalLabels(labels);
-    renderLabelsTab(leagues);
+    showGroupManager(leagues);
   });
 }
 
@@ -332,7 +332,9 @@ async function createCommGroup(leagues) {
       commUsername: username,
       createdAt:    Date.now(),
     });
-    renderCommTab(leagues);
+    showGroupManager(leagues);
+    // Switch to comm tab after reopening
+    setTimeout(() => switchGMTab('comm'), 50);
   });
 }
 

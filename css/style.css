@@ -1033,6 +1033,13 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
   flex: 1;
   min-height: 0;
 }
+#chat-sidebar-messages {
+  display: block;
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+  min-height: 0;
+}
 
 /* Push main content to leave room for sidebar on desktop */
 @media (min-width: 900px) {
