@@ -187,7 +187,7 @@ function searchGifs(query) {
     if (!el) return;
     el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Searching…</div>';
     try {
-      const url = 'https://tenor.googleapis.com/v2/search?key=LIVDSRZULELA&client_key=sleeperbid&limit=12&q=' + encodeURIComponent(query);
+      const url = 'https://g.tenor.com/v1/search?key=LIVDSRZULELA&contentfilter=low&media_filter=minimal&limit=12&q=' + encodeURIComponent(query);
       const resp = await fetch(url);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
@@ -198,10 +198,10 @@ function searchGifs(query) {
       }
       const gifUrls = [];
       el.innerHTML = results.map(g => {
-        // Tenor v2: media_formats object with format keys
-        const fmts    = g.media_formats || {};
-        const preview = (fmts.tinygif || fmts.nanogif || fmts.gif || {}).url || '';
-        const full    = (fmts.gif || fmts.mediumgif || fmts.tinygif || {}).url || preview;
+        // Tenor v1: media is an array of format objects
+        const mediaObj = (g.media || [])[0] || {};
+        const preview  = (mediaObj.tinygif  || mediaObj.nanogif || mediaObj.gif || {}).url || '';
+        const full     = (mediaObj.gif || mediaObj.mediumgif || mediaObj.tinygif || {}).url || preview;
         if (!preview) return '';
         gifUrls.push(full);
         return '<img src="' + preview + '" style="width:100%;height:80px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid transparent;" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'transparent\'" data-gif-idx="' + (gifUrls.length - 1) + '" loading="lazy" />';
@@ -212,7 +212,7 @@ function searchGifs(query) {
       };
     } catch(e) {
       console.warn('searchGifs error:', e);
-      el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Could not load GIFs — check console</div>';
+      el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Could not load GIFs</div>';
     }
   }, 500);
 }
@@ -386,7 +386,7 @@ function searchSidebarGifs(query) {
     if (!el) return;
     el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Searching…</div>';
     try {
-      const url = 'https://tenor.googleapis.com/v2/search?key=LIVDSRZULELA&client_key=sleeperbid&limit=9&q=' + encodeURIComponent(query);
+      const url = 'https://g.tenor.com/v1/search?key=LIVDSRZULELA&contentfilter=low&media_filter=minimal&limit=9&q=' + encodeURIComponent(query);
       const resp = await fetch(url);
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       const data = await resp.json();
@@ -397,10 +397,10 @@ function searchSidebarGifs(query) {
       }
       const gifUrls = [];
       el.innerHTML = results.map(g => {
-        // Tenor v2: media_formats object with format keys
-        const fmts    = g.media_formats || {};
-        const preview = (fmts.tinygif || fmts.nanogif || fmts.gif || {}).url || '';
-        const full    = (fmts.gif || fmts.mediumgif || fmts.tinygif || {}).url || preview;
+        // Tenor v1: media is an array of format objects
+        const mediaObj = (g.media || [])[0] || {};
+        const preview  = (mediaObj.tinygif  || mediaObj.nanogif || mediaObj.gif || {}).url || '';
+        const full     = (mediaObj.gif || mediaObj.mediumgif || mediaObj.tinygif || {}).url || preview;
         if (!preview) return '';
         gifUrls.push(full);
         return '<img src="' + preview + '" style="width:100%;height:60px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid transparent;" onmouseover="this.style.borderColor=\'var(--accent)\'" onmouseout="this.style.borderColor=\'transparent\'" data-gif-idx="' + (gifUrls.length - 1) + '" loading="lazy" />';
@@ -411,7 +411,7 @@ function searchSidebarGifs(query) {
       };
     } catch(e) {
       console.warn('searchSidebarGifs error:', e);
-      el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Could not load GIFs — check console</div>';
+      el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Could not load GIFs</div>';
     }
   }, 500);
 }
