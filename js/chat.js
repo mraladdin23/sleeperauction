@@ -262,38 +262,69 @@ function renderSidebarMessages(msgs) {
   const me = localStorage.getItem('sb_username') || '';
   const isBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
 
+  // Clear existing content using DOM (not innerHTML)
+  while (el.firstChild) el.removeChild(el.firstChild);
+
   if (!msgs.length) {
-    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:12px;padding:20px;">No messages yet</div>';
+    const empty = document.createElement('div');
+    empty.style.cssText = 'text-align:center;color:var(--text3);font-size:12px;padding:20px;';
+    empty.textContent = 'No messages yet';
+    el.appendChild(empty);
     return;
   }
 
-  // Build as an array of strings then join — no CSS classes, all inline styles
-  const rows = [];
-  for (const m of msgs) {
-    const isMine   = (m.user || '').toLowerCase() === me.toLowerCase();
-    const bubbleBg = isMine ? 'var(--accent)' : 'var(--surface2)';
-    const bubbleFg = isMine ? '#fff' : 'var(--text)';
-    const align    = isMine ? 'right' : 'left';
-    const delId    = 'del_' + m.id;
+  const frag = document.createDocumentFragment();
 
-    let inner;
+  for (const m of msgs) {
+    const isMine  = (m.user || '').toLowerCase() === me.toLowerCase();
+
+    // Outer row div
+    const row = document.createElement('div');
+    row.style.cssText = 'margin-bottom:8px;padding:0 4px;';
+
+    // Username label
+    const user = document.createElement('div');
+    user.style.cssText = 'font-size:10px;color:var(--text3);margin-bottom:2px;text-align:' + (isMine ? 'right' : 'left') + ';';
+    user.textContent = m.user || '';
+    row.appendChild(user);
+
+    // Bubble wrapper (for alignment)
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'text-align:' + (isMine ? 'right' : 'left') + ';';
+
     if (m.type === 'gif') {
-      inner = `<img src="${m.text}" style="max-width:160px;border-radius:8px;display:block;${isMine?'margin-left:auto;':''}" loading="lazy" />`;
+      const img = document.createElement('img');
+      img.src = m.text || '';
+      img.style.cssText = 'max-width:160px;border-radius:8px;' + (isMine ? 'margin-left:auto;' : '');
+      img.loading = 'lazy';
+      wrap.appendChild(img);
     } else {
-      inner = `<span style="display:inline-block;padding:6px 10px;border-radius:12px;background:${bubbleBg};color:${bubbleFg};font-size:12px;line-height:1.5;word-break:break-word;max-width:80%;">${(m.text||'').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</span>`;
+      const bubble = document.createElement('span');
+      bubble.style.cssText = 'display:inline-block;padding:6px 10px;border-radius:12px;' +
+        'background:' + (isMine ? 'var(--accent)' : 'var(--surface2)') + ';' +
+        'color:' + (isMine ? '#fff' : 'var(--text)') + ';' +
+        'font-size:12px;line-height:1.5;word-break:break-word;max-width:80%;text-align:left;';
+      bubble.textContent = m.text || '';
+      wrap.appendChild(bubble);
+
+      // Delete button for own messages
+      if (isMine) {
+        const del = document.createElement('button');
+        del.style.cssText = 'background:none;border:none;color:var(--text3);font-size:10px;cursor:pointer;padding:0 2px;opacity:0;vertical-align:middle;transition:opacity .15s;';
+        del.textContent = '✕';
+        del.title = 'Delete';
+        del.onclick = () => deleteChatMsg(m.id);
+        row.addEventListener('mouseenter', () => del.style.opacity = '1');
+        row.addEventListener('mouseleave', () => del.style.opacity = '0');
+        wrap.appendChild(del);
+      }
     }
 
-    rows.push(
-      `<div style="display:block;width:100%;text-align:${align};margin-bottom:8px;padding:0 4px;box-sizing:border-box;"` +
-      (isMine ? ` onmouseover="document.getElementById('${delId}').style.opacity='1'" onmouseout="document.getElementById('${delId}').style.opacity='0'"` : '') +
-      `>` +
-      `<div style="font-size:10px;color:var(--text3);margin-bottom:2px;">${m.user||''}</div>` +
-      inner +
-      (isMine ? `<button id="${delId}" onclick="deleteChatMsg('${m.id}')" style="display:inline-block;background:none;border:none;color:var(--text3);font-size:10px;cursor:pointer;padding:0 2px;opacity:0;vertical-align:middle;">✕</button>` : '') +
-      `</div>`
-    );
+    row.appendChild(wrap);
+    frag.appendChild(row);
   }
-  el.innerHTML = rows.join('');
+
+  el.appendChild(frag);
 
   if (isBottom) el.scrollTop = el.scrollHeight;
 

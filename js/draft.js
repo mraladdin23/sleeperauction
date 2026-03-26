@@ -57,13 +57,13 @@ function rookieSal(r, p) { return r >= 4 ? 1_000_000 : (ROOKIE_SALARY[`${r}-${p}
 var fmtM = n => n >= 1e6 ? '$' + (n/1e6).toFixed(1) + 'M' : n >= 1e3 ? '$' + (n/1e3).toFixed(0) + 'K' : '$' + n;
 
 // ── State ─────────────────────────────────────────────────────
-let DRAFT_DATA = null;            // roster data
-let board = {};             // { 'r-p': { player, team, salary, sleeperPick } }
-let rookiePlayers = [];     // available rookie list
-let isDraftSnake = false;   // true for redraft (snake), false for rookie (linear)
-let availPosFilter = 'ALL';
-let availSearch = '';
-let draftInfo = null;
+var DRAFT_DATA = null;            // roster data
+var board = {};             // { 'r-p': { player, team, salary, sleeperPick } }
+var rookiePlayers = [];     // available rookie list
+var isDraftSnake = false;   // true for redraft (snake), false for rookie (linear)
+var availPosFilter = 'ALL';
+var availSearch = '';
+var draftInfo = null;
 
 // ── Load everything ───────────────────────────────────────────
 
@@ -184,12 +184,12 @@ async function init() {
 // ── State for draft board ─────────────────────────────────────
 // slotOwners: { "r-p": teamKey } — who owns each round-pick combo
 // e.g. "1-1", "2-3" etc. Allows traded picks to differ by round.
-let slotOwners = {};   // "round-pick" → teamKey
-let rosterIdToTeam        = {};  // Sleeper roster_id (string) → our teamKey
-let rosterIdToDisplayName = {};  // Sleeper roster_id (string) → display name (fallback)
-let userIdToTeam          = {};  // Sleeper user_id (string) → our teamKey (for picked_by)
-let rosterIdToUserId      = {};  // Sleeper roster_id (string) → owner user_id
-let teamDisplayNames      = {};  // teamKey (username) → display name for current viewing season
+var slotOwners = {};   // "round-pick" → teamKey
+var rosterIdToTeam        = {};  // Sleeper roster_id (string) → our teamKey
+var rosterIdToDisplayName = {};  // Sleeper roster_id (string) → display name (fallback)
+var userIdToTeam          = {};  // Sleeper user_id (string) → our teamKey (for picked_by)
+var rosterIdToUserId      = {};  // Sleeper roster_id (string) → owner user_id
+var teamDisplayNames      = {};  // teamKey (username) → display name for current viewing season
 window.viewingDraftLeagueId = window.viewingDraftLeagueId || null;
 window.draftSeasons         = window.draftSeasons         || [];
 

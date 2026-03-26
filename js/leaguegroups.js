@@ -114,8 +114,11 @@ function showGroupManager(leagues) {
       <div id="gm-tab-comm"   style="padding:16px;display:none;"></div>
     </div>`;
   document.body.appendChild(modal);
-  renderLabelsTab(leagues);
-  renderCommTab(leagues);
+  // Small delay to ensure DOM is ready before rendering tabs
+  setTimeout(() => {
+    renderLabelsTab(leagues);
+    renderCommTab(leagues);
+  }, 0);
 }
 
 function switchGMTab(tab) {
