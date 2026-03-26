@@ -99,8 +99,15 @@ const App = (() => {
       const sleeperIds     = new Set((sleeperLeagues || []).map(l => l.league_id));
       const registeredIds  = new Set(Object.keys(registry));
       const matches        = (sleeperLeagues || []).filter(l => registeredIds.has(l.league_id));
-      // Leagues in registry but not in Sleeper user list (added by others or prev seasons)
-      const extraIds       = [...registeredIds].filter(id => !sleeperIds.has(id));
+      // Leagues in registry but not in this user's Sleeper list
+      // Only show ones THIS user added (addedBy check) to prevent leaking other users' leagues
+      const myUsername = (state.user?.username || '').toLowerCase();
+      const extraIds = [...registeredIds].filter(id => {
+        if (sleeperIds.has(id)) return false; // already in matches
+        const meta = registry[id];
+        // Show if user added it themselves, or if they're the commissioner
+        return (meta?.addedBy || '').toLowerCase() === myUsername;
+      });
       // Leagues user is in on Sleeper but NOT yet registered -- offer to add
       const unregistered   = (sleeperLeagues || []).filter(l => !registeredIds.has(l.league_id));
 
@@ -154,6 +161,10 @@ const App = (() => {
       }
 
       if (subtitle) subtitle.textContent = `${displayLeagues.length} league${displayLeagues.length!==1?'s':''} available`;
+
+      // Show cross-league player report button if user is in 2+ registered leagues
+      const reportBtn = document.getElementById('picker-player-report-btn');
+      if (reportBtn) reportBtn.style.display = matches.length > 1 ? '' : 'none';
 
       el.innerHTML = displayLeagues.map(l => {
         const statusColor = { in_season:'var(--green)', pre_draft:'var(--yellow)',
