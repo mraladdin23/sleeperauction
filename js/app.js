@@ -303,11 +303,11 @@ const App = (() => {
             padding:16px 18px;cursor:pointer;transition:border-color .15s;"
             onmouseover="this.style.borderColor='var(--accent)'"
             onmouseout="this.style.borderColor='var(--border)'">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-              <div style="min-width:0;">
-                <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;">
-                  <div style="font-size:15px;font-weight:600;">${l.name}</div>
-                  ${l.isComm ? '<span style="font-size:10px;padding:1px 6px;border-radius:99px;background:var(--accent)22;color:var(--accent);border:1px solid var(--accent)55;font-weight:600;flex-shrink:0;">⚙ Commish</span>' : ''}
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;min-width:0;overflow:hidden;">
+              <div style="min-width:0;flex:1;overflow:hidden;">
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;min-width:0;">
+                  <div style="font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">${l.name}</div>
+                  ${l.isComm ? '<span style="font-size:10px;padding:1px 6px;border-radius:99px;background:var(--accent)22;color:var(--accent);border:1px solid var(--accent)55;font-weight:600;flex-shrink:0;white-space:nowrap;">⚙ Commish</span>' : ''}
                 </div>
                 <div style="font-size:12px;color:var(--text3);">${l.season} Season</div>
                 <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;">${[featureTags, labelChip].filter(Boolean).join('')}</div>

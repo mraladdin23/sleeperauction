@@ -1136,8 +1136,12 @@ function showSlotData() {
 // ── Boot ──────────────────────────────────────────────────────
 // Works as standalone page (DOM ready) or SPA injection (called by initDraftView)
 function draftInit() { init(); }
-if (document.getElementById('board-container')) {
-  draftInit();
-} else {
-  window._draftInitPending = true;
+// Prevent double initialization
+if (!window._draftLoaded) {
+  window._draftLoaded = true;
+  if (document.getElementById('board-container')) {
+    draftInit();
+  } else {
+    window._draftInitPending = true;
+  }
 }
