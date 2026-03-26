@@ -162,18 +162,15 @@ const App = (() => {
       ];
 
       // Sort: active first, then by name
-      // Tag each league with commissioner status (uses sessionStorage cache)
-      const userId = state.user?.user_id;
+      // Tag each league with commissioner status via Sleeper API (always fresh, no cache)
+      const userId = String(state.user?.user_id || '');
       if (userId) {
         await Promise.all(displayLeagues.filter(l=>!l.unregistered&&!l.isRenewal).map(async l => {
-          const cacheKey = `sb_iscomm_${l.id}`;
-          const cached = sessionStorage.getItem(cacheKey);
-          if (cached !== null) { l.isComm = cached === '1'; return; }
           try {
             const info = await fetch(`https://api.sleeper.app/v1/league/${l.id}`).then(r=>r.json());
-            l.isComm = String(info.commissioner_id) === String(userId) ||
-                       (info.commissioner_ids||[]).map(String).includes(String(userId));
-            sessionStorage.setItem(cacheKey, l.isComm ? '1' : '0');
+            const commId  = String(info.commissioner_id || '');
+            const commIds = (info.commissioner_ids || []).map(String);
+            l.isComm = (commId === userId) || commIds.includes(userId);
           } catch(e) { l.isComm = false; }
         }));
       }
@@ -1038,10 +1035,12 @@ This only removes it from the registry — all league data in Firebase is preser
                   birth_date: p.birth_date || null,
                   status:     p.status || null,
                   injury_status: p.injury_status || null,
+                  active:     p.active === true,
+                  adp:        p.search_rank || 9999,
                 };
               }
             });
-            localStorage.setItem('sb_players_ver', '3');
+            localStorage.setItem('sb_players_ver', '4');
             
           }
         } catch(e) { console.warn('[app] player build error:', e); }
