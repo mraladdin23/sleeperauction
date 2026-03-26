@@ -273,7 +273,7 @@ function renderSidebarMessages(msgs) {
            style="background:none;border:none;color:var(--text3);font-size:10px;cursor:pointer;
            padding:0 2px;opacity:0;transition:opacity .15s;flex-shrink:0;" class="msg-del-btn">✕</button>`
       : '';
-    return `<div class="${cls}" style="display:flex;align-items:flex-end;gap:3px;"
+    return `<div class="${cls}" style="display:flex;align-items:flex-end;gap:3px;width:100%;box-sizing:border-box;"
         onmouseover="this.querySelector('.msg-del-btn')&&(this.querySelector('.msg-del-btn').style.opacity='1')"
         onmouseout="this.querySelector('.msg-del-btn')&&(this.querySelector('.msg-del-btn').style.opacity='0')">
       ${isMine ? deleteBtn : ''}
