@@ -291,25 +291,26 @@ async function createCommGroup(leagues) {
   const btn = document.getElementById('create-comm-group-btn');
   if (btn) { btn.textContent = 'Checking…'; btn.disabled = true; }
 
-  // Verify via Sleeper API only — addedBy is NOT sufficient since non-commissioners can add leagues
+  // Verify via Sleeper API — clear any stale cache first to ensure fresh check
   let commLeagues = [];
   const candidates = leagues.filter(l => !l.unregistered && !l.isRenewal);
 
+  // Clear potentially stale cache entries before checking
+  candidates.forEach(l => sessionStorage.removeItem(`sb_iscomm_${l.id}`));
+
   await Promise.all(candidates.map(async l => {
     try {
-      const cacheKey = `sb_iscomm_${l.id}`;
-      const cached = sessionStorage.getItem(cacheKey);
-      let isComm;
-      if (cached !== null) {
-        isComm = cached === '1';
-      } else {
-        const info = await fetch(`https://api.sleeper.app/v1/league/${l.id}`).then(r=>r.json());
-        isComm = String(info.commissioner_id) === String(userId) ||
-                 (info.commissioner_ids || []).map(String).includes(String(userId));
-        sessionStorage.setItem(cacheKey, isComm ? '1' : '0');
-      }
+      // Use pre-computed flag from picker if available (set on l.isComm by showLeaguePicker)
+      if (l.isComm === true) { commLeagues.push(l); return; }
+      // Otherwise hit Sleeper API directly (fresh, no cache)
+      const info = await fetch(`https://api.sleeper.app/v1/league/${l.id}`).then(r=>r.json());
+      const isComm = String(info.commissioner_id) === String(userId) ||
+                     (info.commissioner_ids || []).map(String).includes(String(userId));
+      sessionStorage.setItem(`sb_iscomm_${l.id}`, isComm ? '1' : '0');
       if (isComm) commLeagues.push(l);
-    } catch(e) {} // skip leagues we can't verify
+    } catch(e) {
+      console.warn('Commissioner check failed for', l.id, e);
+    }
   }));
 
   if (btn) { btn.textContent = '+ New Commissioner Group'; btn.disabled = false; }
