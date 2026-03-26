@@ -75,6 +75,12 @@ async function buildPlayerReport() {
     } catch(e) {}
   }));
 
+  // Wait for _playerById to be populated (it's built async in app.js)
+  let waited = 0;
+  while ((!window._playerById || Object.keys(window._playerById).length < 100) && waited < 4000) {
+    await new Promise(r => setTimeout(r, 200));
+    waited += 200;
+  }
   const byId = window._playerById || {};
   const POS_COLOR = { QB:'#e88c30', RB:'#3b82f6', WR:'#22c55e', TE:'#a855f7', K:'#9ca3af', DEF:'#9ca3af' };
   const ownedIds = new Set(Object.keys(playerLeagues));
