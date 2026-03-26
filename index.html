@@ -327,6 +327,17 @@ window.addEventListener('DOMContentLoaded',function(){
   }
 });
 </script>
+  <!-- Google Analytics 4 — replace G-ZKZ73PRXVS with your GA4 Measurement ID from analytics.google.com -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-ZKZ73PRXVS"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('js', new Date());
+    gtag('config', 'G-ZKZ73PRXVS');
+    window._trackEvent = function(name, params) {
+      if (typeof gtag !== 'undefined') gtag('event', name, params || {});
+    };
+  </script>
 </head>
 <body>
 

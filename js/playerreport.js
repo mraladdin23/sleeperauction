@@ -30,13 +30,22 @@ async function showCrossLeagueReport() {
 
 async function buildPlayerReport() {
   const el = document.getElementById('player-report-body');
-  const userId = window.App?.state?.user?.user_id;
-  const season = new Date().getFullYear();
+  // Get user from localStorage (App state is IIFE-private)
+  const userJson = localStorage.getItem('sb_user');
+  const userObj  = userJson ? JSON.parse(userJson) : null;
+  const userId   = userObj?.user_id;
+  const season   = new Date().getFullYear();
+
+  if (!userId) {
+    el.innerHTML = '<div style="padding:20px;color:var(--text3);">Could not find your user ID. Please log out and log back in.</div>';
+    return;
+  }
 
   // Fetch all of user's Sleeper leagues this season
+  el.innerHTML = `<div style="color:var(--text3);font-size:13px;padding:8px 0 16px;">Fetching your ${season} leagues from Sleeper…</div>`;
   const sleeperLeagues = await fetch(`https://api.sleeper.app/v1/user/${userId}/leagues/nfl/${season}`).then(r=>r.json()).catch(()=>[]);
   if (!sleeperLeagues?.length) {
-    el.innerHTML = '<div style="padding:20px;color:var(--text3);">No Sleeper leagues found for this season.</div>';
+    el.innerHTML = `<div style="padding:20px;color:var(--text3);">No Sleeper leagues found for ${season}. You may not be in any leagues yet this season.</div>`;
     return;
   }
 
