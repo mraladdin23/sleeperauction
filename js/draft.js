@@ -12,37 +12,16 @@ function isComm()    { return username().toLowerCase() === COMM; }
 var CAP = (typeof window !== 'undefined' && window.CAP) ? window.CAP : 301_200_000;
 
 function capLogout() {
+  if (window.App && window.App.logout) { window.App.logout(); return; }
   localStorage.removeItem('sb_username');
   localStorage.removeItem('sb_leagueId');
   localStorage.removeItem('sb_user');
   window.location = 'index.html';
 }
 
-// Avatar
-(function() {
-  const el = document.getElementById('cap-avatar');
-  if (!el) return;
-  try {
-    const u = JSON.parse(localStorage.getItem('sb_user') || 'null');
-    const name = u?.display_name || u?.username || localStorage.getItem('sb_username') || '?';
-    const initial = name[0]?.toUpperCase() || '?';
-    if (u?.avatar) {
-      el.innerHTML = `<img src="https://sleepercdn.com/avatars/thumbs/${u.avatar}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;" onerror="this.parentElement.textContent='${initial}'" />`;
-    } else { el.textContent = initial; }
-    el.title = name;
-  } catch(e) { el.textContent = '?'; }
-})();
+// Avatar handled by SPA
 
-// Theme
-function toggleTheme() {
-  const lm = document.body.classList.toggle('light-mode');
-  localStorage.setItem('sb_theme', lm ? 'light' : 'dark');
-  document.getElementById('theme-btn').textContent = lm ? '🌙' : '☀️';
-}
-if (localStorage.getItem('sb_theme') === 'light') {
-  document.body.classList.add('light-mode');
-  document.getElementById('theme-btn').textContent = '🌙';
-}
+// Theme handled by SPA
 
 // ── Salary scale ─────────────────────────────────────────────
 const ROOKIE_SALARY = {

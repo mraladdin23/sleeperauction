@@ -236,7 +236,35 @@ const App = (() => {
       window._pickerLeagues = orderedLeagues;
       // Build personal label map for card chips
       const labelMap = window.getLeagueLabelMap ? getLeagueLabelMap() : {};
-      el.innerHTML = orderedLeagues.map(l => {
+
+      // ── Group filter bar ─────────────────────────────────────
+      // Build filter chips from personal labels
+      const filterBar = document.getElementById('picker-filter-bar');
+      if (filterBar && window.getPersonalLabels) {
+        const labels = window.getPersonalLabels();
+        const labelEntries = Object.entries(labels);
+        if (labelEntries.length) {
+          filterBar.style.display = '';
+          filterBar.innerHTML = `
+            <span style="font-size:11px;color:var(--text3);margin-right:4px;">Filter:</span>
+            <button onclick="window._pickerFilter=null;App.showLeaguePicker()" id="pf-all"
+              style="padding:3px 10px;font-size:11px;font-family:var(--font-body);background:var(--accent);color:#fff;border:none;border-radius:99px;cursor:pointer;margin-right:4px;">All</button>
+            ${labelEntries.map(([lid, l]) =>
+              `<button onclick="window._pickerFilter='${lid}';App.showLeaguePicker()" id="pf-${lid}"
+                style="padding:3px 10px;font-size:11px;font-family:var(--font-body);background:${l.color}22;color:${l.color};border:1px solid ${l.color}55;border-radius:99px;cursor:pointer;margin-right:4px;">${l.name}</button>`
+            ).join('')}`;
+        } else {
+          filterBar.style.display = 'none';
+        }
+      }
+
+      // Apply active filter
+      const activeFilter = window._pickerFilter;
+      const activeLabel  = activeFilter && window.getPersonalLabels ? window.getPersonalLabels()[activeFilter] : null;
+      const filterIds    = activeLabel ? new Set(activeLabel.leagueIds || []) : null;
+      const visibleLeagues = filterIds ? orderedLeagues.filter(l => l.unregistered || l.isRenewal || filterIds.has(l.id)) : orderedLeagues;
+
+      el.innerHTML = visibleLeagues.map(l => {
         const statusColor = { in_season:'var(--green)', pre_draft:'var(--yellow)',
           drafting:'var(--accent2)', complete:'var(--text3)' }[l.status] || 'var(--text3)';
         const statusLabel = { in_season:'🟢 In Season', pre_draft:'🟡 Pre-Draft',
