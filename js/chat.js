@@ -1,5 +1,4 @@
 // chat.js — League Chat with smack talk, GIFs, and matchup trash talk
-console.log("[chat.js] loaded v3");
 
 let chatUnsubscribe = null;
 let chatLeagueId    = null;
@@ -11,7 +10,6 @@ function initChatView() {
   if (!container) { console.warn('[chat] view-chat container not found'); return; }
 
   const lid = localStorage.getItem('sb_leagueId');
-  console.log('[chat] initChatView lid:', lid, 'chatLeagueId:', chatLeagueId);
   if (!lid) { container.innerHTML = '<div style="padding:32px;color:var(--text3);">No league selected.</div>'; return; }
 
   if (chatLeagueId === lid && container.querySelector('.chat-wrap')) {
@@ -20,7 +18,6 @@ function initChatView() {
   }
   chatLeagueId = lid;
 
-  console.log("[chat] building HTML for container:", container.id);
   try {
   container.innerHTML = `
     <div class="chat-wrap" style="display:flex;flex-direction:column;height:calc(100vh - 100px);max-width:800px;margin:0 auto;padding:16px;">
@@ -70,28 +67,31 @@ function initChatView() {
     </div>`;
 
   } catch(e) { console.error("[chat] innerHTML error:", e); return; }
-  console.log("[chat] HTML built successfully");
-  console.log("[chat] about to subscribeChat for lid:", lid);
   subscribeChat(lid);
-  console.log("[chat] subscribeChat called");
 }
 
 function subscribeChat(lid) {
   if (chatUnsubscribe) { chatUnsubscribe(); chatUnsubscribe = null; }
+  const msgs = [];
   const ref = db.ref(`leagues/${lid}/chat`).limitToLast(100);
-  ref.on('value', snap => {
-    const msgs = [];
-    snap.forEach(child => msgs.push({ id: child.key, ...child.val() }));
-    console.log('[chat] Firebase path:', `leagues/${lid}/chat`, 'children:', msgs.length, 'data:', JSON.stringify(msgs.slice(0,3)));
+
+  const onAdded = ref.on('child_added', snap => {
+    msgs.push({ id: snap.key, ...snap.val() });
     renderChatMessages(msgs);
   });
-  chatUnsubscribe = () => ref.off();
+
+  const onRemoved = ref.on('child_removed', snap => {
+    const idx = msgs.findIndex(m => m.id === snap.key);
+    if (idx !== -1) msgs.splice(idx, 1);
+    renderChatMessages(msgs);
+  });
+
+  chatUnsubscribe = () => { ref.off('child_added', onAdded); ref.off('child_removed', onRemoved); };
 }
 
 function renderChatMessages(msgs) {
   const el = document.getElementById('chat-messages');
   if (!el) return;
-  console.log('[chat] renderChatMessages called, msgs:', msgs.length, 'ids:', msgs.map(m=>m.id?.slice(-4)), 'el exists:', !!el);
   const me = localStorage.getItem('sb_username') || '';
   const wasAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
 
@@ -144,7 +144,6 @@ function renderChatMessages(msgs) {
     }
 
     // Delete button on own messages
-    console.log('[chat] isMine:', isMine, 'user:', m.user, 'me:', me);
     if (isMine) {
       const del = document.createElement('button');
       del.style.cssText = 'position:absolute;top:-6px;right:-6px;background:var(--surface2);border:1px solid var(--border);border-radius:99px;color:var(--text3);font-size:9px;cursor:pointer;padding:1px 5px;opacity:0;transition:opacity .15s;';
