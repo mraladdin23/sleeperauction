@@ -17,18 +17,6 @@ function initChatView() {
 
   container.innerHTML = `
     <div class="chat-wrap" style="display:flex;flex-direction:column;height:calc(100vh - 120px);max-width:800px;margin:0 auto;padding:16px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-        <div style="font-size:20px;font-weight:700;">💬 League Chat</div>
-        <div style="display:flex;gap:6px;">
-          <div style="position:relative;display:inline-block;">
-            <button onclick="toggleSmackMenu()" id="smack-btn" style="padding:6px 12px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);cursor:pointer;font-family:var(--font-body);">🔥 Smack Talk ▾</button>
-            <div id="smack-menu" style="display:none;position:absolute;top:calc(100%+4px);left:0;width:280px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:1000;max-height:300px;overflow-y:auto;">
-              ${SMACK_LINES.map((l,i)=>`<div onclick="selectSmack(${i})" style="padding:8px 12px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border);color:var(--text);" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">${l}</div>`).join('')}
-            </div>
-          </div>
-          <button onclick="openGifSearch()" style="padding:6px 12px;font-size:12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);cursor:pointer;font-family:var(--font-body);">🎬 GIF</button>
-        </div>
-      </div>
 
       <!-- GIF search panel -->
       <div id="gif-panel" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:8px;">
@@ -42,13 +30,22 @@ function initChatView() {
       </div>
 
       <!-- Messages -->
-      <div id="chat-messages" style="flex:1;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:12px;display:flex;flex-direction:column;gap:8px;">
+      <div id="chat-messages" style="flex:1;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:12px;">
         <div style="text-align:center;color:var(--text3);font-size:12px;padding:20px;">Loading messages…</div>
       </div>
 
-      <!-- Input -->
+      <!-- Toolbar + Input -->
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;border-top:1px solid var(--border);padding-top:8px;">
+        <div style="position:relative;">
+          <button onclick="toggleSmackMenu()" id="smack-btn" title="Smack Talk" style="padding:7px 10px;font-size:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">🔥</button>
+          <div id="smack-menu" style="display:none;position:absolute;bottom:calc(100%+4px);left:0;width:280px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:1000;max-height:240px;overflow-y:auto;">
+            ${SMACK_LINES.map((l,i)=>`<div onclick="selectSmack(${i})" style="padding:8px 12px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border);color:var(--text);" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">$$\{l\}</div>`).join('')}
+          </div>
+        </div>
+        <button onclick="openGifSearch()" title="Send GIF" style="padding:7px 10px;font-size:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">🎬</button>
+      </div>
       <div style="display:flex;gap:8px;align-items:flex-end;">
-        <textarea id="chat-input" placeholder="Send a message… (Enter to send, Shift+Enter for new line)"
+        <textarea id="chat-input" placeholder="Message…"
           style="flex:1;padding:10px 12px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:var(--font-body);font-size:13px;outline:none;resize:none;min-height:44px;max-height:120px;overflow-y:auto;line-height:1.4;"
           rows="1"
           onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChatMessage();}"
@@ -115,6 +112,16 @@ function renderChatMessages(msgs) {
       img.style.cssText = 'max-width:220px;border-radius:8px;display:block;';
       img.loading = 'lazy';
       bubble.appendChild(img);
+      // Delete button for own GIFs
+      if (isMine) {
+        const del = document.createElement('button');
+        del.style.cssText = 'position:absolute;top:-6px;right:-6px;background:var(--surface2);border:1px solid var(--border);border-radius:99px;color:var(--text3);font-size:9px;cursor:pointer;padding:1px 4px;opacity:0;transition:opacity .15s;';
+        del.textContent = '✕';
+        del.onclick = () => deleteChatMsg(m.id);
+        bubble.appendChild(del);
+        bubble.addEventListener('mouseenter', () => del.style.opacity='1');
+        bubble.addEventListener('mouseleave', () => del.style.opacity='0');
+      }
     } else {
       const txt = document.createElement('div');
       txt.style.cssText = 'font-size:13px;line-height:1.5;word-break:break-word;';

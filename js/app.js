@@ -1755,9 +1755,15 @@ This only removes it from the registry — all league data in Firebase is preser
     const uid = state.user?.user_id;
     if (!uid) return;
     if (state.watchlist[playerId]) {
+      // Optimistically update local state before Firebase confirms
+      delete state.watchlist[playerId];
+      renderAll();
       await Auction.removeWatch(state.leagueId, uid, playerId);
       UI.toast('Removed from watchlist', 'info');
     } else {
+      // Optimistically update local state
+      state.watchlist[playerId] = true;
+      renderAll();
       await Auction.addWatch(state.leagueId, uid, playerId);
       UI.toast('Added to watchlist ⭐', 'success');
     }
