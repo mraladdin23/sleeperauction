@@ -393,18 +393,27 @@ window.addEventListener('DOMContentLoaded',function(){
     </div>
   </div>
   <div class="main" style="max-width:900px;margin:0 auto;padding:24px 16px;">
-    <div style="margin-bottom:24px;">
-      <div style="font-size:20px;font-weight:700;margin-bottom:4px;">Choose a League</div>
-      <div style="font-size:13px;color:var(--text3);" id="picker-subtitle">Your registered leagues</div>
-      <button id="picker-player-report-btn" onclick="if(window.showCrossLeagueReport){showCrossLeagueReport();}else{loadScript('js/playerreport.js',()=>showCrossLeagueReport());}" style="display:none;padding:7px 16px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);font-family:var(--font-body);font-size:12px;cursor:pointer;">📋 My Player Report (All Leagues)</button>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;">
-          <input type="checkbox" id="hide-commish-only" onchange="App.refreshLeaguePicker()" style="cursor:pointer;" />
-          Hide leagues without my team
-        </label>
-        <button onclick="if(window.showGroupManager)showGroupManager(window._pickerLeagues||[]);else loadScript('js/leaguegroups.js',()=>showGroupManager(window._pickerLeagues||[]))"
-          style="padding:5px 12px;font-size:12px;font-family:var(--font-body);background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);cursor:pointer;">
-          🗂 Groups
-        </button>
+    <div style="margin-bottom:20px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:12px;">
+        <div>
+          <div style="font-size:22px;font-weight:700;margin-bottom:2px;">My Leagues</div>
+          <div style="font-size:13px;color:var(--text3);" id="picker-subtitle">Select a league to get started</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <button id="picker-player-report-btn"
+            onclick="if(window.showCrossLeagueReport){showCrossLeagueReport();}else{loadScript('js/playerreport.js',()=>showCrossLeagueReport());}"
+            style="display:none;padding:7px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);font-family:var(--font-body);font-size:12px;cursor:pointer;">
+            📋 Player Report
+          </button>
+          <button onclick="if(window.showGroupManager)showGroupManager(window._pickerLeagues||[]);else loadScript('js/leaguegroups.js',()=>showGroupManager(window._pickerLeagues||[]))"
+            style="padding:7px 14px;font-size:12px;font-family:var(--font-body);background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);color:var(--text2);cursor:pointer;">
+            🗂 Groups &amp; Labels
+          </button>
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer;white-space:nowrap;">
+            <input type="checkbox" id="hide-commish-only" onchange="App.refreshLeaguePicker()" style="cursor:pointer;" />
+            My teams only
+          </label>
+        </div>
       </div>
     </div>
     <div id="picker-filter-bar" style="display:flex;flex-wrap:wrap;align-items:center;gap:4px;margin-bottom:12px;padding:8px 0;border-bottom:1px solid var(--border);"></div>
@@ -474,6 +483,7 @@ window.addEventListener('DOMContentLoaded',function(){
       <button class="app-btn" id="nav-draft"     onclick="navigateTo('draft')">     <span class="app-btn-icon">🎓</span><span>Draft</span></button>
       <button class="app-btn" id="nav-viz"       onclick="navigateTo('viz')">       <span class="app-btn-icon">📊</span><span>Analytics</span></button>
       <button class="app-btn" id="nav-rules"     onclick="navigateTo('rules')">     <span class="app-btn-icon">📋</span><span>Rules</span></button>
+      <button class="app-btn" id="nav-chat"     onclick="navigateTo('chat')">     <span class="app-btn-icon">💬</span><span>Chat <span id="chat-unread-badge" style="display:none;background:var(--red);color:#fff;font-size:9px;font-weight:700;padding:1px 5px;border-radius:99px;vertical-align:middle;"></span></span></button>
 
     </nav>
     <div class="app-bar-right">
@@ -513,17 +523,7 @@ window.addEventListener('DOMContentLoaded',function(){
   </div>
 
   <!-- Chat sidebar (desktop) / bottom drawer (mobile) -->
-  <div id="chat-sidebar" style="display:none;">
-    <div id="chat-sidebar-inner">
-      <div id="chat-sidebar-header" onclick="toggleChatSidebar()" style="cursor:pointer;">
-        <span>💬 Chat</span>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <span id="chat-unread-badge" style="display:none;background:var(--red);color:#fff;font-size:10px;font-weight:700;padding:1px 6px;border-radius:99px;"></span>
-          <span id="chat-sidebar-toggle-icon">▼</span>
-        </div>
-      </div>
-      <div id="chat-sidebar-body" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
-        <div id="chat-sidebar-messages"></div>
+  
         <!-- Sidebar GIF panel -->
         <div id="sidebar-gif-panel" style="display:none;padding:6px 8px;border-top:1px solid var(--border);background:var(--surface2);">
           <input id="sidebar-gif-input" type="text" placeholder="Search GIFs…"
@@ -547,7 +547,7 @@ window.addEventListener('DOMContentLoaded',function(){
   </div>
 
   <!-- Chat float button (mobile) -->
-  <button id="chat-float-btn" onclick="toggleChatDrawer()" style="display:none;">💬</button>
+  
 
   <!-- View containers -->
   <div id="view-home">
@@ -608,7 +608,7 @@ window.addEventListener('DOMContentLoaded',function(){
 
 <script>
 // ── Router ────────────────────────────────────────────────────
-const VIEWS = ['home','roster','standings','auction','draft','viz','rules'];
+const VIEWS = ['home','roster','standings','auction','draft','viz','rules','chat'];
 let currentView = null;
 const viewsLoaded = {};
 
@@ -649,6 +649,7 @@ function navigateTo(view) {
   document.getElementById('view-standings').style.display  = view==='standings'  ? '' : 'none';
   document.getElementById('view-viz').style.display        = view==='viz'        ? '' : 'none';
   document.getElementById('view-rules').style.display      = view==='rules'      ? '' : 'none';
+  document.getElementById('view-chat').style.display       = view==='chat'       ? '' : 'none';
 
   history.pushState({view}, '', '#' + view);
   currentView = view;
@@ -660,6 +661,8 @@ function navigateTo(view) {
   if (view === 'standings') initStandingsView();
   if (view === 'viz')       initVizView();
   if (view === 'rules')     initRulesView();
+  if (view === 'chat')      initChatView();
+  if (view === 'chat')      initChatView();
 }
 
 window.addEventListener('popstate', e => {
@@ -947,8 +950,12 @@ window.addEventListener('sb:ready', function() {
   const name  = localStorage.getItem('sb_leagueName') || '';
   if (badge && name) badge.textContent = name;
 
+  // Always land on home when first entering a league
+  // (ignore stale hash from a previous view)
   const hash = location.hash.replace('#','') || 'home';
-  navigateTo(hash);
+  const landingView = window._freshLeagueLoad ? 'home' : (hash || 'home');
+  window._freshLeagueLoad = false;
+  navigateTo(landingView);
 });
 
 // ── Auction view HTML ─────────────────────────────────────────

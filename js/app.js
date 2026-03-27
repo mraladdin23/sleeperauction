@@ -421,6 +421,7 @@ const App = (() => {
     window.draftSeasons = null;
     UI.showScreen('loading');
     UI.setLoading('Loading league…');
+    window._freshLeagueLoad = true;  // tells sb:ready to land on home tab
     await initApp();
   }
 
@@ -475,6 +476,7 @@ const App = (() => {
     window._pendingLoginHash = null;
     UI.showScreen('loading');
     UI.setLoading('Loading league…');
+    window._freshLeagueLoad = true;  // tells sb:ready to land on home tab
     await initApp();
   }
 
@@ -749,12 +751,9 @@ const App = (() => {
     // Password verified — mark session as authenticated to skip re-auth on refresh
     sessionStorage.setItem('sb_authed', session.username || '1');
     if (window._trackEvent) _trackEvent('login', { method: 'password' });
-    // Go directly to league if one is already selected
-    if (session.leagueId) {
-      await initApp();
-    } else {
-      await showLeaguePicker();
-    }
+    // Always go to picker — user picks their league from there
+    state.leagueId = null;
+    await showLeaguePicker();
   }
 
   // ── Change Password flow ──────────────────────────────────────
@@ -1174,16 +1173,7 @@ This only removes it from the registry — all league data in Firebase is preser
     UI.showScreen('app');
     UI.renderPauseBanner();
     if (window._trackEvent) _trackEvent('league_opened', { league_id: state.leagueId });
-    // Init chat sidebar after league loaded
-    if (typeof initChatSidebar === 'function') {
-      initChatSidebar(state.leagueId);
-    } else {
-      // Load chat.js and init sidebar
-      const s = document.createElement('script');
-      s.src = 'js/chat.js';
-      s.onload = () => { if (window.initChatSidebar) window.initChatSidebar(state.leagueId); };
-      document.head.appendChild(s);
-    }
+    // Chat is now a tab - loaded lazily when user navigates to it
 
     // Apply feature flags to nav tabs AND home cards
     const feats = state.leagueFeatures || {};
