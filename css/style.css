@@ -1096,6 +1096,49 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
   }
 }
 
+/* ── Mobile picker + general fixes ───────────────────── */
+@media (max-width: 600px) {
+  /* Picker grid: 1 column on small screens */
+  #picker-leagues {
+    grid-template-columns: 1fr !important;
+  }
+  /* Give all screen content proper padding so nothing hides behind edges */
+  .main {
+    padding: 16px 12px !important;
+  }
+  /* Make topbar buttons easily tappable */
+  .topbar-right button,
+  .topbar-right .avatar {
+    min-width: 40px;
+    min-height: 40px;
+  }
+  /* Switch-league button on league screen */
+  #switch-league-btn {
+    min-height: 44px;
+    padding: 10px 16px;
+    font-size: 14px;
+  }
+  /* Make tab buttons tappable */
+  .tab-btn, [onclick*="navigateTo"] {
+    min-height: 44px;
+  }
+  /* Picker controls stack vertically */
+  #picker-controls {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  /* Hide commish-only label wraps properly */
+  #picker-controls label {
+    font-size: 13px;
+  }
+}
+@media (max-width: 899px) {
+  /* 2 columns on medium screens */
+  #picker-leagues {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
 /* Sidebar message bubbles */
 .sidebar-msg {
   font-size: 12px;

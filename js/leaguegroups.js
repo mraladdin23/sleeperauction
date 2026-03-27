@@ -390,6 +390,7 @@ async function showGroupBroadcast(groupId, groupName, leagueIds) {
 // Expose everything
 window.applyLeagueOrder     = applyLeagueOrder;
 window.getLeagueLabelMap    = getLeagueLabelMap;
+window.getPersonalLabels    = getPersonalLabels;
 window.onLeagueDragStart    = onLeagueDragStart;
 window.onLeagueDragEnd      = onLeagueDragEnd;
 window.onLeagueDragOver     = onLeagueDragOver;
