@@ -1,3 +1,5 @@
+// chat.js — League Chat
+console.log("[chat.js] loaded v4 - child_added");
 // chat.js — League Chat with smack talk, GIFs, and matchup trash talk
 
 let chatUnsubscribe = null;
