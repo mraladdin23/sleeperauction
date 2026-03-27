@@ -80,7 +80,7 @@ const App = (() => {
   async function showLeaguePicker() {
     UI.showScreen('picker');
     if (!window.applyLeagueOrder) {
-      loadScript('js/leaguegroups.js', () => {});
+      await new Promise(resolve => loadScript('js/leaguegroups.js', resolve));
     }
     UI.setAvatar(document.getElementById('picker-avatar'), state.user);
     const el       = document.getElementById('picker-leagues');
@@ -406,6 +406,23 @@ const App = (() => {
             </div>
           </div>`;
       }).join('');
+
+      // Equalize card widths: find widest card and apply to all
+      requestAnimationFrame(() => {
+        const cards = el.querySelectorAll(':scope > div');
+        if (!cards.length) return;
+        // Reset to auto to measure natural width
+        cards.forEach(c => { c.style.width = 'auto'; c.style.minWidth = ''; });
+        // Find the widest natural width
+        let maxW = 0;
+        cards.forEach(c => { maxW = Math.max(maxW, c.scrollWidth); });
+        if (maxW > 0) {
+          // Apply uniform width to all cards
+          cards.forEach(c => { c.style.width = maxW + 'px'; c.style.minWidth = maxW + 'px'; });
+          // Update grid to use fixed column width so all columns are equal
+          el.style.gridTemplateColumns = `repeat(4, ${maxW}px)`;
+        }
+      });
 
     } catch(e) {
       el.innerHTML = `<div style="color:var(--red);font-size:13px;">Error loading leagues: ${e.message}</div>`;
