@@ -268,7 +268,7 @@ const App = (() => {
             border:1px solid var(--border);border-radius:99px;cursor:pointer;margin-right:4px;">All</button>`;
 
           const labelBtns = labelEntries.map(([lid, l]) =>
-            `<button onclick="window._pickerFilter=${JSON.stringify('lbl:'+lid)};App.showLeaguePicker()"
+            `<button onclick="window._pickerFilter='lbl:${lid}';App.showLeaguePicker()"
               style="padding:3px 10px;font-size:11px;font-family:var(--font-body);
               background:${activeF==='lbl:'+lid?l.color:l.color+'22'};
               color:${activeF==='lbl:'+lid?'#fff':l.color};
@@ -276,7 +276,7 @@ const App = (() => {
           ).join('');
 
           const commBtns = commGroupEntries.map(([gid, g]) =>
-            `<button onclick="window._pickerFilter=${JSON.stringify('cg:'+gid)};App.showLeaguePicker()"
+            `<button onclick="window._pickerFilter='cg:${gid}';App.showLeaguePicker()"
               style="padding:3px 10px;font-size:11px;font-family:var(--font-body);
               background:${activeF==='cg:'+gid?g.color:g.color+'22'};
               color:${activeF==='cg:'+gid?'#fff':g.color};
@@ -645,7 +645,8 @@ const App = (() => {
           } catch(e) { /* no password set, continue normally */ }
         }
 
-        // Always show picker on boot — user can click to re-enter their league
+        // Always show picker on boot — clear leagueId so no stale nav fires
+        state.leagueId = null;
         await showLeaguePicker();
         return;
       } catch (e) { /* fall through */ }

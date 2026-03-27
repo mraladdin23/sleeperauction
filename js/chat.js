@@ -246,6 +246,7 @@ function initChatSidebar(lid) {
   ref.on('value', snap => {
     const msgs = [];
     snap.forEach(child => msgs.push({ id: child.key, ...child.val() }));
+    console.log('[chat] Firebase value fired, snap size:', snap.size, 'msgs built:', msgs.length);
     renderSidebarMessages(msgs);
   });
 
@@ -262,6 +263,7 @@ function renderSidebarMessages(msgs) {
   const me = localStorage.getItem('sb_username') || '';
   const isBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
 
+  console.log('[chat] renderSidebarMessages called with', msgs.length, 'messages');
   // Clear existing content using DOM (not innerHTML)
   while (el.firstChild) el.removeChild(el.firstChild);
 
