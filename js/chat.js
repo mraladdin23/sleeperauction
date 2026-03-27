@@ -82,7 +82,7 @@ function subscribeChat(lid) {
   ref.on('value', snap => {
     const msgs = [];
     snap.forEach(child => msgs.push({ id: child.key, ...child.val() }));
-    console.log('[chat] Firebase snap children:', msgs.length, 'snap.numChildren:', snap.numChildren?.());
+    console.log('[chat] Firebase path:', `leagues/${lid}/chat`, 'children:', msgs.length, 'data:', JSON.stringify(msgs.slice(0,3)));
     renderChatMessages(msgs);
   });
   chatUnsubscribe = () => ref.off();
@@ -144,6 +144,7 @@ function renderChatMessages(msgs) {
     }
 
     // Delete button on own messages
+    console.log('[chat] isMine:', isMine, 'user:', m.user, 'me:', me);
     if (isMine) {
       const del = document.createElement('button');
       del.style.cssText = 'position:absolute;top:-6px;right:-6px;background:var(--surface2);border:1px solid var(--border);border-radius:99px;color:var(--text3);font-size:9px;cursor:pointer;padding:1px 5px;opacity:0;transition:opacity .15s;';
