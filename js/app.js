@@ -381,28 +381,23 @@ const App = (() => {
             ondragleave="if(window.onLeagueDragLeave)onLeagueDragLeave(event)"
             ondrop="if(window.onLeagueDrop)onLeagueDrop(event,'${l.id}')"
             style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
-            padding:12px 14px;cursor:pointer;transition:border-color .15s;"
+            padding:12px 14px;cursor:pointer;transition:border-color .15s;
+            display:flex;flex-direction:column;justify-content:space-between;min-height:80px;"
             onmouseover="this.style.borderColor='var(--accent)'"
             onmouseout="this.style.borderColor='var(--border)'">
-            <div style="display:flex;flex-direction:column;gap:6px;min-width:0;">
-              <!-- Top: name + commish badge -->
-              <div style="display:flex;align-items:center;gap:6px;min-width:0;">
-                <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;">${l.name}</div>
-                ${l.isComm ? '<span style="font-size:10px;padding:1px 5px;border-radius:99px;background:var(--accent)22;color:var(--accent);border:1px solid var(--accent)44;font-weight:600;flex-shrink:0;">⚙ Commish</span>' : ''}
-              </div>
-              <!-- Middle: label chip if any -->
-              ${labelChip ? `<div>${labelChip}</div>` : ''}
-              <!-- Bottom: status + delete -->
-              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;">
-                <span style="font-size:11px;color:${statusColor};font-weight:500;">${statusLabel}</span>
-                ${l.meta?.addedBy === (state.user?.username||'').toLowerCase() || state.isCommissioner
-                  ? `<button onclick="event.stopPropagation();App.deleteLeague('${l.id}','${l.name.replace(/'/g,"\'")}')"
-                      style="font-size:10px;padding:2px 7px;background:none;border:1px solid rgba(255,77,106,.35);
-                      border-radius:4px;color:var(--red);cursor:pointer;font-family:var(--font-body);">
-                      🗑
-                    </button>`
-                  : ''}
-              </div>
+            <!-- League name (always takes full width, always truncates) -->
+            <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:4px;">${l.name}</div>
+            <!-- Label chip (takes space only if present) -->
+            ${labelChip ? `<div style="margin-bottom:4px;">${labelChip}</div>` : ''}
+            <!-- Bottom row: commish + status + delete — always at the bottom -->
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              ${l.isComm ? '<span style="font-size:10px;padding:1px 5px;border-radius:99px;background:var(--accent)22;color:var(--accent);border:1px solid var(--accent)44;font-weight:600;">⚙ Commish</span>' : ''}
+              <span style="font-size:11px;color:${statusColor};font-weight:500;flex:1;">${statusLabel}</span>
+              ${l.meta?.addedBy === (state.user?.username||'').toLowerCase() || state.isCommissioner
+                ? `<button onclick="event.stopPropagation();App.deleteLeague('${l.id}','${l.name.replace(/'/g,"\'")}')"
+                    style="font-size:10px;padding:2px 7px;background:none;border:1px solid rgba(255,77,106,.35);
+                    border-radius:4px;color:var(--red);cursor:pointer;font-family:var(--font-body);">🗑</button>`
+                : ''}
             </div>
           </div>`;
       }).join('');
