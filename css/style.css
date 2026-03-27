@@ -1006,16 +1006,13 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
 
 /* ── Picker leagues grid ────────────────────────────── */
 #picker-leagues {
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   align-items: stretch;
 }
-@media (max-width: 1200px) {
-  #picker-leagues { grid-template-columns: repeat(3, 1fr); }
-}
-@media (max-width: 860px) {
+@media (max-width: 700px) {
   #picker-leagues { grid-template-columns: repeat(2, 1fr); }
 }
-@media (max-width: 540px) {
+@media (max-width: 480px) {
   #picker-leagues { grid-template-columns: 1fr; }
 }
 

@@ -89,7 +89,7 @@ const App = (() => {
 
     // Force equal columns inline (overrides any CSS caching issues)
     el.style.display = 'grid';
-    el.style.gridTemplateColumns = 'repeat(4, 1fr)';
+    el.style.gridTemplateColumns = 'repeat(3, 1fr)';
     el.style.gap = '12px';
 
     el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px 0;">Loading your leagues…</div>';
@@ -407,22 +407,7 @@ const App = (() => {
           </div>`;
       }).join('');
 
-      // Equalize card widths: find widest card and apply to all
-      requestAnimationFrame(() => {
-        const cards = el.querySelectorAll(':scope > div');
-        if (!cards.length) return;
-        // Reset to auto to measure natural width
-        cards.forEach(c => { c.style.width = 'auto'; c.style.minWidth = ''; });
-        // Find the widest natural width
-        let maxW = 0;
-        cards.forEach(c => { maxW = Math.max(maxW, c.scrollWidth); });
-        if (maxW > 0) {
-          // Apply uniform width to all cards
-          cards.forEach(c => { c.style.width = maxW + 'px'; c.style.minWidth = maxW + 'px'; });
-          // Update grid to use fixed column width so all columns are equal
-          el.style.gridTemplateColumns = `repeat(4, ${maxW}px)`;
-        }
-      });
+
 
     } catch(e) {
       el.innerHTML = `<div style="color:var(--red);font-size:13px;">Error loading leagues: ${e.message}</div>`;
