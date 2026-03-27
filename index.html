@@ -350,6 +350,16 @@ window.addEventListener('DOMContentLoaded',function(){
       <label>Sleeper Username</label>
       <input type="text" id="login-username" placeholder="your_username" autocomplete="off" />
     </div>
+    <div id="login-password-wrap" style="display:none;margin-top:12px;">
+      <label id="login-password-label" style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px;">Team Password</label>
+      <div id="login-password-hint" style="font-size:12px;color:var(--accent2);margin-bottom:6px;display:none;"></div>
+      <input type="password" id="login-password" placeholder="Enter team password"
+        autocomplete="off"
+        style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);
+        border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:14px;
+        outline:none;box-sizing:border-box;"
+        onkeydown="if(event.key==='Enter')App.submitPassword()"/>
+    </div>
     <button class="login-btn" id="login-submit-btn" onclick="document.getElementById('login-password-wrap').style.display!=='none'?App.submitPassword():App.doLogin()">Connect to Sleeper →</button>
     <div id="login-error" class="login-error hidden"></div>
     <hr class="login-divider" />
@@ -362,16 +372,6 @@ window.addEventListener('DOMContentLoaded',function(){
         text-decoration:underline;font-family:var(--font-body);padding:4px 8px;">
         👁 Browse as Guest (read-only)
       </button>
-    </div>
-    <div id="login-password-wrap" style="display:none;margin-top:12px;">
-      <label id="login-password-label" style="font-size:12px;color:var(--text3);display:block;margin-bottom:4px;">Team Password</label>
-      <div id="login-password-hint" style="font-size:12px;color:var(--accent2);margin-bottom:6px;display:none;"></div>
-      <input type="password" id="login-password" placeholder="Enter team password"
-        autocomplete="off"
-        style="width:100%;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);
-        border-radius:var(--radius-sm);color:var(--text);font-family:var(--font-body);font-size:14px;
-        outline:none;box-sizing:border-box;"
-        onkeydown="if(event.key==='Enter')App.doLogin()"/>
     </div>
   </div>
 </div>
