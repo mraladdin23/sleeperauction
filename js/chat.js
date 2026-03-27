@@ -30,7 +30,7 @@ function initChatView() {
       </div>
 
       <!-- Messages -->
-      <div id="chat-messages" style="flex:1;min-height:0;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:12px;">
+      <div id="chat-messages" style="flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:8px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:12px;">
         <div style="text-align:center;color:var(--text3);font-size:12px;padding:20px;">Loading messages…</div>
       </div>
 
