@@ -1,4 +1,6 @@
 // chat.js — League Chat with smack talk, GIFs, and matchup trash talk
+// v2 — with flex chat messages
+console.log('[chat.js] loaded v2');
 
 let chatUnsubscribe = null;
 let chatLeagueId    = null;
@@ -104,7 +106,7 @@ function renderChatMessages(msgs) {
 
     // Row: flex item, aligned left or right via align-self
     const row = document.createElement('div');
-    row.style.cssText = 'align-self:' + (isMine ? 'flex-end' : 'flex-start') + ';max-width:75%;';
+    row.style.cssText = 'display:flex;flex-direction:column;gap:2px;' + 'align-self:' + (isMine ? 'flex-end' : 'flex-start') + ';max-width:75%;';
 
     // Sender name (others only)
     if (!isMine) {
