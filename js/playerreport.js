@@ -91,22 +91,34 @@ async function buildPlayerReport() {
     return { pid, name: info.name||pid, pos: info.pos||'?', team: info.team||'—', leagues, count: leagues.length, adp: info.adp||9999 };
   }).sort((a,b) => b.count - a.count || (a.adp||9999)-(b.adp||9999) || a.name.localeCompare(b.name));
 
-  // Build unowned top players:
-  // Include if: (currently active AND on an NFL team) OR (search_rank < 350, meaning
-  // Sleeper considers them fantasy-relevant — covers IR players who played last year)
+  // Fetch prior year stats to include players who played but may be FA/IR now
+  const priorYear = new Date().getFullYear() - 1;
+  let priorYearScorers = new Set();
+  try {
+    const statsResp = await fetch(`https://api.sleeper.app/v1/stats/nfl/regular/${priorYear}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE`);
+    if (statsResp.ok) {
+      const statsData = await statsResp.json();
+      Object.entries(statsData || {}).forEach(([pid, s]) => {
+        if ((s.pts_ppr || s.pts_half_ppr || s.pts_std || 0) > 0) {
+          priorYearScorers.add(pid);
+        }
+      });
+    }
+  } catch(e) { /* stats fetch failed, fall back to active-only */ }
+
+  // Build unowned top players: active with NFL team OR scored points last season
   const unowned = Object.entries(byId)
     .filter(([pid, p]) => {
       if (ownedIds.has(pid)) return false;
       if (!['QB','RB','WR','TE'].includes(p.pos)) return false;
       const hasTeam = p.team && p.team !== '—' && p.team !== 'FA';
-      const isRelevant = (p.adp || 9999) < 350; // Sleeper only ranks relevant players
-      if (!isRelevant) return false; // exclude truly inactive/retired
-      if (!p.active && !hasTeam) return false; // must be active or on a team
-      return true;
+      const activeOnTeam = p.active && hasTeam;
+      const scoredLastYear = priorYearScorers.has(pid);
+      return activeOnTeam || scoredLastYear;
     })
     .map(([pid, p]) => ({ pid, name: p.name, pos: p.pos, team: p.team||'—', adp: p.adp||9999 }))
-    .sort((a,b) => a.adp - b.adp)
-    .slice(0, 150);
+    .sort((a,b) => (a.adp||9999) - (b.adp||9999))
+    .slice(0, 50);
 
   // Positional counts
   const posCounts = {};

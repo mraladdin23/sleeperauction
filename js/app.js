@@ -238,30 +238,74 @@ const App = (() => {
       const labelMap = window.getLeagueLabelMap ? getLeagueLabelMap() : {};
 
       // ── Group filter bar ─────────────────────────────────────
-      // Build filter chips from personal labels
       const filterBar = document.getElementById('picker-filter-bar');
-      if (filterBar && window.getPersonalLabels) {
-        const labels = window.getPersonalLabels();
-        const labelEntries = Object.entries(labels);
-        if (labelEntries.length) {
+      if (filterBar) {
+        const myUsername = (state.user?.username || '').toLowerCase();
+        const personalLabels = window.getPersonalLabels ? window.getPersonalLabels() : {};
+        const labelEntries = Object.entries(personalLabels);
+
+        // Load comm groups from Firebase for filter chips
+        let commGroupEntries = [];
+        try {
+          const cgSnap = await db.ref('leagues/_commGroups').once('value');
+          const allCG = cgSnap.val() || {};
+          // Show groups where user is commish OR is a member of any included league
+          const myLeagueIds = new Set(orderedLeagues.map(l => l.id));
+          commGroupEntries = Object.entries(allCG).filter(([,g]) => {
+            if ((g.commUsername||'').toLowerCase() === myUsername) return true;
+            return (g.leagueIds||[]).some(id => myLeagueIds.has(id));
+          });
+        } catch(e) {}
+
+        const hasFilters = labelEntries.length > 0 || commGroupEntries.length > 0;
+        if (hasFilters) {
           filterBar.style.display = '';
-          filterBar.innerHTML = `
-            <span style="font-size:11px;color:var(--text3);margin-right:4px;">Filter:</span>
-            <button onclick="window._pickerFilter=null;App.showLeaguePicker()" id="pf-all"
-              style="padding:3px 10px;font-size:11px;font-family:var(--font-body);background:var(--accent);color:#fff;border:none;border-radius:99px;cursor:pointer;margin-right:4px;">All</button>
-            ${labelEntries.map(([lid, l]) =>
-              `<button onclick="window._pickerFilter='${lid}';App.showLeaguePicker()" id="pf-${lid}"
-                style="padding:3px 10px;font-size:11px;font-family:var(--font-body);background:${l.color}22;color:${l.color};border:1px solid ${l.color}55;border-radius:99px;cursor:pointer;margin-right:4px;">${l.name}</button>`
-            ).join('')}`;
+          const activeF = window._pickerFilter || null;
+          const allBtn = `<button onclick="window._pickerFilter=null;App.showLeaguePicker()"
+            style="padding:3px 10px;font-size:11px;font-family:var(--font-body);
+            background:${!activeF?'var(--accent)':'var(--surface2)'};
+            color:${!activeF?'#fff':'var(--text2)'};
+            border:1px solid var(--border);border-radius:99px;cursor:pointer;margin-right:4px;">All</button>`;
+
+          const labelBtns = labelEntries.map(([lid, l]) =>
+            `<button onclick="window._pickerFilter=${JSON.stringify('lbl:'+lid)};App.showLeaguePicker()"
+              style="padding:3px 10px;font-size:11px;font-family:var(--font-body);
+              background:${activeF==='lbl:'+lid?l.color:l.color+'22'};
+              color:${activeF==='lbl:'+lid?'#fff':l.color};
+              border:1px solid ${l.color}55;border-radius:99px;cursor:pointer;margin-right:4px;">🏷 ${l.name}</button>`
+          ).join('');
+
+          const commBtns = commGroupEntries.map(([gid, g]) =>
+            `<button onclick="window._pickerFilter=${JSON.stringify('cg:'+gid)};App.showLeaguePicker()"
+              style="padding:3px 10px;font-size:11px;font-family:var(--font-body);
+              background:${activeF==='cg:'+gid?g.color:g.color+'22'};
+              color:${activeF==='cg:'+gid?'#fff':g.color};
+              border:1px solid ${g.color+'55'};border-radius:99px;cursor:pointer;margin-right:4px;">📣 ${g.name}</button>`
+          ).join('');
+
+          filterBar.innerHTML = `<span style="font-size:11px;color:var(--text3);margin-right:4px;flex-shrink:0;">Filter:</span>${allBtn}${labelBtns}${commBtns}`;
         } else {
           filterBar.style.display = 'none';
         }
       }
 
-      // Apply active filter
-      const activeFilter = window._pickerFilter;
-      const activeLabel  = activeFilter && window.getPersonalLabels ? window.getPersonalLabels()[activeFilter] : null;
-      const filterIds    = activeLabel ? new Set(activeLabel.leagueIds || []) : null;
+      // Apply active filter to league list
+      const activeFilter = window._pickerFilter || null;
+      let filterIds = null;
+      if (activeFilter) {
+        if (activeFilter.startsWith('lbl:')) {
+          const lid = activeFilter.slice(4);
+          const lbl = window.getPersonalLabels ? window.getPersonalLabels()[lid] : null;
+          if (lbl) filterIds = new Set(lbl.leagueIds || []);
+        } else if (activeFilter.startsWith('cg:')) {
+          const gid = activeFilter.slice(3);
+          try {
+            const snap = await db.ref(`leagues/_commGroups/${gid}`).once('value');
+            const g = snap.val();
+            if (g) filterIds = new Set(g.leagueIds || []);
+          } catch(e) {}
+        }
+      }
       const visibleLeagues = filterIds ? orderedLeagues.filter(l => l.unregistered || l.isRenewal || filterIds.has(l.id)) : orderedLeagues;
 
       el.innerHTML = visibleLeagues.map(l => {
@@ -601,7 +645,8 @@ const App = (() => {
           } catch(e) { /* no password set, continue normally */ }
         }
 
-        await initApp();
+        // Always show picker on boot — user can click to re-enter their league
+        await showLeaguePicker();
         return;
       } catch (e) { /* fall through */ }
     }
