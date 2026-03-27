@@ -82,86 +82,83 @@ function renderChatMessages(msgs) {
   const me = localStorage.getItem('sb_username') || '';
   const isBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
 
-  // Use DOM to avoid innerHTML stacking issues
   while (el.firstChild) el.removeChild(el.firstChild);
 
   if (!msgs.length) {
-    const empty = document.createElement('div');
-    empty.style.cssText = 'text-align:center;color:var(--text3);font-size:13px;padding:32px;';
-    empty.textContent = 'No messages yet. Say something! 👋';
-    el.appendChild(empty);
+    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:32px;">No messages yet. Say something! 👋</div>';
     return;
   }
 
-  const frag = document.createDocumentFragment();
   for (const m of msgs) {
     const isMine = (m.user || '').toLowerCase() === me.toLowerCase();
     const ts = m.ts ? new Date(m.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
+    const align = isMine ? 'right' : 'left';
 
+    // Wrapper — simple block, text-align controls bubble float
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;flex-direction:column;align-items:' + (isMine?'flex-end':'flex-start') + ';gap:2px;margin-bottom:8px;';
+    row.style.cssText = 'margin-bottom:10px;text-align:' + align + ';';
 
+    // Sender name (others only)
     if (!isMine) {
       const user = document.createElement('div');
-      user.style.cssText = 'font-size:11px;color:var(--text3);margin-left:4px;';
+      user.style.cssText = 'font-size:11px;color:var(--text3);margin-bottom:2px;margin-left:2px;';
       user.textContent = m.user || '';
       row.appendChild(user);
     }
 
+    // Bubble
     const bubble = document.createElement('div');
-    bubble.style.cssText = 'max-width:75%;padding:' + (m.type==='gif'?'0':'8px 12px') + ';' +
-      'border-radius:' + (isMine?'16px 16px 4px 16px':'16px 16px 16px 4px') + ';' +
-      'background:' + (m.type==='gif'?'transparent':isMine?'var(--accent)':'var(--surface2)') + ';' +
-      'color:' + (isMine?'#fff':'var(--text)') + ';position:relative;';
+    bubble.style.cssText =
+      'display:inline-block;' +
+      'max-width:72%;' +
+      'text-align:left;' +
+      'vertical-align:top;' +
+      'position:relative;' +
+      'padding:' + (m.type==='gif' ? '0' : '8px 12px') + ';' +
+      'border-radius:' + (isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px') + ';' +
+      'background:' + (m.type==='gif' ? 'transparent' : isMine ? 'var(--accent)' : 'var(--surface2)') + ';' +
+      'color:' + (isMine ? '#fff' : 'var(--text)') + ';';
 
     if (m.type === 'gif') {
       const img = document.createElement('img');
       img.src = m.text || '';
-      img.style.cssText = 'max-width:220px;border-radius:8px;display:block;';
+      img.style.cssText = 'max-width:200px;border-radius:8px;display:block;';
       img.loading = 'lazy';
       bubble.appendChild(img);
-      // Delete button for own GIFs
-      if (isMine) {
-        const del = document.createElement('button');
-        del.style.cssText = 'position:absolute;top:-6px;right:-6px;background:var(--surface2);border:1px solid var(--border);border-radius:99px;color:var(--text3);font-size:9px;cursor:pointer;padding:1px 4px;opacity:0;transition:opacity .15s;';
-        del.textContent = '✕';
-        del.onclick = () => deleteChatMsg(m.id);
-        bubble.appendChild(del);
-        bubble.addEventListener('mouseenter', () => del.style.opacity='1');
-        bubble.addEventListener('mouseleave', () => del.style.opacity='0');
-      }
     } else {
       const txt = document.createElement('div');
       txt.style.cssText = 'font-size:13px;line-height:1.5;word-break:break-word;';
       txt.textContent = m.text || '';
       bubble.appendChild(txt);
-      if (isMine) {
-        const del = document.createElement('button');
-        del.style.cssText = 'position:absolute;top:-6px;right:-6px;background:var(--surface2);border:1px solid var(--border);border-radius:99px;color:var(--text3);font-size:9px;cursor:pointer;padding:1px 4px;opacity:0;transition:opacity .15s;';
-        del.textContent = '✕';
-        del.onclick = () => deleteChatMsg(m.id);
-        bubble.appendChild(del);
-        bubble.addEventListener('mouseenter', () => del.style.opacity='1');
-        bubble.addEventListener('mouseleave', () => del.style.opacity='0');
-      }
+    }
+
+    // Delete button (own messages)
+    if (isMine) {
+      const del = document.createElement('button');
+      del.style.cssText = 'position:absolute;top:-6px;right:-6px;background:var(--surface2);border:1px solid var(--border);border-radius:99px;color:var(--text3);font-size:9px;cursor:pointer;padding:1px 5px;opacity:0;transition:opacity .15s;';
+      del.textContent = '✕';
+      del.onclick = () => deleteChatMsg(m.id);
+      bubble.addEventListener('mouseenter', () => del.style.opacity = '1');
+      bubble.addEventListener('mouseleave', () => del.style.opacity = '0');
+      bubble.appendChild(del);
     }
 
     row.appendChild(bubble);
 
+    // Timestamp
     const time = document.createElement('div');
-    time.style.cssText = 'font-size:10px;color:var(--text3);margin:0 4px;';
+    time.style.cssText = 'font-size:10px;color:var(--text3);margin-top:2px;';
     time.textContent = ts;
     row.appendChild(time);
 
-    frag.appendChild(row);
+    el.appendChild(row);
   }
-  el.appendChild(frag);
+
   if (isBottom) el.scrollTop = el.scrollHeight;
 
-  // Update unread badge on chat tab
+  // Unread badge
   const badge = document.getElementById('chat-unread-badge');
-  const currentView = window.currentView || '';
-  if (badge && currentView !== 'chat' && msgs.length) {
+  if (badge && (window.currentView || '') !== 'chat' && msgs.length) {
     badge.style.display = '';
     badge.textContent = '●';
   }
@@ -330,5 +327,37 @@ function searchSidebarGifs(query) {} // sidebar removed
 async function sendSidebarGif(url) {} // sidebar removed
 
 // Expose for lazy loader
-window._chatInit = initChatView;
+
+function toggleEmojiPicker() {
+  const ep = document.getElementById('emoji-picker');
+  if (!ep) return;
+  const isHidden = ep.style.display === 'none' || !ep.style.display;
+  ep.style.display = isHidden ? '' : 'none';
+  if (isHidden) {
+    setTimeout(() => {
+      document.addEventListener('click', function _close(e) {
+        if (!ep.contains(e.target) && !e.target.closest('[onclick*="toggleEmojiPicker"]')) {
+          ep.style.display = 'none';
+        }
+        document.removeEventListener('click', _close);
+      });
+    }, 50);
+  }
+}
+
+function insertEmoji(emoji) {
+  const input = document.getElementById('chat-input');
+  if (!input) return;
+  const s = input.selectionStart || 0;
+  const e = input.selectionEnd || 0;
+  input.value = input.value.slice(0, s) + emoji + input.value.slice(e);
+  input.selectionStart = input.selectionEnd = s + emoji.length;
+  input.focus();
+  const ep = document.getElementById('emoji-picker');
+  if (ep) ep.style.display = 'none';
+}
+
+window._chatInit          = initChatView;
+window.toggleEmojiPicker = toggleEmojiPicker;
+window.insertEmoji        = insertEmoji;
 window.initChatSidebar = initChatSidebar;
