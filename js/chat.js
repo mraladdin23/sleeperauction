@@ -82,6 +82,7 @@ function subscribeChat(lid) {
   ref.on('value', snap => {
     const msgs = [];
     snap.forEach(child => msgs.push({ id: child.key, ...child.val() }));
+    console.log('[chat] Firebase snap children:', msgs.length, 'snap.numChildren:', snap.numChildren?.());
     renderChatMessages(msgs);
   });
   chatUnsubscribe = () => ref.off();
@@ -90,7 +91,7 @@ function subscribeChat(lid) {
 function renderChatMessages(msgs) {
   const el = document.getElementById('chat-messages');
   if (!el) return;
-  console.log('[chat] renderChatMessages called, msgs:', msgs.length, 'el exists:', !!el);
+  console.log('[chat] renderChatMessages called, msgs:', msgs.length, 'ids:', msgs.map(m=>m.id?.slice(-4)), 'el exists:', !!el);
   const me = localStorage.getItem('sb_username') || '';
   const wasAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
 
