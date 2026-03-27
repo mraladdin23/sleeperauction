@@ -1003,3 +1003,28 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
 
 /* ── Chat Sidebar / Drawer ─────────────────────────── */
 /* Sidebar message bubbles */
+
+/* ── Picker leagues grid ────────────────────────────── */
+#picker-leagues {
+  grid-template-columns: repeat(4, 1fr);
+}
+@media (max-width: 1200px) {
+  #picker-leagues { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 860px) {
+  #picker-leagues { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 540px) {
+  #picker-leagues { grid-template-columns: 1fr; }
+}
+
+/* ── Chat tab messages ──────────────────────────────── */
+#chat-messages {
+  display: block !important;
+}
+#chat-messages > div {
+  display: block !important;
+  position: static !important;
+  margin-bottom: 10px;
+  clear: both;
+}

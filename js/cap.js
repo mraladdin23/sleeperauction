@@ -661,7 +661,9 @@ function renderRosters() {
 
 // ── ALL PLAYERS ──────────────────────────────────────────────
 let apPosFilter = 'ALL';
-let apSearch = '';
+let apSearch    = '';
+let apPage      = 0;
+const AP_PAGE_SIZE = 25;
 
 // ── ALL PLAYERS TAB ───────────────────────────────────────────
 // Keep search state + stats cache at module level so search input 
@@ -795,8 +797,16 @@ function renderAllPlayers() {
   const totalSal = filtered.filter(p => p.slot === 'Active').reduce((s, p) => s + p.salary, 0);
   const wl       = JSON.parse(localStorage.getItem('sb_cap_watchlist') || '{}');
 
+  // Paginate: show AP_PAGE_SIZE at a time
+  const totalFiltered = filtered.length;
+  const totalPages = Math.ceil(totalFiltered / AP_PAGE_SIZE);
+  if (apPage >= totalPages) apPage = Math.max(0, totalPages - 1);
+  const pageStart = apPage * AP_PAGE_SIZE;
+  const pageEnd   = Math.min(pageStart + AP_PAGE_SIZE, totalFiltered);
+  const paginated = filtered.slice(pageStart, pageEnd);
+
   // Build rows — identical structure to FA tab, with owner/salary/badges added
-  const rows = filtered.map(p => {
+  const rows = paginated.map(p => {
     const lk       = PLAYER_LOOKUP[p.name.toLowerCase()] || {};
     const pid      = p.player_id || lk.player_id || '';
     // For dynasty players, get NFL team from _playerById (built from Sleeper DB)
@@ -890,9 +900,27 @@ function renderAllPlayers() {
   });
   document.getElementById('ap-title').textContent =
     (apPosFilter==='ALL' ? 'All Rostered Players' : apPosFilter + ' Players') + (apSearch ? ' · "' + apSearch + '"' : '');
-  document.getElementById('ap-count').textContent =
-    filtered.length + ' players' + (apPosFilter!=='ALL' && !apSearch ? ' · ' + fmtM(totalSal) + ' total cap' : '');
+  const countLabel = totalFiltered + ' players' + (apPosFilter!=='ALL' && !apSearch ? ' · ' + fmtM(totalSal) + ' total cap' : '');
+  document.getElementById('ap-count').textContent = countLabel;
   document.getElementById('ap-rows').innerHTML = rows;
+
+  // Pagination controls
+  let pgEl = document.getElementById('ap-pagination');
+  if (!pgEl) {
+    pgEl = document.createElement('div');
+    pgEl.id = 'ap-pagination';
+    pgEl.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:12px;padding:12px 0;font-size:13px;';
+    document.getElementById('ap-rows').insertAdjacentElement('afterend', pgEl);
+  }
+  if (totalPages > 1) {
+    pgEl.innerHTML =
+      `<button onclick="apPage=Math.max(0,apPage-1);renderAllPlayers()" style="padding:5px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-family:var(--font-body);" ${apPage===0?'disabled':''}>← Prev</button>` +
+      `<span style="color:var(--text3);">${pageStart+1}–${pageEnd} of ${totalFiltered}</span>` +
+      `<button onclick="apPage=Math.min(totalPages-1,apPage+1);renderAllPlayers()" style="padding:5px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-family:var(--font-body);" ${apPage>=totalPages-1?'disabled':''}>Next →</button>`;
+    pgEl.style.display = 'flex';
+  } else {
+    pgEl.style.display = 'none';
+  }
   document.getElementById('ap-empty').style.display = filtered.length ? 'none' : '';
 
   if (!apStatsMap) {
@@ -2559,8 +2587,7 @@ async function showPlayerCard(playerId, playerName) {
     pData    = playerId ? byId[playerId] : null;
   }
   _pcPlayerId = playerId || null;
-  console.log('[pc] pData:', JSON.stringify(pData), 'playerId:', _pcPlayerId);
-
+  
   const name    = pData?.name  || playerName || 'Unknown';
   const pos     = pData?.pos   || '—';
   const nflTeam = pData?.team  || '—';
@@ -2641,7 +2668,7 @@ function pcSetYear(y) {
 }
 
 async function pcLoadYear(year) {
-  console.log('[pc] pcLoadYear called, year:', year, 'playerId:', _pcPlayerId, 'byIdSize:', Object.keys(window._playerById||{}).length);
+  
   if (!_pcPlayerId) { pcShowNoStats(); return; }
   const sumEl = document.getElementById('pc-season-summary');
   const logEl = document.getElementById('pc-game-log');
@@ -2654,7 +2681,7 @@ async function pcLoadYear(year) {
     let bulkData = null;
     try { bulkData = JSON.parse(localStorage.getItem(bulkKey) || 'null'); } catch(e) {}
     if (!bulkData) {
-      console.log('[pc] fetching bulk stats for', year);
+      
       const br = await fetch(`https://api.sleeper.app/v1/stats/nfl/regular/${year}?season_type=regular&position[]=QB&position[]=RB&position[]=WR&position[]=TE&position[]=K`);
       if (br.ok) {
         bulkData = await br.json();
@@ -2663,8 +2690,7 @@ async function pcLoadYear(year) {
     }
 
     const seasonStats = bulkData?.[_pcPlayerId] || null;
-    console.log('[pc] seasonStats:', seasonStats ? JSON.stringify(seasonStats).slice(0,100) : 'NOT FOUND in bulk');
-
+    
     // Step 2: Get weekly breakdown from per-player endpoint
     let weeklyArr = _pcWeekCache[year] || null;
     // Check sessionStorage cache first
@@ -2674,7 +2700,7 @@ async function pcLoadYear(year) {
     }
     if (!weeklyArr) {
       // Fetch weekly breakdown from bulk per-week endpoints (18 parallel)
-      console.log('[pc] fetching 18 weekly endpoints for', year, 'player', _pcPlayerId);
+      
       try {
         const weekResults = await Promise.all(
           Array.from({length:18},(_,i)=>i+1).map(w =>
@@ -2686,7 +2712,7 @@ async function pcLoadYear(year) {
           )
         );
         weeklyArr = weekResults.filter(Boolean);
-        console.log('[pc] weeklyArr result:', weeklyArr.length, 'weeks with data');
+        
         if (weeklyArr.length) {
           _pcWeekCache[year] = weeklyArr;
           try { sessionStorage.setItem(_ssKey, JSON.stringify(weeklyArr)); } catch(e) {}
