@@ -20,6 +20,8 @@ function initChatView() {
   }
   chatLeagueId = lid;
 
+  console.log("[chat] building HTML for container:", container.id);
+  try {
   container.innerHTML = `
     <div class="chat-wrap" style="display:flex;flex-direction:column;height:calc(100vh - 100px);max-width:800px;margin:0 auto;padding:16px;">
 
@@ -67,7 +69,11 @@ function initChatView() {
       </div>
     </div>`;
 
+  } catch(e) { console.error("[chat] innerHTML error:", e); return; }
+  console.log("[chat] HTML built successfully");
+  console.log("[chat] about to subscribeChat for lid:", lid);
   subscribeChat(lid);
+  console.log("[chat] subscribeChat called");
 }
 
 function subscribeChat(lid) {
@@ -84,48 +90,40 @@ function subscribeChat(lid) {
 function renderChatMessages(msgs) {
   const el = document.getElementById('chat-messages');
   if (!el) return;
+  console.log('[chat] renderChatMessages called, msgs:', msgs.length, 'el exists:', !!el);
   const me = localStorage.getItem('sb_username') || '';
-  const isBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+  const wasAtBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
 
-  while (el.firstChild) el.removeChild(el.firstChild);
+  // Clear all children
+  el.innerHTML = '';
 
   if (!msgs.length) {
-    const empty = document.createElement('div');
-    empty.style.cssText = 'text-align:center;color:var(--text3);font-size:13px;padding:32px;align-self:center;';
-    empty.textContent = 'No messages yet. Say something! 👋';
-    el.appendChild(empty);
+    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:32px;">No messages yet. Say something! 👋</div>';
     return;
   }
 
-  for (const m of msgs) {
+  msgs.forEach(m => {
     const isMine = (m.user || '').toLowerCase() === me.toLowerCase();
     const ts = m.ts ? new Date(m.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
 
-    // Row: flex item, aligned left or right via align-self
+    // Outer row — flex column, aligned left or right
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;flex-direction:column;gap:2px;' + 'align-self:' + (isMine ? 'flex-end' : 'flex-start') + ';max-width:75%;';
+    row.style.cssText =
+      'display:flex;' +
+      'flex-direction:column;' +
+      'align-items:' + (isMine ? 'flex-end' : 'flex-start') + ';' +
+      'margin-bottom:4px;';
 
     // Sender name (others only)
     if (!isMine) {
-      const user = document.createElement('div');
-      user.style.cssText = 'font-size:11px;color:var(--text3);margin-bottom:2px;margin-left:2px;';
-      user.textContent = m.user || '';
-      row.appendChild(user);
+      const name = document.createElement('div');
+      name.style.cssText = 'font-size:11px;color:var(--text3);margin-bottom:1px;';
+      name.textContent = m.user || '';
+      row.appendChild(name);
     }
-
-    // Bubble wrapper (relative for delete button)
-    const bubbleWrap = document.createElement('div');
-    bubbleWrap.style.cssText = 'position:relative;display:inline-block;max-width:100%;';
 
     // Bubble
     const bubble = document.createElement('div');
-    bubble.style.cssText =
-      'padding:' + (m.type === 'gif' ? '0' : '8px 12px') + ';' +
-      'border-radius:' + (isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px') + ';' +
-      'background:' + (m.type === 'gif' ? 'transparent' : isMine ? 'var(--accent)' : 'var(--surface2)') + ';' +
-      'color:' + (isMine ? '#fff' : 'var(--text)') + ';' +
-      'word-break:break-word;font-size:13px;line-height:1.5;';
-
     if (m.type === 'gif') {
       const img = document.createElement('img');
       img.src = m.text || '';
@@ -133,36 +131,30 @@ function renderChatMessages(msgs) {
       img.loading = 'lazy';
       bubble.appendChild(img);
     } else {
+      bubble.style.cssText =
+        'display:block;' +
+        'max-width:300px;' +
+        'padding:8px 12px;' +
+        'border-radius:' + (isMine ? '16px 16px 4px 16px' : '16px 16px 16px 4px') + ';' +
+        'background:' + (isMine ? 'var(--accent)' : 'var(--surface2)') + ';' +
+        'color:' + (isMine ? '#fff' : 'var(--text)') + ';' +
+        'font-size:13px;line-height:1.5;word-break:break-word;';
       bubble.textContent = m.text || '';
     }
-
-    bubbleWrap.appendChild(bubble);
-
-    // Delete button (own messages only, shown on hover)
-    if (isMine) {
-      const del = document.createElement('button');
-      del.style.cssText = 'position:absolute;top:-6px;right:-6px;background:var(--surface2);border:1px solid var(--border);border-radius:99px;color:var(--text3);font-size:9px;cursor:pointer;padding:1px 5px;opacity:0;transition:opacity .15s;';
-      del.textContent = '✕';
-      del.onclick = () => deleteChatMsg(m.id);
-      bubbleWrap.addEventListener('mouseenter', () => del.style.opacity = '1');
-      bubbleWrap.addEventListener('mouseleave', () => del.style.opacity = '0');
-      bubbleWrap.appendChild(del);
-    }
-
-    row.appendChild(bubbleWrap);
+    row.appendChild(bubble);
 
     // Timestamp
     const time = document.createElement('div');
-    time.style.cssText = 'font-size:10px;color:var(--text3);margin-top:2px;' + (isMine ? 'text-align:right;' : '');
+    time.style.cssText = 'font-size:10px;color:var(--text3);margin-top:1px;';
     time.textContent = ts;
     row.appendChild(time);
 
     el.appendChild(row);
-  }
+  });
 
-  if (isBottom) el.scrollTop = el.scrollHeight;
+  if (wasAtBottom) el.scrollTop = el.scrollHeight;
 
-  // Unread badge on chat nav tab
+  // Unread badge
   const badge = document.getElementById('chat-unread-badge');
   if (badge && (window.currentView || '') !== 'chat' && msgs.length) {
     badge.style.display = '';
