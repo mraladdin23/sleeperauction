@@ -87,6 +87,11 @@ const App = (() => {
     const subtitle = document.getElementById('picker-subtitle');
     if (!el) return;
 
+    // Force equal columns inline (overrides any CSS caching issues)
+    el.style.display = 'grid';
+    el.style.gridTemplateColumns = 'repeat(4, 1fr)';
+    el.style.gap = '12px';
+
     el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:20px 0;">Loading your leagues…</div>';
 
     try {
