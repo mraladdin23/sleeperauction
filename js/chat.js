@@ -7,12 +7,18 @@ function initChatView() {
   const badge = document.getElementById('chat-unread-badge');
   if (badge) badge.style.display = 'none';
   const container = document.getElementById('view-chat');
-  if (!container) return;
+  if (!container) { console.warn('[chat] view-chat container not found'); return; }
 
   const lid = localStorage.getItem('sb_leagueId');
+  console.log('[chat] initChatView lid:', lid, 'chatLeagueId:', chatLeagueId);
   if (!lid) { container.innerHTML = '<div style="padding:32px;color:var(--text3);">No league selected.</div>'; return; }
 
-  if (chatLeagueId === lid && container.querySelector('.chat-wrap')) return; // already init'd
+  if (chatLeagueId === lid && container.querySelector('.chat-wrap')) {
+    console.log('[chat] already init, just re-subscribing');
+    // Re-subscribe in case subscription was lost
+    subscribeChat(lid);
+    return;
+  }
   chatLeagueId = lid;
 
   container.innerHTML = `
