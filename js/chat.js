@@ -1,4 +1,5 @@
 // chat.js — League Chat with smack talk, GIFs, and matchup trash talk
+console.log("[chat.js] loaded v3");
 // v2 — with flex chat messages
 console.log('[chat.js] loaded v2');
 
@@ -16,9 +17,7 @@ function initChatView() {
   if (!lid) { container.innerHTML = '<div style="padding:32px;color:var(--text3);">No league selected.</div>'; return; }
 
   if (chatLeagueId === lid && container.querySelector('.chat-wrap')) {
-    console.log('[chat] already init, just re-subscribing');
-    // Re-subscribe in case subscription was lost
-    subscribeChat(lid);
+    // Already initialized for this league - don't re-subscribe (would create duplicate listener)
     return;
   }
   chatLeagueId = lid;

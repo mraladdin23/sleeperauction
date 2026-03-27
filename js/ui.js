@@ -430,9 +430,10 @@ const UI = (() => {
     const activeIds   = activeIdsIn   !== undefined ? activeIdsIn   : new Set(state.auctions.filter(a => !a.processed && !a.cancelled && a.expiresAt > now).map(a => a.playerId));
     const myActiveNom = myActiveNomIn !== undefined ? myActiveNomIn : (myTeam ? state.auctions.find(a => !a.processed && !a.cancelled && a.expiresAt > now && a.nominatedBy === myTeam.roster_id) : null);
 
-    document.getElementById('fa-count').textContent = `${allFiltered.length} players`;
+    const _faCount = document.getElementById('fa-count'); if (_faCount) _faCount.textContent = `${allFiltered.length} players`;
 
     const tbody = document.getElementById('fa-tbody');
+    if (!tbody) return; // view not rendered yet
     if (!allFiltered.length) {
       tbody.innerHTML = `<tr><td colspan="5">${emptyState('\ud83d\udd0d','No players found','Try a different search or position filter.')}</td></tr>`;
       const pg = document.getElementById('fa-pagination');
@@ -940,6 +941,7 @@ const UI = (() => {
     const wl = state.watchlist || {};
     const ids = Object.keys(wl);
     const grid = document.getElementById('watchlist-grid');
+    if (!grid) return; // view not built yet
     const count = document.getElementById('wl-count');
     if (count) count.textContent = ids.length;
     if (!grid) return;
