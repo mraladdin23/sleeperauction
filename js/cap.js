@@ -912,11 +912,12 @@ function renderAllPlayers() {
     pgEl.style.cssText = 'display:flex;align-items:center;justify-content:center;gap:12px;padding:12px 0;font-size:13px;';
     document.getElementById('ap-rows').insertAdjacentElement('afterend', pgEl);
   }
+  window._apTotalPages = totalPages; // expose for onclick handlers
   if (totalPages > 1) {
     pgEl.innerHTML =
       `<button onclick="apPage=Math.max(0,apPage-1);renderAllPlayers()" style="padding:5px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-family:var(--font-body);" ${apPage===0?'disabled':''}>← Prev</button>` +
       `<span style="color:var(--text3);">${pageStart+1}–${pageEnd} of ${totalFiltered}</span>` +
-      `<button onclick="apPage=Math.min(totalPages-1,apPage+1);renderAllPlayers()" style="padding:5px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-family:var(--font-body);" ${apPage>=totalPages-1?'disabled':''}>Next →</button>`;
+      `<button onclick="apPage=Math.min(window._apTotalPages-1,apPage+1);renderAllPlayers()" style="padding:5px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-family:var(--font-body);" ${apPage>=totalPages-1?'disabled':''}>Next →</button>`;
     pgEl.style.display = 'flex';
   } else {
     pgEl.style.display = 'none';

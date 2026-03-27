@@ -16,7 +16,7 @@ function initChatView() {
   chatLeagueId = lid;
 
   container.innerHTML = `
-    <div class="chat-wrap" style="display:flex;flex-direction:column;height:calc(100vh - 120px);max-width:800px;margin:0 auto;padding:16px;">
+    <div class="chat-wrap" style="display:flex;flex-direction:column;height:calc(100vh - 100px);max-width:800px;margin:0 auto;padding:16px;">
 
       <!-- GIF search panel -->
       <div id="gif-panel" style="display:none;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:8px;">
@@ -30,7 +30,7 @@ function initChatView() {
       </div>
 
       <!-- Messages -->
-      <div id="chat-messages" style="flex:1;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:12px;">
+      <div id="chat-messages" style="flex:1;min-height:0;overflow-y:auto;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:12px;">
         <div style="text-align:center;color:var(--text3);font-size:12px;padding:20px;">Loading messages…</div>
       </div>
 
@@ -43,6 +43,14 @@ function initChatView() {
           </div>
         </div>
         <button onclick="openGifSearch()" title="Send GIF" style="padding:7px 10px;font-size:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">🎬</button>
+                <div style="position:relative;">
+          <button onclick="toggleEmojiPicker()" title="Emoji" style="padding:7px 10px;font-size:14px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;">😊</button>
+          <div id="emoji-picker" style="display:none;position:absolute;bottom:calc(100%+4px);left:0;width:260px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,.4);z-index:1000;padding:8px;">
+            <div style="display:flex;flex-wrap:wrap;gap:2px;">
+              ${['🏈','🏆','🔥','💪','😂','😤','💀','🎉','👀','😮','🤣','😭','💯','🤡','👑','⚡','🎯','🗑️','💰','🤑','😈','🙌','👏','🫡','😎','🥶','🤠','🧠','😅','🫠'].map(e=>`<span onclick="insertEmoji('${e}')" style="font-size:20px;cursor:pointer;padding:3px;border-radius:4px;display:inline-block;" onmouseover="this.style.background='var(--surface2)'" onmouseout="this.style.background=''">${e}</span>`).join('')}
+            </div>
+          </div>
+        </div>
       </div>
       <div style="display:flex;gap:8px;align-items:flex-end;">
         <textarea id="chat-input" placeholder="Message…"
