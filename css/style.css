@@ -1021,6 +1021,8 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
 /* ── Chat tab messages ──────────────────────────────── */
 #chat-messages {
   display: block !important;
+  min-height: 0;
+  overflow-y: auto;
 }
 #chat-messages > div {
   display: block !important;

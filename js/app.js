@@ -139,15 +139,7 @@ const App = (() => {
           meta:         registry[id],
           unregistered: false,
         })),
-        ...unregistered.filter(l => !registeredIds.has(l.previous_league_id)).map(l => ({
-          id:           l.league_id,
-          name:         l.name,
-          season:       l.season || season,
-          status:       l.status,
-          meta:         null,
-          unregistered: true,
-          isRenewal:    false,
-        })),
+        // Unregistered leagues are shown separately near the register section
         // Renewed leagues: current season version of a registered league
         ...renewals.map(l => ({
           id:           l.league_id,
@@ -176,6 +168,23 @@ const App = (() => {
 
       // Apply hide-commish-only filter
       const hideCommishOnly = document.getElementById('hide-commish-only')?.checked;
+      // Show unregistered leagues as hint near register section
+      const unreg = unregistered.filter(l => !registeredIds.has(l.previous_league_id));
+      const hintEl = document.getElementById('picker-unregistered-hint');
+      if (hintEl) {
+        if (unreg.length > 0) {
+          hintEl.innerHTML = `<div style="margin-bottom:10px;padding:10px 12px;background:var(--surface2);border-radius:var(--radius-sm);border-left:3px solid var(--accent2);">
+            <div style="font-size:12px;font-weight:600;margin-bottom:4px;">You're in ${unreg.length} unregistered league${unreg.length>1?'s':''} on Sleeper</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">
+              ${unreg.map(l=>`<button onclick="document.getElementById('picker-league-id').value='${l.league_id}';document.getElementById('picker-league-id').focus()"
+                style="font-size:11px;padding:3px 8px;background:var(--surface);border:1px solid var(--border);border-radius:4px;cursor:pointer;font-family:var(--font-body);">${l.name}</button>`).join('')}
+            </div>
+          </div>`;
+        } else {
+          hintEl.innerHTML = '';
+        }
+      }
+
       // Build hide-commish-only filter
       // "Hide leagues without my team" = hide leagues where user has no roster (owner_id match)
       // We check rosters lazily and cache in sessionStorage
@@ -372,26 +381,25 @@ const App = (() => {
             ondragleave="if(window.onLeagueDragLeave)onLeagueDragLeave(event)"
             ondrop="if(window.onLeagueDrop)onLeagueDrop(event,'${l.id}')"
             style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
-            padding:16px 18px;cursor:pointer;transition:border-color .15s;"
+            padding:12px 14px;cursor:pointer;transition:border-color .15s;"
             onmouseover="this.style.borderColor='var(--accent)'"
             onmouseout="this.style.borderColor='var(--border)'">
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;min-width:0;overflow:hidden;">
-              <div style="min-width:0;flex:1;overflow:hidden;">
-                <div style="display:flex;align-items:center;gap:6px;margin-bottom:3px;min-width:0;">
-                  <div style="font-size:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;">${l.name}</div>
-                  ${l.isComm ? '<span style="font-size:10px;padding:1px 6px;border-radius:99px;background:var(--accent)22;color:var(--accent);border:1px solid var(--accent)55;font-weight:600;flex-shrink:0;white-space:nowrap;">⚙ Commish</span>' : ''}
-                </div>
-                <div style="font-size:12px;color:var(--text3);">${l.season} Season</div>
-                <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;">${[featureTags, labelChip].filter(Boolean).join('')}</div>
+            <div style="display:flex;flex-direction:column;gap:6px;min-width:0;">
+              <!-- Top: name + commish badge -->
+              <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+                <div style="font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1;min-width:0;">${l.name}</div>
+                ${l.isComm ? '<span style="font-size:10px;padding:1px 5px;border-radius:99px;background:var(--accent)22;color:var(--accent);border:1px solid var(--accent)44;font-weight:600;flex-shrink:0;">⚙ Commish</span>' : ''}
               </div>
-              <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0;">
-                <div style="font-size:12px;color:${statusColor};font-weight:500;">${statusLabel}</div>
-                <div style="font-size:11px;color:var(--text3);">ID: ${l.id.slice(-8)}</div>
+              <!-- Middle: label chip if any -->
+              ${labelChip ? `<div>${labelChip}</div>` : ''}
+              <!-- Bottom: status + delete -->
+              <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;">
+                <span style="font-size:11px;color:${statusColor};font-weight:500;">${statusLabel}</span>
                 ${l.meta?.addedBy === (state.user?.username||'').toLowerCase() || state.isCommissioner
                   ? `<button onclick="event.stopPropagation();App.deleteLeague('${l.id}','${l.name.replace(/'/g,"\'")}')"
-                      style="font-size:11px;padding:3px 9px;background:none;border:1px solid rgba(255,77,106,.4);
+                      style="font-size:10px;padding:2px 7px;background:none;border:1px solid rgba(255,77,106,.35);
                       border-radius:4px;color:var(--red);cursor:pointer;font-family:var(--font-body);">
-                      🗑 Remove
+                      🗑
                     </button>`
                   : ''}
               </div>
@@ -1561,6 +1569,9 @@ This only removes it from the registry — all league data in Firebase is preser
     UI.renderTeams(state.faabOverrides);
     UI.renderHistory(state.auctions);
     if (state.isCommissioner) UI.renderCommissioner(state.faabOverrides);
+    // Re-render watchlist and free agents so star toggles update immediately
+    if (UI.renderWatchlistTab) UI.renderWatchlistTab();
+    if (UI.renderFreeAgents) UI.renderFreeAgents(state.posFilter || 'ALL');
   }
 
   // ── Tab switching ────────────────────────────────────────
