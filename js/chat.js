@@ -4,6 +4,8 @@ let chatUnsubscribe = null;
 let chatLeagueId    = null;
 
 function initChatView() {
+  const badge = document.getElementById('chat-unread-badge');
+  if (badge) badge.style.display = 'none';
   const container = document.getElementById('view-chat');
   if (!container) return;
 
@@ -73,34 +75,81 @@ function renderChatMessages(msgs) {
   const el = document.getElementById('chat-messages');
   if (!el) return;
   const me = localStorage.getItem('sb_username') || '';
-  const isBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
+  const isBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+
+  // Use DOM to avoid innerHTML stacking issues
+  while (el.firstChild) el.removeChild(el.firstChild);
 
   if (!msgs.length) {
-    el.innerHTML = '<div style="text-align:center;color:var(--text3);font-size:13px;padding:32px;">No messages yet. Say something! 👋</div>';
+    const empty = document.createElement('div');
+    empty.style.cssText = 'text-align:center;color:var(--text3);font-size:13px;padding:32px;';
+    empty.textContent = 'No messages yet. Say something! 👋';
+    el.appendChild(empty);
     return;
   }
 
-  el.innerHTML = msgs.map(m => {
-    const isMine  = m.user?.toLowerCase() === me.toLowerCase();
-    const isGif   = m.type === 'gif';
-    const ts      = m.ts ? new Date(m.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
-    const align   = isMine ? 'flex-end' : 'flex-start';
-    const bg      = isMine ? 'var(--accent)' : 'var(--surface2)';
-    const color   = isMine ? '#fff' : 'var(--text)';
-    const content = isGif
-      ? `<img src="${m.text}" style="max-width:220px;border-radius:8px;display:block;" loading="lazy" />`
-      : `<div style="font-size:13px;line-height:1.5;word-break:break-word;">${escapeHtml(m.text)}</div>`;
-    return `
-      <div style="display:flex;flex-direction:column;align-items:${align};gap:2px;">
-        ${!isMine ? `<div style="font-size:11px;color:var(--text3);margin-left:4px;">${escapeHtml(m.user||'')}</div>` : ''}
-        <div style="max-width:75%;background:${isGif?'transparent':bg};color:${color};padding:${isGif?'0':'8px 12px'};border-radius:${isMine?'16px 16px 4px 16px':'16px 16px 16px 4px'};">
-          ${content}
-        </div>
-        <div style="font-size:10px;color:var(--text3);margin:0 4px;">${ts}</div>
-      </div>`;
-  }).join('');
+  const frag = document.createDocumentFragment();
+  for (const m of msgs) {
+    const isMine = (m.user || '').toLowerCase() === me.toLowerCase();
+    const ts = m.ts ? new Date(m.ts).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '';
 
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;flex-direction:column;align-items:' + (isMine?'flex-end':'flex-start') + ';gap:2px;margin-bottom:8px;';
+
+    if (!isMine) {
+      const user = document.createElement('div');
+      user.style.cssText = 'font-size:11px;color:var(--text3);margin-left:4px;';
+      user.textContent = m.user || '';
+      row.appendChild(user);
+    }
+
+    const bubble = document.createElement('div');
+    bubble.style.cssText = 'max-width:75%;padding:' + (m.type==='gif'?'0':'8px 12px') + ';' +
+      'border-radius:' + (isMine?'16px 16px 4px 16px':'16px 16px 16px 4px') + ';' +
+      'background:' + (m.type==='gif'?'transparent':isMine?'var(--accent)':'var(--surface2)') + ';' +
+      'color:' + (isMine?'#fff':'var(--text)') + ';position:relative;';
+
+    if (m.type === 'gif') {
+      const img = document.createElement('img');
+      img.src = m.text || '';
+      img.style.cssText = 'max-width:220px;border-radius:8px;display:block;';
+      img.loading = 'lazy';
+      bubble.appendChild(img);
+    } else {
+      const txt = document.createElement('div');
+      txt.style.cssText = 'font-size:13px;line-height:1.5;word-break:break-word;';
+      txt.textContent = m.text || '';
+      bubble.appendChild(txt);
+      if (isMine) {
+        const del = document.createElement('button');
+        del.style.cssText = 'position:absolute;top:-6px;right:-6px;background:var(--surface2);border:1px solid var(--border);border-radius:99px;color:var(--text3);font-size:9px;cursor:pointer;padding:1px 4px;opacity:0;transition:opacity .15s;';
+        del.textContent = '✕';
+        del.onclick = () => deleteChatMsg(m.id);
+        bubble.appendChild(del);
+        bubble.addEventListener('mouseenter', () => del.style.opacity='1');
+        bubble.addEventListener('mouseleave', () => del.style.opacity='0');
+      }
+    }
+
+    row.appendChild(bubble);
+
+    const time = document.createElement('div');
+    time.style.cssText = 'font-size:10px;color:var(--text3);margin:0 4px;';
+    time.textContent = ts;
+    row.appendChild(time);
+
+    frag.appendChild(row);
+  }
+  el.appendChild(frag);
   if (isBottom) el.scrollTop = el.scrollHeight;
+
+  // Update unread badge on chat tab
+  const badge = document.getElementById('chat-unread-badge');
+  const currentView = window.currentView || '';
+  if (badge && currentView !== 'chat' && msgs.length) {
+    badge.style.display = '';
+    badge.textContent = '●';
+  }
 }
 
 async function sendChatMessage() {
@@ -234,145 +283,13 @@ let _sidebarOpen = false;
 let _sidebarCollapsed = false;
 let _sidebarSubbed = false;
 
-function initChatSidebar(lid) {
-  const sidebar = document.getElementById('chat-sidebar');
-  if (!sidebar || _sidebarSubbed) return;
-  sidebar.style.display = 'flex';
-  document.body.classList.add('chat-open');
-  _sidebarSubbed = true;
+function initChatSidebar(lid) {} // sidebar removed
 
-  // Subscribe to messages
-  const ref = db.ref(`leagues/${lid}/chat`).orderByChild('ts').limitToLast(50);
-  ref.on('value', snap => {
-    const msgs = [];
-    snap.forEach(child => msgs.push({ id: child.key, ...child.val() }));
-    console.log('[chat] Firebase value fired, snap size:', snap.size, 'msgs built:', msgs.length);
-    renderSidebarMessages(msgs);
-  });
+function renderSidebarMessages(msgs) {} // sidebar removed
 
-  // Mobile: show as collapsed initially
-  if (window.innerWidth < 900) {
-    sidebar.classList.add('collapsed');
-    _sidebarCollapsed = true;
-  }
-}
+function toggleChatSidebar() {} // sidebar removed
 
-function renderSidebarMessages(msgs) {
-  const el = document.getElementById('chat-sidebar-messages');
-  if (!el) return;
-  const me = localStorage.getItem('sb_username') || '';
-  const isBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-
-  console.log('[chat] renderSidebarMessages called with', msgs.length, 'messages');
-  // Clear existing content using DOM (not innerHTML)
-  while (el.firstChild) el.removeChild(el.firstChild);
-
-  if (!msgs.length) {
-    const empty = document.createElement('div');
-    empty.style.cssText = 'text-align:center;color:var(--text3);font-size:12px;padding:20px;';
-    empty.textContent = 'No messages yet';
-    el.appendChild(empty);
-    return;
-  }
-
-  const frag = document.createDocumentFragment();
-
-  for (const m of msgs) {
-    const isMine  = (m.user || '').toLowerCase() === me.toLowerCase();
-
-    // Outer row div
-    const row = document.createElement('div');
-    row.style.cssText = 'margin-bottom:8px;padding:0 4px;';
-
-    // Username label
-    const user = document.createElement('div');
-    user.style.cssText = 'font-size:10px;color:var(--text3);margin-bottom:2px;text-align:' + (isMine ? 'right' : 'left') + ';';
-    user.textContent = m.user || '';
-    row.appendChild(user);
-
-    // Bubble wrapper (for alignment)
-    const wrap = document.createElement('div');
-    wrap.style.cssText = 'text-align:' + (isMine ? 'right' : 'left') + ';';
-
-    if (m.type === 'gif') {
-      const img = document.createElement('img');
-      img.src = m.text || '';
-      img.style.cssText = 'max-width:160px;border-radius:8px;' + (isMine ? 'margin-left:auto;' : '');
-      img.loading = 'lazy';
-      wrap.appendChild(img);
-    } else {
-      const bubble = document.createElement('span');
-      bubble.style.cssText = 'display:inline-block;padding:6px 10px;border-radius:12px;' +
-        'background:' + (isMine ? 'var(--accent)' : 'var(--surface2)') + ';' +
-        'color:' + (isMine ? '#fff' : 'var(--text)') + ';' +
-        'font-size:12px;line-height:1.5;word-break:break-word;max-width:80%;text-align:left;';
-      bubble.textContent = m.text || '';
-      wrap.appendChild(bubble);
-
-      // Delete button for own messages
-      if (isMine) {
-        const del = document.createElement('button');
-        del.style.cssText = 'background:none;border:none;color:var(--text3);font-size:10px;cursor:pointer;padding:0 2px;opacity:0;vertical-align:middle;transition:opacity .15s;';
-        del.textContent = '✕';
-        del.title = 'Delete';
-        del.onclick = () => deleteChatMsg(m.id);
-        row.addEventListener('mouseenter', () => del.style.opacity = '1');
-        row.addEventListener('mouseleave', () => del.style.opacity = '0');
-        wrap.appendChild(del);
-      }
-    }
-
-    row.appendChild(wrap);
-    frag.appendChild(row);
-  }
-
-  el.appendChild(frag);
-
-  if (isBottom) el.scrollTop = el.scrollHeight;
-
-  if (_sidebarCollapsed && msgs.length) {
-    const badge = document.getElementById('chat-unread-badge');
-    if (badge) { badge.style.display = ''; badge.textContent = '●'; }
-  }
-}
-
-function toggleChatSidebar() {
-  const sidebar = document.getElementById('chat-sidebar');
-  if (!sidebar) return;
-  _sidebarCollapsed = !_sidebarCollapsed;
-  sidebar.classList.toggle('collapsed', _sidebarCollapsed);
-  document.getElementById('chat-sidebar-toggle-icon').textContent = _sidebarCollapsed ? '▲' : '▼';
-  if (!_sidebarCollapsed) {
-    const badge = document.getElementById('chat-unread-badge');
-    if (badge) badge.style.display = 'none';
-    setTimeout(() => {
-      const el = document.getElementById('chat-sidebar-messages');
-      if (el) el.scrollTop = el.scrollHeight;
-    }, 100);
-  }
-}
-
-function toggleChatDrawer() {
-  const sidebar = document.getElementById('chat-sidebar');
-  if (!sidebar) return;
-  if (window.innerWidth < 900) {
-    if (sidebar.classList.contains('open')) {
-      sidebar.classList.remove('open');
-      sidebar.classList.add('collapsed');
-      _sidebarCollapsed = true;
-    } else {
-      sidebar.classList.add('open');
-      sidebar.classList.remove('collapsed');
-      _sidebarCollapsed = false;
-      const badge = document.getElementById('chat-unread-badge');
-      if (badge) badge.style.display = 'none';
-      setTimeout(() => {
-        const el = document.getElementById('chat-sidebar-messages');
-        if (el) el.scrollTop = el.scrollHeight;
-      }, 100);
-    }
-  }
-}
+function toggleChatDrawer() {} // sidebar removed
 
 async function deleteChatMsg(msgId) {
   const lid = localStorage.getItem('sb_leagueId');
@@ -382,104 +299,20 @@ async function deleteChatMsg(msgId) {
   } catch(e) { console.warn('Delete failed:', e); }
 }
 
-async function sendSidebarMessage() {
-  const input = document.getElementById('chat-sidebar-input');
-  const text  = (input?.value || '').trim();
-  if (!text) return;
-  const lid  = localStorage.getItem('sb_leagueId');
-  const user = localStorage.getItem('sb_username') || 'Anonymous';
-  input.value = '';
-  try {
-    await db.ref(`leagues/${lid}/chat`).push({ user, text, ts: Date.now(), type: 'text' });
-  } catch(e) { console.warn('Sidebar send failed:', e); }
-}
+async function sendSidebarMessage() {} // sidebar removed
 
 // ── SIDEBAR SMACK TALK ─────────────────────────────────────────
-function toggleSidebarSmack() {
-  const menu = document.getElementById('sidebar-smack-menu');
-  const gif  = document.getElementById('sidebar-gif-panel');
-  if (!menu) return;
-  if (menu.style.display === 'none') {
-    if (gif) gif.style.display = 'none';
-    menu.innerHTML = SMACK_LINES.map((l, i) =>
-      `<div onclick="selectSidebarSmack(${i})"
-        style="padding:8px 12px;font-size:12px;cursor:pointer;border-bottom:1px solid var(--border);color:var(--text);"
-        onmouseover="this.style.background='var(--surface2)'"
-        onmouseout="this.style.background=''">${l}</div>`
-    ).join('');
-    menu.style.display = '';
-  } else {
-    menu.style.display = 'none';
-  }
-}
+function toggleSidebarSmack() {} // sidebar removed
 
-function selectSidebarSmack(idx) {
-  const input = document.getElementById('chat-sidebar-input');
-  if (input) { input.value = SMACK_LINES[idx]; input.focus(); }
-  const menu = document.getElementById('sidebar-smack-menu');
-  if (menu) menu.style.display = 'none';
-}
+function selectSidebarSmack(idx) {} // sidebar removed
 
 // ── SIDEBAR GIF SEARCH ─────────────────────────────────────────
-function toggleSidebarGif() {
-  const panel = document.getElementById('sidebar-gif-panel');
-  const menu  = document.getElementById('sidebar-smack-menu');
-  if (!panel) return;
-  if (panel.style.display === 'none') {
-    if (menu) menu.style.display = 'none';
-    panel.style.display = '';
-    const inp = document.getElementById('sidebar-gif-input');
-    if (inp) { inp.focus(); if (!inp.value) searchSidebarGifs('fantasy football'); }
-  } else {
-    panel.style.display = 'none';
-  }
-}
+function toggleSidebarGif() {} // sidebar removed
 
 let _sidebarGifTimer = null;
-function searchSidebarGifs(query) {
-  clearTimeout(_sidebarGifTimer);
-  if (!query.trim()) return;
-  _sidebarGifTimer = setTimeout(async () => {
-    const el = document.getElementById('sidebar-gif-results');
-    if (!el) return;
-    el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Searching…</div>';
-    try {
-      const resp = await fetch('https://g.tenor.com/v1/search?key=LIVDSRZULELA&contentfilter=low&media_filter=minimal&limit=9&q=' + encodeURIComponent(query));
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      const data = await resp.json();
-      const results = data.results || [];
-      if (!results.length) {
-        el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">No GIFs found</div>';
-        return;
-      }
-      el.innerHTML = results.map(g => {
-        const fmt     = (g.media || [])[0] || {};
-        const preview = (fmt.tinygif || fmt.nanogif || fmt.gif || {}).url || '';
-        const full    = (fmt.gif || fmt.mediumgif || fmt.tinygif || {}).url || preview;
-        if (!preview) return '';
-        const safeUrl = encodeURIComponent(full);
-        return `<img src="${preview}" data-gifurl="${safeUrl}"
-          style="width:100%;height:60px;object-fit:cover;border-radius:4px;cursor:pointer;border:2px solid transparent;"
-          onmouseover="this.style.borderColor='var(--accent)'"
-          onmouseout="this.style.borderColor='transparent'"
-          onclick="sendSidebarGif(decodeURIComponent(this.dataset.gifurl))" />`;
-      }).join('');
-    } catch(e) {
-      console.warn('searchSidebarGifs error:', e);
-      el.innerHTML = '<div style="grid-column:1/-1;text-align:center;color:var(--text3);font-size:11px;padding:8px;">Could not load GIFs</div>';
-    }
-  }, 500);
-}
+function searchSidebarGifs(query) {} // sidebar removed
 
-async function sendSidebarGif(url) {
-  if (!url) return;
-  const lid  = localStorage.getItem('sb_leagueId');
-  const user = localStorage.getItem('sb_username') || 'Anonymous';
-  document.getElementById('sidebar-gif-panel').style.display = 'none';
-  try {
-    await db.ref(`leagues/${lid}/chat`).push({ user, text: url, ts: Date.now(), type: 'gif' });
-  } catch(e) { console.warn('GIF send failed:', e); }
-}
+async function sendSidebarGif(url) {} // sidebar removed
 
 // Expose for lazy loader
 window._chatInit = initChatView;

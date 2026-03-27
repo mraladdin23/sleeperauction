@@ -75,11 +75,31 @@ async function buildPlayerReport() {
     } catch(e) {}
   }));
 
-  // Wait for _playerById to be populated (it's built async in app.js)
-  let waited = 0;
-  while ((!window._playerById || Object.keys(window._playerById).length < 100) && waited < 4000) {
-    await new Promise(r => setTimeout(r, 200));
-    waited += 200;
+  // Ensure _playerById is populated - build it ourselves if needed
+  if (!window._playerById || Object.keys(window._playerById).length < 100) {
+    try {
+      let cached = localStorage.getItem('sb_players');
+      if (!cached) {
+        el.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:8px 0;">Downloading player database…</div>';
+        const r = await fetch('https://api.sleeper.app/v1/players/nfl');
+        if (r.ok) { cached = await r.text(); try { localStorage.setItem('sb_players', cached); } catch(e){} }
+      }
+      if (cached) {
+        const players = JSON.parse(cached);
+        window._playerById = {};
+        Object.entries(players).forEach(([id, p]) => {
+          if (p.first_name && p.last_name) {
+            window._playerById[id] = {
+              name: p.first_name + ' ' + p.last_name,
+              pos:  (p.fantasy_positions||[])[0] || p.position || '—',
+              team: p.team || '—',
+              active: p.active === true,
+              adp:  p.search_rank || 9999,
+            };
+          }
+        });
+      }
+    } catch(e) { console.warn('playerreport: failed to build _playerById', e); }
   }
   const byId = window._playerById || {};
   const POS_COLOR = { QB:'#e88c30', RB:'#3b82f6', WR:'#22c55e', TE:'#a855f7', K:'#9ca3af', DEF:'#9ca3af' };
