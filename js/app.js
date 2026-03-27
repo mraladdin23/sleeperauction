@@ -382,7 +382,7 @@ const App = (() => {
             ondrop="if(window.onLeagueDrop)onLeagueDrop(event,'${l.id}')"
             style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
             padding:12px 14px;cursor:pointer;transition:border-color .15s;
-            display:flex;flex-direction:column;justify-content:space-between;min-height:80px;"
+            display:flex;flex-direction:column;justify-content:space-between;min-height:80px;width:100%;box-sizing:border-box;"
             onmouseover="this.style.borderColor='var(--accent)'"
             onmouseout="this.style.borderColor='var(--border)'">
             <!-- League name (always takes full width, always truncates) -->

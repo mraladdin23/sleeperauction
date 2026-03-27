@@ -1007,6 +1007,7 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
 /* ── Picker leagues grid ────────────────────────────── */
 #picker-leagues {
   grid-template-columns: repeat(4, 1fr);
+  align-items: stretch;
 }
 @media (max-width: 1200px) {
   #picker-leagues { grid-template-columns: repeat(3, 1fr); }
@@ -1020,13 +1021,9 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
 
 /* ── Chat tab messages ──────────────────────────────── */
 #chat-messages {
-  display: block !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 8px;
   min-height: 0;
   overflow-y: auto;
-}
-#chat-messages > div {
-  display: block !important;
-  position: static !important;
-  margin-bottom: 10px;
-  clear: both;
 }
