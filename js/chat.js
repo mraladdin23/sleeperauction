@@ -1,7 +1,5 @@
 // chat.js — League Chat with smack talk, GIFs, and matchup trash talk
 console.log("[chat.js] loaded v3");
-// v2 — with flex chat messages
-console.log('[chat.js] loaded v2');
 
 let chatUnsubscribe = null;
 let chatLeagueId    = null;
