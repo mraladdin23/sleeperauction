@@ -1,5 +1,5 @@
 // chat.js — League Chat
-console.log("[chat.js] loaded v4 - child_added");
+console.log("[chat.js] loaded v5");
 // chat.js — League Chat with smack talk, GIFs, and matchup trash talk
 
 let chatUnsubscribe = null;
@@ -14,10 +14,8 @@ function initChatView() {
   const lid = localStorage.getItem('sb_leagueId');
   if (!lid) { container.innerHTML = '<div style="padding:32px;color:var(--text3);">No league selected.</div>'; return; }
 
-  if (chatLeagueId === lid && container.querySelector('.chat-wrap')) {
-    // Already initialized for this league - don't re-subscribe (would create duplicate listener)
-    return;
-  }
+  // Always rebuild HTML to pick up any template changes
+  // subscribeChat handles unsubscribing old listener before creating new one
   chatLeagueId = lid;
 
   try {
