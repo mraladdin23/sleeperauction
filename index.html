@@ -201,6 +201,19 @@ body.light-mode .login-card{box-shadow:0 4px 24px rgba(0,0,0,.08);}
   if(localStorage.getItem('sb_theme')==='light')
     document.documentElement.classList.add('light-mode-pre');
 })();
+function toggleMobNav() {
+  const drawer = document.getElementById('mob-nav-drawer');
+  if (!drawer) return;
+  drawer.classList.toggle('hidden');
+  document.body.style.overflow = drawer.classList.contains('hidden') ? '' : 'hidden';
+}
+
+function closeMobNav() {
+  const drawer = document.getElementById('mob-nav-drawer');
+  if (drawer) drawer.classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
 function toggleAvatarMenu() {
   const dd     = document.getElementById('avatar-dropdown');
   const avatar = document.getElementById('user-avatar');
@@ -477,6 +490,7 @@ window.addEventListener('DOMContentLoaded',function(){
     <div class="app-bar-logo" onclick="navigateTo('home')" style="cursor:pointer;">
       Sleeper<span>Bid</span>
     </div>
+    <button class="mob-menu-btn" id="mob-menu-btn" onclick="toggleMobNav()" aria-label="Menu">☰</button>
     <nav class="app-bar-nav">
       <button class="app-btn" id="nav-home"      onclick="navigateTo('home')">      <span class="app-btn-icon">🏠</span><span>Home</span></button>
       <button class="app-btn" id="nav-roster"    onclick="navigateTo('roster')">    <span class="app-btn-icon">💰</span><span>Rosters</span></button>
@@ -524,6 +538,20 @@ window.addEventListener('DOMContentLoaded',function(){
     </div>
   </div>
 
+
+  <!-- Mobile nav drawer -->
+  <div id="mob-nav-drawer" class="mob-nav-drawer hidden" onclick="if(event.target===this)toggleMobNav()">
+    <div class="mob-nav-inner">
+      <button class="mob-nav-item" onclick="closeMobNav();navigateTo('home')">      <span class="mob-nav-icon">🏠</span>Home</button>
+      <button class="mob-nav-item" onclick="closeMobNav();navigateTo('roster')">    <span class="mob-nav-icon">💰</span>Rosters</button>
+      <button class="mob-nav-item" onclick="closeMobNav();navigateTo('standings')"> <span class="mob-nav-icon">📊</span>Standings</button>
+      <button class="mob-nav-item" onclick="closeMobNav();navigateTo('auction')">   <span class="mob-nav-icon">🏷</span>Auction</button>
+      <button class="mob-nav-item" onclick="closeMobNav();navigateTo('draft')">     <span class="mob-nav-icon">🎓</span>Draft</button>
+      <button class="mob-nav-item" onclick="closeMobNav();navigateTo('viz')">       <span class="mob-nav-icon">📈</span>Analytics</button>
+      <button class="mob-nav-item" onclick="closeMobNav();navigateTo('rules')">     <span class="mob-nav-icon">📋</span>Rules</button>
+      <button class="mob-nav-item" onclick="closeMobNav();navigateTo('chat')">      <span class="mob-nav-icon">💬</span>Chat</button>
+    </div>
+  </div>
 
   <!-- Chat float button (mobile) -->
   
@@ -630,6 +658,7 @@ function navigateTo(view) {
   document.getElementById('view-rules').style.display      = view==='rules'      ? '' : 'none';
   document.getElementById('view-chat').style.display       = view==='chat'       ? '' : 'none';
 
+  closeMobNav();
   history.pushState({view}, '', '#' + view);
   currentView = view;
 
