@@ -859,11 +859,55 @@ input[type="number"] { -moz-appearance: textfield; }
 .app-btn-icon{font-size:16px;line-height:1;}
 .app-bar-right{display:flex;align-items:center;gap:4px;overflow:visible;position:relative;z-index:300;}
 body.light-mode .app-bar{background:rgba(255,255,255,.97);}
-@media(max-width:600px){
-  .app-bar{padding:0 10px;height:46px;}
-  .app-btn span:not(.app-btn-icon){display:none;}
-  .app-btn{padding:5px 8px;}
-  .app-bar-nav{justify-content:flex-start;}
+@media(max-width:700px){
+  /* Prevent horizontal overflow */
+  html, body { overflow-x: hidden; max-width: 100vw; }
+
+  /* App bar: hide nav entirely, show hamburger */
+  .app-bar { padding: 0 12px; height: 48px; }
+  .app-bar-nav { display: none; }
+  .mob-menu-btn { display: flex !important; }
+
+  /* Mobile nav drawer */
+  .mob-nav-drawer {
+    display: block !important;
+    position: fixed;
+    top: 48px; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,.55);
+    z-index: 10000;
+    animation: dd-in .15s ease;
+  }
+  .mob-nav-drawer.hidden { display: none !important; }
+  .mob-nav-inner {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 0 12px;
+  }
+  .mob-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    padding: 13px 20px;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-family: var(--font-body);
+    font-size: 15px;
+    cursor: pointer;
+    text-align: left;
+  }
+  .mob-nav-item:active { background: var(--surface2); }
+  .mob-nav-item.active { color: var(--accent); font-weight: 600; }
+  .mob-nav-icon { font-size: 18px; width: 24px; text-align: center; flex-shrink: 0; }
+
+  /* League picker: 1 card per row */
+  #picker-leagues { grid-template-columns: 1fr !important; }
+
+  /* Content padding */
+  .main { padding: 12px 12px 80px; }
+  .app-bar-logo { font-size: 18px; }
+  .league-badge { max-width: 100px; font-size: 11px; }
 }
 
 
@@ -1015,6 +1059,20 @@ body.light-mode .app-bar{background:rgba(255,255,255,.97);}
 @media (max-width: 480px) {
   #picker-leagues { grid-template-columns: 1fr; }
 }
+
+.mob-menu-btn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 22px;
+  cursor: pointer;
+  padding: 6px;
+  flex-shrink: 0;
+}
+.mob-nav-drawer { display: none; }
 
 /* ── Chat tab messages ──────────────────────────────── */
 #chat-messages {
